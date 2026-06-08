@@ -24,6 +24,7 @@
 		100000000000000000000115 /* paginated_items_end.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000217 /* paginated_items_end.json */; };
 		100000000000000000000116 /* cross_feed_items_since_time.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000218 /* cross_feed_items_since_time.json */; };
 		100000000000000000000117 /* feedman_error_cooldown.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000219 /* feedman_error_cooldown.json */; };
+		100000000000000000000118 /* feed_registration_response.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000220 /* feed_registration_response.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +57,7 @@
 		100000000000000000000217 /* paginated_items_end.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = paginated_items_end.json; sourceTree = "<group>"; };
 		100000000000000000000218 /* cross_feed_items_since_time.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = cross_feed_items_since_time.json; sourceTree = "<group>"; };
 		100000000000000000000219 /* feedman_error_cooldown.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = feedman_error_cooldown.json; sourceTree = "<group>"; };
+		100000000000000000000220 /* feed_registration_response.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = feed_registration_response.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -169,6 +171,7 @@
 				100000000000000000000217 /* paginated_items_end.json */,
 				100000000000000000000218 /* cross_feed_items_since_time.json */,
 				100000000000000000000219 /* feedman_error_cooldown.json */,
+				100000000000000000000220 /* feed_registration_response.json */,
 			);
 			path = Fixtures;
 			sourceTree = "<group>";
@@ -270,6 +273,7 @@
 				100000000000000000000115 /* paginated_items_end.json in Resources */,
 				100000000000000000000116 /* cross_feed_items_since_time.json in Resources */,
 				100000000000000000000117 /* feedman_error_cooldown.json in Resources */,
+				100000000000000000000118 /* feed_registration_response.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

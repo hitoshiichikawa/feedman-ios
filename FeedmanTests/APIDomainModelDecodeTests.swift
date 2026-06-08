@@ -22,6 +22,15 @@ final class APIDomainModelDecodeTests: XCTestCase {
         XCTAssertEqual(subscription.feedFaviconURL, "data:image/png;base64,iVBORw0KGgo=")
     }
 
+    func testFeedRegistrationResponseDecodesFlatFeedResponse() throws {
+        let response = try decode(FeedRegistrationResponse.self, fixture: "feed_registration_response")
+
+        XCTAssertEqual(response.id, "sub-registered")
+        XCTAssertEqual(response.feedID, "feed-registered")
+        XCTAssertEqual(response.feedStatus, .active)
+        XCTAssertNil(response.feedFaviconURL)
+    }
+
     func testItemSearchHitDecodesNullablePublishedAtAndFaviconURL() throws {
         let hit = try decode(ItemSearchHit.self, fixture: "item_search_hit_nullable")
 

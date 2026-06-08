@@ -120,7 +120,7 @@ struct Subscription: Codable, Equatable {
         case feedTitle = "feed_title"
         case feedURL = "feed_url"
         case siteURL = "site_url"
-        case feedFaviconURL = "feed_favicon_url"
+        case feedFaviconURL = "favicon_url"
         case fetchIntervalMinutes = "fetch_interval_minutes"
         case feedStatus = "feed_status"
         case errorMessage = "error_message"
@@ -165,7 +165,29 @@ struct FeedRegistrationRequest: Codable, Equatable {
 }
 
 struct FeedRegistrationResponse: Codable, Equatable {
-    let subscription: Subscription
+    let id: String
+    let feedID: String
+    let feedTitle: String
+    let feedURL: String?
+    let siteURL: String?
+    let feedFaviconURL: String?
+    let fetchIntervalMinutes: Int
+    let feedStatus: SubscriptionFeedStatus
+    let errorMessage: String?
+    let unreadCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case feedID = "feed_id"
+        case feedTitle = "feed_title"
+        case feedURL = "feed_url"
+        case siteURL = "site_url"
+        case feedFaviconURL = "favicon_url"
+        case fetchIntervalMinutes = "fetch_interval_minutes"
+        case feedStatus = "feed_status"
+        case errorMessage = "error_message"
+        case unreadCount = "unread_count"
+    }
 }
 
 struct SubscriptionSettingsRequest: Codable, Equatable {

@@ -4,7 +4,7 @@
   "feed_title": "GIGAZINE",
   "feed_url": "https://example.com/rss.xml",
   "site_url": "https://example.com",
-  "feed_favicon_url": "data:image/png;base64,iVBORw0KGgo=",
+  "favicon_url": "data:image/png;base64,iVBORw0KGgo=",
   "fetch_interval_minutes": 60,
   "feed_status": "error",
   "error_message": "404 Not Found",
