@@ -25,6 +25,10 @@
 		100000000000000000000116 /* cross_feed_items_since_time.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000218 /* cross_feed_items_since_time.json */; };
 		100000000000000000000117 /* feedman_error_cooldown.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000219 /* feedman_error_cooldown.json */; };
 		100000000000000000000118 /* feed_registration_response.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000220 /* feed_registration_response.json */; };
+		100000000000000000000119 /* PKCE.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000221 /* PKCE.swift */; };
+		100000000000000000000120 /* AuthCallbackParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000222 /* AuthCallbackParser.swift */; };
+		100000000000000000000121 /* PKCETests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000223 /* PKCETests.swift */; };
+		100000000000000000000122 /* AuthCallbackParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000224 /* AuthCallbackParserTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +62,10 @@
 		100000000000000000000218 /* cross_feed_items_since_time.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = cross_feed_items_since_time.json; sourceTree = "<group>"; };
 		100000000000000000000219 /* feedman_error_cooldown.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = feedman_error_cooldown.json; sourceTree = "<group>"; };
 		100000000000000000000220 /* feed_registration_response.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = feed_registration_response.json; sourceTree = "<group>"; };
+		100000000000000000000221 /* PKCE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCE.swift; sourceTree = "<group>"; };
+		100000000000000000000222 /* AuthCallbackParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthCallbackParser.swift; sourceTree = "<group>"; };
+		100000000000000000000223 /* PKCETests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCETests.swift; sourceTree = "<group>"; };
+		100000000000000000000224 /* AuthCallbackParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthCallbackParserTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -105,6 +113,8 @@
 			children = (
 				100000000000000000000209 /* FeedmanTests.swift */,
 				100000000000000000000213 /* APIDomainModelDecodeTests.swift */,
+				100000000000000000000223 /* PKCETests.swift */,
+				100000000000000000000224 /* AuthCallbackParserTests.swift */,
 				100000000000000000000610 /* Fixtures */,
 			);
 			path = FeedmanTests;
@@ -125,6 +135,7 @@
 				100000000000000000000202 /* AppEnvironment.swift */,
 				100000000000000000000203 /* Models.swift */,
 				100000000000000000000212 /* APIModels.swift */,
+				100000000000000000000611 /* Auth */,
 				100000000000000000000204 /* FeedRepository.swift */,
 			);
 			path = Core;
@@ -174,6 +185,15 @@
 				100000000000000000000220 /* feed_registration_response.json */,
 			);
 			path = Fixtures;
+			sourceTree = "<group>";
+		};
+		100000000000000000000611 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000221 /* PKCE.swift */,
+				100000000000000000000222 /* AuthCallbackParser.swift */,
+			);
+			path = Auth;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -288,6 +308,8 @@
 				100000000000000000000102 /* AppEnvironment.swift in Sources */,
 				100000000000000000000103 /* Models.swift in Sources */,
 				100000000000000000000110 /* APIModels.swift in Sources */,
+				100000000000000000000119 /* PKCE.swift in Sources */,
+				100000000000000000000120 /* AuthCallbackParser.swift in Sources */,
 				100000000000000000000104 /* FeedRepository.swift in Sources */,
 				100000000000000000000105 /* FeedmanTheme.swift in Sources */,
 				100000000000000000000106 /* RootView.swift in Sources */,
@@ -300,6 +322,8 @@
 			files = (
 				100000000000000000000109 /* FeedmanTests.swift in Sources */,
 				100000000000000000000111 /* APIDomainModelDecodeTests.swift in Sources */,
+				100000000000000000000121 /* PKCETests.swift in Sources */,
+				100000000000000000000122 /* AuthCallbackParserTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
