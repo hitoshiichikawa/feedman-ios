@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": "FEED_COOLDOWN",
+    "message": "Feed fetch is cooling down.",
+    "category": "rate_limit",
+    "action": "retry_later",
+    "details": {
+      "retry_after_seconds": 120,
+      "feed_id": "feed-publickey"
+    }
+  }
+}

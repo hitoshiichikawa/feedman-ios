@@ -1,0 +1,16 @@
+{
+  "id": "item-001",
+  "feed_id": "feed-publickey",
+  "feed_title": "Publickey",
+  "feed_favicon_url": null,
+  "title": "Swift Concurrency updates for feed readers",
+  "summary": "Representative item summary with nullable favicon.",
+  "link": "https://example.com/articles/swift-concurrency",
+  "published_at": "2026-06-08T08:30:00Z",
+  "is_date_estimated": false,
+  "is_read": false,
+  "is_starred": true,
+  "hatebu_count": 142,
+  "hatebu_fetched_at": "2026-06-08T08:35:00Z",
+  "author": "Editorial Team"
+}

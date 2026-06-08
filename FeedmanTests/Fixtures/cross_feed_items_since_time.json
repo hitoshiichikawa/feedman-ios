@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "id": "item-cross-001",
+      "feed_id": "feed-go-blog",
+      "feed_title": "The Go Blog",
+      "feed_favicon_url": null,
+      "title": "Cross-feed timeline item",
+      "summary": "Cross-feed fixture preserves since_time as a string.",
+      "link": "https://example.com/articles/cross-feed",
+      "published_at": "2026-06-08T10:15:00Z",
+      "is_date_estimated": true,
+      "is_read": false,
+      "is_starred": false,
+      "hatebu_count": null,
+      "hatebu_fetched_at": null,
+      "author": ""
+    }
+  ],
+  "next_cursor": "cursor-next-page",
+  "has_more": true,
+  "since_time": "2026-06-08T10:30:00Z"
+}
