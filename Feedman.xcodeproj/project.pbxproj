@@ -29,6 +29,8 @@
 		100000000000000000000120 /* AuthCallbackParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000222 /* AuthCallbackParser.swift */; };
 		100000000000000000000121 /* PKCETests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000223 /* PKCETests.swift */; };
 		100000000000000000000122 /* AuthCallbackParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000224 /* AuthCallbackParserTests.swift */; };
+		100000000000000000000123 /* TokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000225 /* TokenStore.swift */; };
+		100000000000000000000124 /* TokenStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000226 /* TokenStoreTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -66,6 +68,8 @@
 		100000000000000000000222 /* AuthCallbackParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthCallbackParser.swift; sourceTree = "<group>"; };
 		100000000000000000000223 /* PKCETests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCETests.swift; sourceTree = "<group>"; };
 		100000000000000000000224 /* AuthCallbackParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthCallbackParserTests.swift; sourceTree = "<group>"; };
+		100000000000000000000225 /* TokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStore.swift; sourceTree = "<group>"; };
+		100000000000000000000226 /* TokenStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -115,6 +119,7 @@
 				100000000000000000000213 /* APIDomainModelDecodeTests.swift */,
 				100000000000000000000223 /* PKCETests.swift */,
 				100000000000000000000224 /* AuthCallbackParserTests.swift */,
+				100000000000000000000226 /* TokenStoreTests.swift */,
 				100000000000000000000610 /* Fixtures */,
 			);
 			path = FeedmanTests;
@@ -192,6 +197,7 @@
 			children = (
 				100000000000000000000221 /* PKCE.swift */,
 				100000000000000000000222 /* AuthCallbackParser.swift */,
+				100000000000000000000225 /* TokenStore.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -310,6 +316,7 @@
 				100000000000000000000110 /* APIModels.swift in Sources */,
 				100000000000000000000119 /* PKCE.swift in Sources */,
 				100000000000000000000120 /* AuthCallbackParser.swift in Sources */,
+				100000000000000000000123 /* TokenStore.swift in Sources */,
 				100000000000000000000104 /* FeedRepository.swift in Sources */,
 				100000000000000000000105 /* FeedmanTheme.swift in Sources */,
 				100000000000000000000106 /* RootView.swift in Sources */,
@@ -324,6 +331,7 @@
 				100000000000000000000111 /* APIDomainModelDecodeTests.swift in Sources */,
 				100000000000000000000121 /* PKCETests.swift in Sources */,
 				100000000000000000000122 /* AuthCallbackParserTests.swift in Sources */,
+				100000000000000000000124 /* TokenStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
