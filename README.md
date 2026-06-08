@@ -32,6 +32,5 @@ xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS
 This repository is configured for idd-codex local watcher.
 
 ```cron
-*/2 * * * * REPO=hitoshiichikawa/feedman-ios REPO_DIR=/home/hitoshi/github/feedman-ios /home/hitoshi/bin/idd-codex-issue-watcher.sh >> /home/hitoshi/.idd-codex/issue-watcher/cron.log 2>&1
+*/2 * * * * BASE_BRANCH=develop PROMOTION_TARGET_BRANCH=main REPO=hitoshiichikawa/feedman-ios REPO_DIR=/home/hitoshi/github/feedman-ios /home/hitoshi/bin/idd-codex-issue-watcher.sh >> /home/hitoshi/.idd-codex/issue-watcher/cron.log 2>&1
 ```
-
