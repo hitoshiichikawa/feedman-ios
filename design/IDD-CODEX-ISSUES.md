@@ -28,6 +28,34 @@ Issue 本文は `idd-codex-feature.yml` の入力項目に合わせています�
 11. `feedman-ios` 側: 結合仕上げ・エラー/空/ローディング・アクセシビリティ
 12. 次フェーズ: キーワードプッシュ通知
 
+## GitHub Issue 分割結果（2026-06-08）
+
+初期作成した GitHub Issue #2〜#13 は粒度が大きく、idd-codex / idd-claude の turn 上限内で実装完了できない可能性が高いため、Epic として扱う。Epic 自体には `codex-auto-dev` を付けない。
+
+実装投入は以下の `task` ラベル付き子Issue単位で行う。子Issueにも現時点では `codex-auto-dev` を付けていない。依存が満たされたものから人間が個別に投入する。
+
+| Epic | 子Issue |
+|---|---|
+| #2 API models/APIClient/pagination/error | #14 #15 #16 #17 #23 |
+| #3 OAuth token login/auth storage | #18 #19 #20 #21 #22 |
+| #4 Design system/shared UI | #24 #25 #26 #27 |
+| #5 Drawer/app shell | #28 #29 #30 |
+| #6 Cross-feed timeline | #31 #32 #33 |
+| #7 Article detail/read/star/Safari | #34 #35 #36 #37 |
+| #8 Feed list/subscription settings | #38 #39 #40 #41 #42 |
+| #9 Feed registration | #43 #44 |
+| #10 Starred/search | #45 #46 #47 |
+| #11 Account/logout/delete | #48 #49 #50 |
+| #12 v1 hardening | #51 #52 #53 |
+| #13 Keyword push next phase | #54 #55 #56 |
+
+粒度の基準:
+
+- 1 Issue = 1 PR = 3〜6 acceptance criteria 程度。
+- 変更ファイルの目安は 3〜8 個。
+- API 型、APIClient、Repository、ViewModel、UI、polish を同一 Issue に詰め込まない。
+- cross-feature state sync / auth refresh / Keychain / Safari / push deeplink は単独 Issue とする。
+
 ---
 
 ## Issue S1: モバイル向けトークン認証 API を追加する
@@ -648,4 +676,3 @@ v1 の採用ナビゲーションは下タブではなく左ドロワー。iOS �
 - `design/SERVER.md` §2
 - `design/SPEC-iOS.md` §7
 - iOS `UNUserNotificationCenter`
-

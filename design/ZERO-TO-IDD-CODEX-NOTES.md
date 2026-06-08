@@ -41,6 +41,12 @@
 - 「v1 ではやらないこと」を毎回書く。特にキーワード通知、OPML、オフライン cache。
 - server 依存がある Issue は `Depends on:` を本文に書き、未完了なら idd-codex に実装させない。
 - 初期は mock mode で UI 実装を進め、API integration issue で real repository に差し替える。
+- idd-codex / idd-claude は Issue 粒度が大きいと turn 上限（例: 60 turns）内に実装・検証・PR 作成まで到達できず fail しやすい。初期 backlog 作成時点で「機能単位」ではなく「実装可能な薄い縦切り」まで落とす。
+- 大きな機能 Issue は Epic として残し、`codex-auto-dev` を付ける実装 Issue は子 Issue に分割する。Epic には `codex-auto-dev` を付けない。
+- 実装 Issue の目安は、変更ファイル 3〜8 個、受入基準 3〜6 個、Architect が生成する tasks 3〜6 個程度。tasks が 8〜10 個に達しそうなら警告、11 個以上になりそうなら事前分割する。
+- 「API 型」「Repository endpoint」「ViewModel state」「UI component」「integration polish」を同じ Issue に詰め込まない。必要なら mock 実装と real API integration を別 Issue にする。
+- cross-feature state sync、認証 refresh、Safari、Keychain、push notification など横断関心事は、それだけで 1 Issue にする。
+- `PER_TASK_LOOP_ENABLED=true` や `STAGE_CHECKPOINT_ENABLED=true` は fail を減らす補助にはなるが、大きすぎる Issue の代替にはならない。
 
 ## idd-codex 導入時の注意
 
@@ -59,4 +65,3 @@
 - SwiftUI preview/mock data が実装速度に効いたか。
 - server dependency がある Issue の待ち方。
 - PR review で繰り返し出た指摘。
-
