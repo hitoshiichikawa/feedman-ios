@@ -94,6 +94,14 @@
 
 - 1 PR = 1 Issue を原則とする。
 - 大きな設計判断、新規 API、複数 feature 横断の変更は design PR gate を通す。
+- 通常の実装 PR / 設計 PR の base branch は `develop` とする。
+- `main` は production release branch として扱う。通常開発 PR を `main` に直接向けない。
+- `release/x.y.z` は App Store 提出用に `develop` から切る release-candidate branch とする。
+- App Store 審査中の修正は `release/x.y.z` に入れ、必要に応じて `develop` へ back-merge する。
+- 公開完了後に `release/x.y.z` を `main` へ merge する。この時点を production release とみなす。
+- `Closes #N` / `Fixes #N` / `Resolves #N` などの closing keyword は、`develop` merge 時に Issue を閉じる目的で使わない。Issue close は `main` 到達時の release 処理で行う。
+- `codex-staged-for-release` は「`develop` には入ったが `main` には未到達」の Issue を表す。release notes の入力として扱う。
+- release notes は `codex-staged-for-release` Issue 群から起こし、production release 完了後に該当 Issue を close する。
 - Issue 本文には `Depends on:` を明記し、依存 Issue が未完了なら実装へ進まない。
 - Developer は設計 PR で確定済みの `docs/specs/*` を実装 PR で勝手に書き換えない。
 - 不明点は推測で進めず、Issue comment で確認する。
@@ -105,4 +113,3 @@ Linux 環境では Xcode build は実行できない。macOS/Xcode 環境では�
 ```bash
 xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test
 ```
-
