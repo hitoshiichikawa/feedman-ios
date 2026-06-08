@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "id": "item-page-001",
+      "feed_id": "feed-publickey",
+      "feed_title": "Publickey",
+      "feed_favicon_url": "data:image/png;base64,iVBORw0KGgo=",
+      "title": "Last page item",
+      "summary": "Pagination fixture with terminal cursor state.",
+      "link": "https://example.com/articles/last-page",
+      "published_at": "2026-06-08T09:00:00Z",
+      "is_date_estimated": false,
+      "is_read": true,
+      "is_starred": false,
+      "hatebu_count": 8,
+      "hatebu_fetched_at": null,
+      "author": null
+    }
+  ],
+  "next_cursor": null,
+  "has_more": false
+}

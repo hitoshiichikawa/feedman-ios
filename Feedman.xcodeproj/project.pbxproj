@@ -16,6 +16,15 @@
 		100000000000000000000107 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000207 /* Assets.xcassets */; };
 		100000000000000000000108 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000208 /* Preview Assets.xcassets */; };
 		100000000000000000000109 /* FeedmanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000209 /* FeedmanTests.swift */; };
+		100000000000000000000110 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000212 /* APIModels.swift */; };
+		100000000000000000000111 /* APIDomainModelDecodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000213 /* APIDomainModelDecodeTests.swift */; };
+		100000000000000000000112 /* item_summary_nullable_favicon.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000214 /* item_summary_nullable_favicon.json */; };
+		100000000000000000000113 /* subscription_error_status.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000215 /* subscription_error_status.json */; };
+		100000000000000000000114 /* item_search_hit_nullable.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000216 /* item_search_hit_nullable.json */; };
+		100000000000000000000115 /* paginated_items_end.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000217 /* paginated_items_end.json */; };
+		100000000000000000000116 /* cross_feed_items_since_time.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000218 /* cross_feed_items_since_time.json */; };
+		100000000000000000000117 /* feedman_error_cooldown.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000219 /* feedman_error_cooldown.json */; };
+		100000000000000000000118 /* feed_registration_response.json in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000220 /* feed_registration_response.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -40,6 +49,15 @@
 		100000000000000000000209 /* FeedmanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedmanTests.swift; sourceTree = "<group>"; };
 		100000000000000000000210 /* Feedman.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Feedman.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		100000000000000000000211 /* FeedmanTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FeedmanTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		100000000000000000000212 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
+		100000000000000000000213 /* APIDomainModelDecodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIDomainModelDecodeTests.swift; sourceTree = "<group>"; };
+		100000000000000000000214 /* item_summary_nullable_favicon.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = item_summary_nullable_favicon.json; sourceTree = "<group>"; };
+		100000000000000000000215 /* subscription_error_status.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = subscription_error_status.json; sourceTree = "<group>"; };
+		100000000000000000000216 /* item_search_hit_nullable.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = item_search_hit_nullable.json; sourceTree = "<group>"; };
+		100000000000000000000217 /* paginated_items_end.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = paginated_items_end.json; sourceTree = "<group>"; };
+		100000000000000000000218 /* cross_feed_items_since_time.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = cross_feed_items_since_time.json; sourceTree = "<group>"; };
+		100000000000000000000219 /* feedman_error_cooldown.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = feedman_error_cooldown.json; sourceTree = "<group>"; };
+		100000000000000000000220 /* feed_registration_response.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = feed_registration_response.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,6 +104,8 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000209 /* FeedmanTests.swift */,
+				100000000000000000000213 /* APIDomainModelDecodeTests.swift */,
+				100000000000000000000610 /* Fixtures */,
 			);
 			path = FeedmanTests;
 			sourceTree = "<group>";
@@ -104,6 +124,7 @@
 			children = (
 				100000000000000000000202 /* AppEnvironment.swift */,
 				100000000000000000000203 /* Models.swift */,
+				100000000000000000000212 /* APIModels.swift */,
 				100000000000000000000204 /* FeedRepository.swift */,
 			);
 			path = Core;
@@ -139,6 +160,20 @@
 				100000000000000000000206 /* RootView.swift */,
 			);
 			path = AppShell;
+			sourceTree = "<group>";
+		};
+		100000000000000000000610 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000214 /* item_summary_nullable_favicon.json */,
+				100000000000000000000215 /* subscription_error_status.json */,
+				100000000000000000000216 /* item_search_hit_nullable.json */,
+				100000000000000000000217 /* paginated_items_end.json */,
+				100000000000000000000218 /* cross_feed_items_since_time.json */,
+				100000000000000000000219 /* feedman_error_cooldown.json */,
+				100000000000000000000220 /* feed_registration_response.json */,
+			);
+			path = Fixtures;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -232,6 +267,13 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				100000000000000000000112 /* item_summary_nullable_favicon.json in Resources */,
+				100000000000000000000113 /* subscription_error_status.json in Resources */,
+				100000000000000000000114 /* item_search_hit_nullable.json in Resources */,
+				100000000000000000000115 /* paginated_items_end.json in Resources */,
+				100000000000000000000116 /* cross_feed_items_since_time.json in Resources */,
+				100000000000000000000117 /* feedman_error_cooldown.json in Resources */,
+				100000000000000000000118 /* feed_registration_response.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -245,6 +287,7 @@
 				100000000000000000000101 /* FeedmanApp.swift in Sources */,
 				100000000000000000000102 /* AppEnvironment.swift in Sources */,
 				100000000000000000000103 /* Models.swift in Sources */,
+				100000000000000000000110 /* APIModels.swift in Sources */,
 				100000000000000000000104 /* FeedRepository.swift in Sources */,
 				100000000000000000000105 /* FeedmanTheme.swift in Sources */,
 				100000000000000000000106 /* RootView.swift in Sources */,
@@ -256,6 +299,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				100000000000000000000109 /* FeedmanTests.swift in Sources */,
+				100000000000000000000111 /* APIDomainModelDecodeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -519,4 +563,3 @@
 	};
 	rootObject = 100000000000000000000001 /* Project object */;
 }
-
