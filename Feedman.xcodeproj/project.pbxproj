@@ -31,6 +31,8 @@
 		100000000000000000000122 /* AuthCallbackParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000224 /* AuthCallbackParserTests.swift */; };
 		100000000000000000000123 /* TokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000225 /* TokenStore.swift */; };
 		100000000000000000000124 /* TokenStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000226 /* TokenStoreTests.swift */; };
+		100000000000000000000125 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000227 /* APIError.swift */; };
+		100000000000000000000126 /* APIResponseDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000228 /* APIResponseDecoderTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +72,8 @@
 		100000000000000000000224 /* AuthCallbackParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthCallbackParserTests.swift; sourceTree = "<group>"; };
 		100000000000000000000225 /* TokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStore.swift; sourceTree = "<group>"; };
 		100000000000000000000226 /* TokenStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStoreTests.swift; sourceTree = "<group>"; };
+		100000000000000000000227 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
+		100000000000000000000228 /* APIResponseDecoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponseDecoderTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -117,6 +121,7 @@
 			children = (
 				100000000000000000000209 /* FeedmanTests.swift */,
 				100000000000000000000213 /* APIDomainModelDecodeTests.swift */,
+				100000000000000000000228 /* APIResponseDecoderTests.swift */,
 				100000000000000000000223 /* PKCETests.swift */,
 				100000000000000000000224 /* AuthCallbackParserTests.swift */,
 				100000000000000000000226 /* TokenStoreTests.swift */,
@@ -140,6 +145,7 @@
 				100000000000000000000202 /* AppEnvironment.swift */,
 				100000000000000000000203 /* Models.swift */,
 				100000000000000000000212 /* APIModels.swift */,
+				100000000000000000000227 /* APIError.swift */,
 				100000000000000000000611 /* Auth */,
 				100000000000000000000204 /* FeedRepository.swift */,
 			);
@@ -314,6 +320,7 @@
 				100000000000000000000102 /* AppEnvironment.swift in Sources */,
 				100000000000000000000103 /* Models.swift in Sources */,
 				100000000000000000000110 /* APIModels.swift in Sources */,
+				100000000000000000000125 /* APIError.swift in Sources */,
 				100000000000000000000119 /* PKCE.swift in Sources */,
 				100000000000000000000120 /* AuthCallbackParser.swift in Sources */,
 				100000000000000000000123 /* TokenStore.swift in Sources */,
@@ -329,6 +336,7 @@
 			files = (
 				100000000000000000000109 /* FeedmanTests.swift in Sources */,
 				100000000000000000000111 /* APIDomainModelDecodeTests.swift in Sources */,
+				100000000000000000000126 /* APIResponseDecoderTests.swift in Sources */,
 				100000000000000000000121 /* PKCETests.swift in Sources */,
 				100000000000000000000122 /* AuthCallbackParserTests.swift in Sources */,
 				100000000000000000000124 /* TokenStoreTests.swift in Sources */,
