@@ -287,8 +287,7 @@ per-task 起動時、prompt には `range_start_sha` / `range_end_sha` の **2 �
 
 - **range_start_sha**: 直前 task の `docs(tasks): mark <id> as done` commit、または
   初回 task では `<BASE_BRANCH>` の SHA
-- **range_end_sha**: 通常は当該 task の `docs(tasks): mark <id> as done` commit。marker 後
-  commit が検出された場合は、それらを含む補正後 SHA（通常 `HEAD`）になり得る
+- **range_end_sha**: 当該 task の `docs(tasks): mark <id> as done` commit（典型的に HEAD）
 
 Reviewer は **必ず本 range のみ** を対象に `git diff` / `git log` を実行してください:
 
@@ -298,62 +297,19 @@ git log --oneline <range_start_sha>..<range_end_sha>
 git diff <range_start_sha>..<range_end_sha> -- <path>
 ```
 
-渡された `<range_start_sha>..<range_end_sha>` の外側にある commit は当該 per-task review では
-判断しません。`range_end_sha` が補正後 `HEAD` の場合でも、判定対象はあくまで prompt で
-指定された range 全体です。HEAD 全体の観点は最終 Stage B Reviewer（per-task ループ完了後に
-別途起動される HEAD 全体レビュー）が担当します。
-
-### stale range の検出（redo round の fallback）
-
-通常 watcher は Reviewer 起動前に `ROUND > 1` の `range_end_sha` が現在の `HEAD` と一致することを
-検証し、stale range なら Reviewer を起動しません。万一、self-hosting 中の旧 watcher process や
-手動実行により stale range のまま起動された場合は、Reviewer 自身が最初に以下を確認します:
-
-```bash
-git rev-parse HEAD
-```
-
-`ROUND > 1` かつ prompt の `range_end_sha` が現在の `HEAD` と一致しない場合、通常の AC 未カバー /
-missing test / boundary 逸脱の判定を続けてはいけません。その状態は Developer の AC 不足ではなく、
-corrective commit を含まない range を Reviewer に渡した orchestration defect です。
-`review-notes.md` には `orchestration defect: stale per-task reviewer range` と明記し、AC ID を
-Target にした Finding は作らず、`RESULT: reject` で終了してください。
-
-## marker commit の分類
-
-per-task review range には、当該 task 完了時の `docs(tasks): mark <id> as done` commit が
-含まれ得ます。この marker commit は orchestration artifact であり、以下をすべて満たす場合に
-限り、`tasks.md` の checkbox 差分を `boundary 逸脱` reject の理由にしないでください:
-
-- `range_end_sha` の commit subject が `docs(tasks): mark <id> as done` に **単一 task ID で
-  完全一致**している（`<id>` は review 対象 task ID）
-- marker commit に含まれるファイルが `tasks.md` のみ
-- marker commit の `tasks.md` 差分が、review 対象 task 行の checkbox を `[ ]` から `[x]` へ
-  変更する差分のみ
-
-上記に該当する canonical marker checkbox update は allowed orchestration artifact として扱い、
-それだけを理由に `boundary 逸脱` で reject しないでください。ただし、非 canonical subject、
-連記 subject、task 本文、`_Requirements:_`、`_Boundary:_`、`_Depends:_`、task 順序、
-無関係 task の checkbox、その他 spec artifact 更新は allowed artifact ではありません。これらは
-既存の 3 カテゴリ判定対象として維持し、必要に応じて `boundary 逸脱` で reject してください。
+HEAD 全体（`<BASE_BRANCH>..HEAD`）は対象外です。全体観点は最終 Stage B Reviewer
+（per-task ループ完了後に別途起動される HEAD 全体レビュー）が担当します。
 
 ## 判定 depth の絞り込み
 
 per-task ループの Reviewer は判定 depth が以下に絞り込まれます:
 
 - **判定対象 AC**: 当該 task の `_Requirements:_` で列挙された numeric ID **のみ**
-- **missing test 判定対象**: 当該 task の `_Requirements:_` に含まれる AC の必要テスト **のみ**
 - それ以外の AC が当該 diff で未カバーであっても **reject 理由にしないこと**
   （全 AC verify は最終 Stage B Reviewer が HEAD 全体で実施するため、本 Reviewer では
   範囲外 AC を理由に reject を出さない）
-- `- [ ]*` または後続 deferred test task の未実施は、当該 task の `_Requirements:_` に含まれて
-  いない限り `missing test` として reject しないこと
 - **`_Boundary:_` 違反**: depth に関わらず **常に reject 対象**
   （task 単位境界の逸脱検出が本ループの主目的）
-
-この scope は `.codex/rules/tasks-generation.md` の「Task Boundary Contract」と同じ契約です。
-ただし、当該 diff が `_Boundary:_` を逸脱している場合は、deferred coverage の有無に関係なく
-既存どおり `boundary 逸脱` で reject してください。
 
 ## 既存規約の流用
 
