@@ -51,6 +51,48 @@ GitHub's default branch intentionally remains `main`. Closing keywords such as `
 
 This repository is configured for idd-codex local watcher.
 
+Linux / WSL では cron で 2 分ごとに watcher を起動します。
+
 ```cron
 */2 * * * * BASE_BRANCH=develop PROMOTION_TARGET_BRANCH=main REPO=hitoshiichikawa/feedman-ios REPO_DIR=/home/hitoshi/github/feedman-ios /home/hitoshi/bin/idd-codex-issue-watcher.sh >> /home/hitoshi/.idd-codex/issue-watcher/cron.log 2>&1
+```
+
+macOS では cron ではなくユーザー LaunchAgent を使います。`~/Library/LaunchAgents/` に
+plist を置き、`EnvironmentVariables` で少なくとも以下を指定します。
+
+- `BASE_BRANCH=develop`
+- `PROMOTION_TARGET_BRANCH=main`
+- `REPO=hitoshiichikawa/feedman-ios`
+- `REPO_DIR=/Users/<user>/github/github/feedman-ios`
+
+登録と起動:
+
+```bash
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.idd-codex-issue-watcher.plist
+launchctl kickstart -k gui/$(id -u)/com.local.idd-codex-issue-watcher-feedman-ios
+```
+
+`bootstrap` は通常 Terminal.app / iTerm などの GUI ログインセッションから実行します。
+SSH や非 GUI セッションから `gui/$(id -u)` を操作すると
+`Domain does not support specified action` になることがあります。sudo は通常不要です。
+
+`Bootstrap failed: 5: Input/output error` が出ても、登録と `RunAtLoad` 起動が完了している
+場合があります。まず状態とログを確認してください。
+
+```bash
+launchctl list com.local.idd-codex-issue-watcher-feedman-ios
+tail -f ~/.idd-codex/issue-watcher/cron.log
+```
+
+再登録する場合は、既存 job を外してから `bootstrap` します。
+
+```bash
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.local.idd-codex-issue-watcher.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.idd-codex-issue-watcher.plist
+```
+
+起動済み job を今すぐ再実行するだけなら、再 `bootstrap` ではなく `kickstart` を使います。
+
+```bash
+launchctl kickstart -k gui/$(id -u)/com.local.idd-codex-issue-watcher-feedman-ios
 ```
