@@ -27,6 +27,33 @@ Linux 上では Xcode build は実行できません。macOS では以下を使�
 xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test
 ```
 
+## CI
+
+GitHub Actions の `.github/workflows/ios-tests.yml` が、macOS runner 上で Xcode test を実行します。
+
+- check run 名: **`iOS Tests`** (workflow の job name。idd-codex promote pipeline の ST 判定が参照するため変更しない)
+- 実行条件: `develop` 向け PR、および `develop` への push (merge を含む)
+- 実行内容: `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=<simulator>' test`
+
+simulator は README / AGENTS.md の検証コマンドと揃えて `iPhone 16` を優先し、runner image に
+存在しない場合のみ利用可能な iPhone simulator へ自動で寄せます (選定結果は CI ログの
+`Resolve simulator destination` step で確認できます)。
+
+idd-codex promote pipeline の ST gate と接続するには、cron / launchd の watcher 環境変数に
+以下を設定します。
+
+```bash
+ST_CHECK_RUN_NAME="iOS Tests"
+```
+
+GitHub Actions が利用できない場合や simulator 名が変わった場合は、macOS 上で以下の手動検証
+コマンドを実行して同等の確認ができます (`iPhone 16` が無い環境では `xcrun simctl list devices available`
+で利用可能な iPhone simulator 名に読み替えます)。
+
+```bash
+xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test
+```
+
 ## Branch and Release Flow
 
 This repository uses a gitflow-style release model.
@@ -54,7 +81,7 @@ This repository is configured for idd-codex local watcher.
 Linux / WSL では cron で 2 分ごとに watcher を起動します。
 
 ```cron
-*/2 * * * * BASE_BRANCH=develop PROMOTION_TARGET_BRANCH=main REPO=hitoshiichikawa/feedman-ios REPO_DIR=/home/hitoshi/github/feedman-ios /home/hitoshi/bin/idd-codex-issue-watcher.sh >> /home/hitoshi/.idd-codex/issue-watcher/cron.log 2>&1
+*/2 * * * * BASE_BRANCH=develop PROMOTION_TARGET_BRANCH=main ST_CHECK_RUN_NAME="iOS Tests" REPO=hitoshiichikawa/feedman-ios REPO_DIR=/home/hitoshi/github/feedman-ios /home/hitoshi/bin/idd-codex-issue-watcher.sh >> /home/hitoshi/.idd-codex/issue-watcher/cron.log 2>&1
 ```
 
 macOS では cron ではなくユーザー LaunchAgent を使います。`~/Library/LaunchAgents/` に
@@ -62,6 +89,7 @@ plist を置き、`EnvironmentVariables` で少なくとも以下を指定しま
 
 - `BASE_BRANCH=develop`
 - `PROMOTION_TARGET_BRANCH=main`
+- `ST_CHECK_RUN_NAME=iOS Tests` (値に空白を含むため plist では `<string>iOS Tests</string>` として指定)
 - `REPO=hitoshiichikawa/feedman-ios`
 - `REPO_DIR=/Users/<user>/github/github/feedman-ios`
 
