@@ -10,7 +10,8 @@ struct MockFeedRepository: FeedRepository {
         [
             Feed(id: "publickey", title: "Publickey", unreadCount: 12, status: .active),
             Feed(id: "zenn", title: "Zenn トレンド", unreadCount: 5, status: .active),
-            Feed(id: "qiita", title: "Qiita 人気の記事", unreadCount: 14, status: .stopped(message: "手動で停止しました"))
+            Feed(id: "qiita", title: "Qiita 人気の記事", unreadCount: 14, status: .stopped(message: "手動で停止しました")),
+            Feed(id: "swift-blog", title: "Swift Blog", unreadCount: 0, status: .error(message: "前回の取得に失敗しました"))
         ]
     }
 
@@ -43,4 +44,3 @@ struct MockFeedRepository: FeedRepository {
         ]
     }
 }
-
