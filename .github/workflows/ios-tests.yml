@@ -1,0 +1,56 @@
+name: iOS Tests
+
+on:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ios-tests:
+    # この job name が GitHub check run 名になる。idd-codex promote pipeline の
+    # ST_CHECK_RUN_NAME="iOS Tests" はこの名前を参照するため、変更しないこと。
+    name: iOS Tests
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Resolve simulator destination
+        id: sim
+        # README / AGENTS.md の検証コマンドに合わせて iPhone 16 を優先し、
+        # runner image に存在しない場合のみ利用可能な iPhone simulator へ寄せる
+        # (Issue #60 の方針。選定結果は CI ログで観測できる)。
+        run: |
+          xcrun simctl list devices available | grep -E '^ +iPhone' || true
+          names=$(xcrun simctl list devices available \
+            | grep -E '^ +iPhone' \
+            | sed -E 's/^ +(iPhone[^(]*[^ (]) +\(.*$/\1/')
+          device=$(printf '%s\n' "$names" | grep -x 'iPhone 16' | head -n 1 || true)
+          if [ -z "$device" ]; then
+            device=$(printf '%s\n' "$names" | head -n 1)
+          fi
+          if [ -z "$device" ]; then
+            echo "No available iPhone simulator found" >&2
+            exit 1
+          fi
+          echo "Selected simulator: $device"
+          echo "device=$device" >> "$GITHUB_OUTPUT"
+
+      - name: Run xcodebuild test
+        run: |
+          xcodebuild \
+            -project Feedman.xcodeproj \
+            -scheme Feedman \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.device }}" \
+            test
