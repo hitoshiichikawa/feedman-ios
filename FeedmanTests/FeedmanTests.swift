@@ -76,4 +76,27 @@ final class FeedmanTests: XCTestCase {
         XCTAssertNotEqual(light.scrim, dark.scrim)
         XCTAssertNotEqual(light.usesDarkChrome, dark.usesDarkChrome)
     }
+
+    @MainActor
+    func testFeedmanToastCenterReplacesCurrentToastDeterministically() {
+        let toastCenter = FeedmanToastCenter()
+        let firstToast = FeedmanToast(id: UUID(), message: "保存しました", style: .success, duration: 30)
+        let secondToast = FeedmanToast(id: UUID(), message: "更新しました", style: .neutral, duration: 30)
+
+        toastCenter.show(firstToast)
+        toastCenter.show(secondToast)
+
+        XCTAssertEqual(toastCenter.currentToast, secondToast)
+    }
+
+    @MainActor
+    func testFeedmanToastCenterDismissClearsCurrentToast() {
+        let toastCenter = FeedmanToastCenter()
+        let toast = FeedmanToast(id: UUID(), message: "外部ブラウザで開きます", duration: 30)
+
+        toastCenter.show(toast)
+        toastCenter.dismiss()
+
+        XCTAssertNil(toastCenter.currentToast)
+    }
 }
