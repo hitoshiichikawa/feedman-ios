@@ -28,3 +28,13 @@ xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer dire
 
 - Xcode が利用できる環境で、toolbar の検索・テーマ action、drawer footer のアカウント・テーマ・フィード登録 action、placeholder sheet の dismiss、light/dark/system 表示反映を手動確認する。
 - アカウントは既存 route enum を残しているが、今回追加した drawer footer entry point は sheet presentation を使う。後続 Issue で account 本実装の画面形態が確定した場合に route / sheet の整理を検討する。
+
+## Reviewer round 1 reject 是正
+
+- `DrawerView` は header 以外の primary route、feed route、footer action を同一の `ScrollView` に配置し、長い feed 名や大きい Dynamic Type で縦方向の表示量が増えても、footer action が primary navigation items の後でスクロール到達できるようにした。
+- drawer footer action label は複数行表示と layout priority を明示し、Dynamic Type で title / subtitle がアイコン、border、他 action と重なりにくい構造にした。
+- v1 スコープ外の keyword notification drawer 導線は引き続き追加していない。
+- SwiftUI layout と sheet presentation は unit test で意味のある検証が難しいため、以下を manual verification point として残す。
+  - Requirement 1 AC8: 長い route title と大きい Dynamic Type で、top toolbar の title が iOS 標準どおり truncation され、検索・テーマ action と重ならないこと。
+  - Requirement 5 AC4: drawer open 時、VoiceOver / キーボード操作相当の順序で primary navigation items、feed route items の後に footer action へ到達でき、背後の main content が focus 対象にならないこと。
+  - Requirement 5 AC5: Dynamic Type の大きい設定で drawer footer のアカウント、テーマ、フィード登録の label / subtitle が読み取れ、アイコン、badge、border、他 action と重ならないこと。

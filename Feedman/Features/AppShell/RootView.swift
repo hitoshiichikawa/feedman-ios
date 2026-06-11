@@ -267,51 +267,26 @@ private struct DrawerView: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 14) {
             header
 
-            VStack(spacing: 6) {
-                DrawerRouteButton(
-                    title: "すべての新着",
-                    systemImage: "sparkles",
-                    isSelected: selectedItem == .timeline,
-                    onTap: { onSelectRoute(.timeline) }
-                )
-                DrawerRouteButton(
-                    title: "お気に入り",
-                    systemImage: "star",
-                    isSelected: selectedItem == .starred,
-                    onTap: { onSelectRoute(.starred) }
-                )
-            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    primaryRoutes
 
-            Divider()
-                .overlay(FeedmanTheme.border)
+                    Divider()
+                        .overlay(FeedmanTheme.border)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("フィード")
-                    .font(.caption.bold())
-                    .foregroundStyle(FeedmanTheme.mutedForeground)
-                    .padding(.horizontal, 6)
+                    feedsSection
 
-                VStack(spacing: 6) {
-                    ForEach(feeds) { feed in
-                        DrawerFeedButton(
-                            feed: feed,
-                            isSelected: selectedItem == .feed(id: feed.id),
-                            onTap: {
-                                onSelectRoute(.feed(id: feed.id, title: feed.title))
-                            }
-                        )
-                    }
+                    footer
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 18)
             }
-
-            Spacer(minLength: 12)
-
-            footer
+            .scrollIndicators(.automatic)
         }
-        .padding(18)
+        .padding(.horizontal, 18)
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .background(FeedmanTheme.background)
         .overlay(alignment: .trailing) {
@@ -319,6 +294,46 @@ private struct DrawerView: View {
                 .fill(FeedmanTheme.border)
                 .frame(width: 1)
         }
+    }
+
+    private var primaryRoutes: some View {
+        VStack(spacing: 6) {
+            DrawerRouteButton(
+                title: "すべての新着",
+                systemImage: "sparkles",
+                isSelected: selectedItem == .timeline,
+                onTap: { onSelectRoute(.timeline) }
+            )
+            DrawerRouteButton(
+                title: "お気に入り",
+                systemImage: "star",
+                isSelected: selectedItem == .starred,
+                onTap: { onSelectRoute(.starred) }
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var feedsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("フィード")
+                .font(.caption.bold())
+                .foregroundStyle(FeedmanTheme.mutedForeground)
+                .padding(.horizontal, 6)
+
+            VStack(spacing: 6) {
+                ForEach(feeds) { feed in
+                    DrawerFeedButton(
+                        feed: feed,
+                        isSelected: selectedItem == .feed(id: feed.id),
+                        onTap: {
+                            onSelectRoute(.feed(id: feed.id, title: feed.title))
+                        }
+                    )
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var header: some View {
@@ -343,7 +358,8 @@ private struct DrawerView: View {
             .foregroundStyle(FeedmanTheme.mutedForeground)
             .accessibilityLabel("閉じる")
         }
-        .padding(.top, 8)
+        .padding(.top, 18)
+        .padding(.bottom, 4)
     }
 
     private var footer: some View {
@@ -375,6 +391,7 @@ private struct DrawerView: View {
                 onTap: onShowFeedRegistration
             )
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
     }
 }
@@ -496,7 +513,7 @@ private struct DrawerFooterActionButton: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 Image(systemName: systemImage)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(FeedmanTheme.accent)
@@ -507,15 +524,19 @@ private struct DrawerFooterActionButton: View {
                     Text(title)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(FeedmanTheme.foreground)
-                        .lineLimit(2)
+                        .lineLimit(nil)
+                        .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(FeedmanTheme.mutedForeground)
-                        .lineLimit(2)
+                        .lineLimit(nil)
+                        .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
                 Spacer(minLength: 8)
             }
