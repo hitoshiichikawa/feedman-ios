@@ -46,16 +46,64 @@ enum AppShellDrawerSelection: Equatable, Hashable {
     case account
 }
 
+enum AppShellPresentation: Equatable, Identifiable {
+    case account
+    case feedRegistration
+
+    var id: String {
+        switch self {
+        case .account:
+            return "account"
+        case .feedRegistration:
+            return "feedRegistration"
+        }
+    }
+}
+
+enum AppShellThemeOverride: Equatable {
+    case system
+    case dark
+    case light
+
+    var title: String {
+        switch self {
+        case .system:
+            return "システム"
+        case .dark:
+            return "ダーク"
+        case .light:
+            return "ライト"
+        }
+    }
+
+    var next: AppShellThemeOverride {
+        switch self {
+        case .system:
+            return .dark
+        case .dark:
+            return .light
+        case .light:
+            return .system
+        }
+    }
+}
+
 struct AppShellState: Equatable {
     private(set) var currentRoute: AppShellRoute
     private(set) var isDrawerOpen: Bool
+    private(set) var activePresentation: AppShellPresentation?
+    private(set) var themeOverride: AppShellThemeOverride
 
     init(
         currentRoute: AppShellRoute = .timeline,
-        isDrawerOpen: Bool = false
+        isDrawerOpen: Bool = false,
+        activePresentation: AppShellPresentation? = nil,
+        themeOverride: AppShellThemeOverride = .system
     ) {
         self.currentRoute = currentRoute
         self.isDrawerOpen = isDrawerOpen
+        self.activePresentation = activePresentation
+        self.themeOverride = themeOverride
     }
 
     var title: String {
@@ -82,6 +130,29 @@ struct AppShellState: Equatable {
         if route != currentRoute {
             currentRoute = route
         }
+        activePresentation = nil
         isDrawerOpen = false
+    }
+
+    mutating func activateSearch() {
+        selectRoute(.search)
+    }
+
+    mutating func presentAccount() {
+        activePresentation = .account
+        isDrawerOpen = false
+    }
+
+    mutating func presentFeedRegistration() {
+        activePresentation = .feedRegistration
+        isDrawerOpen = false
+    }
+
+    mutating func dismissPresentation() {
+        activePresentation = nil
+    }
+
+    mutating func toggleThemeOverride() {
+        themeOverride = themeOverride.next
     }
 }

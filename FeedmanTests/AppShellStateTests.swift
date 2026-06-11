@@ -8,6 +8,8 @@ final class AppShellStateTests: XCTestCase {
         XCTAssertEqual(state.currentRoute, .timeline)
         XCTAssertEqual(state.title, "すべての新着")
         XCTAssertEqual(state.drawerSelection, .timeline)
+        XCTAssertNil(state.activePresentation)
+        XCTAssertEqual(state.themeOverride, .system)
         XCTAssertFalse(state.isDrawerOpen)
     }
 
@@ -63,5 +65,79 @@ final class AppShellStateTests: XCTestCase {
         XCTAssertEqual(state.title, "アカウント")
         XCTAssertEqual(state.drawerSelection, .account)
         XCTAssertFalse(state.isDrawerOpen)
+    }
+
+    func testActivatingSearchUsesExplicitRouteAndClosesDrawer() {
+        var state = AppShellState(currentRoute: .starred, isDrawerOpen: true)
+
+        state.activateSearch()
+
+        XCTAssertEqual(state.currentRoute, .search)
+        XCTAssertEqual(state.title, "検索")
+        XCTAssertEqual(state.drawerSelection, .search)
+        XCTAssertNil(state.activePresentation)
+        XCTAssertFalse(state.isDrawerOpen)
+    }
+
+    func testActivatingSearchFromSearchKeepsSingleRouteAndClearsPresentation() {
+        var state = AppShellState(currentRoute: .search, activePresentation: .account)
+
+        state.activateSearch()
+
+        XCTAssertEqual(state.currentRoute, .search)
+        XCTAssertNil(state.activePresentation)
+        XCTAssertFalse(state.isDrawerOpen)
+    }
+
+    func testPresentingAccountClosesDrawerAndUsesSinglePresentationState() {
+        var state = AppShellState(isDrawerOpen: true)
+
+        state.presentAccount()
+
+        XCTAssertEqual(state.currentRoute, .timeline)
+        XCTAssertEqual(state.activePresentation, .account)
+        XCTAssertFalse(state.isDrawerOpen)
+    }
+
+    func testPresentingFeedRegistrationClosesDrawerAndReplacesPresentationState() {
+        var state = AppShellState(isDrawerOpen: true, activePresentation: .account)
+
+        state.presentFeedRegistration()
+
+        XCTAssertEqual(state.currentRoute, .timeline)
+        XCTAssertEqual(state.activePresentation, .feedRegistration)
+        XCTAssertFalse(state.isDrawerOpen)
+    }
+
+    func testDismissPresentationClearsActivePresentationOnly() {
+        var state = AppShellState(currentRoute: .starred, activePresentation: .feedRegistration)
+
+        state.dismissPresentation()
+
+        XCTAssertEqual(state.currentRoute, .starred)
+        XCTAssertNil(state.activePresentation)
+    }
+
+    func testThemeOverrideCyclesThroughSystemDarkAndLight() {
+        var state = AppShellState()
+
+        state.toggleThemeOverride()
+        XCTAssertEqual(state.themeOverride, .dark)
+
+        state.toggleThemeOverride()
+        XCTAssertEqual(state.themeOverride, .light)
+
+        state.toggleThemeOverride()
+        XCTAssertEqual(state.themeOverride, .system)
+    }
+
+    func testThemeOverrideDoesNotChangeRouteOrDrawerState() {
+        var state = AppShellState(currentRoute: .feed(id: "zenn", title: "Zenn"), isDrawerOpen: true)
+
+        state.toggleThemeOverride()
+
+        XCTAssertEqual(state.currentRoute, .feed(id: "zenn", title: "Zenn"))
+        XCTAssertTrue(state.isDrawerOpen)
+        XCTAssertEqual(state.themeOverride, .dark)
     }
 }
