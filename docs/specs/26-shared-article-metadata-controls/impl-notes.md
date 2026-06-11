@@ -50,3 +50,9 @@
 - フィード別記事一覧で source row を表示するかどうかは caller が `ArticleSourceRow(metadata: nil)` または metadata 指定で選べる実装にした。
 - `link` 欠損時の open-link control は caller が `.disabled` または `.hidden` を選べる実装にした。
 - `ItemSummary` の `hatebu_fetched_at` を正式な取得済み判定として使うかは後続の article card 組み込み時に再確認が必要。
+
+## Reviewer reject 是正
+
+- `ArticleMetadataControlsTests` の star / open-link activation test を、tappable article card 相当の親 `onTapGesture` と各 control の caller-provided action を同じ SwiftUI harness に結線する形へ変更した。
+- `UIHostingController` 上の accessibility element を activate し、`ArticleStarControl` の `onToggle` または `ArticleOpenLinkControl` の `onOpen` のみが呼ばれ、親 card open action が呼ばれないことを検証する。
+- 実装本体の変更は不要で、既存の `.buttonStyle(.plain)` button 実装を interaction harness で検証対象にした。
