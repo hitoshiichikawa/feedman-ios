@@ -37,6 +37,7 @@
 		100000000000000000000128 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000230 /* APIClientTests.swift */; };
 		100000000000000000000129 /* CursorPaginationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000231 /* CursorPaginationState.swift */; };
 		100000000000000000000130 /* CursorPaginationStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000232 /* CursorPaginationStateTests.swift */; };
+		100000000000000000000131 /* SharedPrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000233 /* SharedPrimitives.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,6 +83,7 @@
 		100000000000000000000230 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
 		100000000000000000000231 /* CursorPaginationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorPaginationState.swift; sourceTree = "<group>"; };
 		100000000000000000000232 /* CursorPaginationStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorPaginationStateTests.swift; sourceTree = "<group>"; };
+		100000000000000000000233 /* SharedPrimitives.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedPrimitives.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -168,6 +170,7 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000205 /* FeedmanTheme.swift */,
+				100000000000000000000233 /* SharedPrimitives.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
@@ -348,6 +351,7 @@
 				100000000000000000000123 /* TokenStore.swift in Sources */,
 				100000000000000000000104 /* FeedRepository.swift in Sources */,
 				100000000000000000000105 /* FeedmanTheme.swift in Sources */,
+				100000000000000000000131 /* SharedPrimitives.swift in Sources */,
 				100000000000000000000106 /* RootView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
