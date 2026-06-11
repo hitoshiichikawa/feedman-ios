@@ -35,6 +35,8 @@
 		100000000000000000000126 /* APIResponseDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000228 /* APIResponseDecoderTests.swift */; };
 		100000000000000000000127 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000229 /* APIClient.swift */; };
 		100000000000000000000128 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000230 /* APIClientTests.swift */; };
+		100000000000000000000129 /* CursorPaginationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000231 /* CursorPaginationState.swift */; };
+		100000000000000000000130 /* CursorPaginationStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000232 /* CursorPaginationStateTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,6 +80,8 @@
 		100000000000000000000228 /* APIResponseDecoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponseDecoderTests.swift; sourceTree = "<group>"; };
 		100000000000000000000229 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		100000000000000000000230 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
+		100000000000000000000231 /* CursorPaginationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorPaginationState.swift; sourceTree = "<group>"; };
+		100000000000000000000232 /* CursorPaginationStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorPaginationStateTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -127,6 +131,7 @@
 				100000000000000000000213 /* APIDomainModelDecodeTests.swift */,
 				100000000000000000000228 /* APIResponseDecoderTests.swift */,
 				100000000000000000000230 /* APIClientTests.swift */,
+				100000000000000000000232 /* CursorPaginationStateTests.swift */,
 				100000000000000000000223 /* PKCETests.swift */,
 				100000000000000000000224 /* AuthCallbackParserTests.swift */,
 				100000000000000000000226 /* TokenStoreTests.swift */,
@@ -152,6 +157,7 @@
 				100000000000000000000212 /* APIModels.swift */,
 				100000000000000000000227 /* APIError.swift */,
 				100000000000000000000229 /* APIClient.swift */,
+				100000000000000000000612 /* Pagination */,
 				100000000000000000000611 /* Auth */,
 				100000000000000000000204 /* FeedRepository.swift */,
 			);
@@ -212,6 +218,14 @@
 				100000000000000000000225 /* TokenStore.swift */,
 			);
 			path = Auth;
+			sourceTree = "<group>";
+		};
+		100000000000000000000612 /* Pagination */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000231 /* CursorPaginationState.swift */,
+			);
+			path = Pagination;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -328,6 +342,7 @@
 				100000000000000000000110 /* APIModels.swift in Sources */,
 				100000000000000000000125 /* APIError.swift in Sources */,
 				100000000000000000000127 /* APIClient.swift in Sources */,
+				100000000000000000000129 /* CursorPaginationState.swift in Sources */,
 				100000000000000000000119 /* PKCE.swift in Sources */,
 				100000000000000000000120 /* AuthCallbackParser.swift in Sources */,
 				100000000000000000000123 /* TokenStore.swift in Sources */,
@@ -345,6 +360,7 @@
 				100000000000000000000111 /* APIDomainModelDecodeTests.swift in Sources */,
 				100000000000000000000126 /* APIResponseDecoderTests.swift in Sources */,
 				100000000000000000000128 /* APIClientTests.swift in Sources */,
+				100000000000000000000130 /* CursorPaginationStateTests.swift in Sources */,
 				100000000000000000000121 /* PKCETests.swift in Sources */,
 				100000000000000000000122 /* AuthCallbackParserTests.swift in Sources */,
 				100000000000000000000124 /* TokenStoreTests.swift in Sources */,
