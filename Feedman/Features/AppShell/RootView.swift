@@ -4,9 +4,9 @@ struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var shellState = AppShellState()
     @State private var items: [FeedItem] = []
+    @StateObject private var drawerFeedViewModel = AppShellDrawerFeedViewModel()
 
     private let drawerWidth: CGFloat = 280
-    private let drawerFeeds = AppShellPreviewData.drawerFeeds
 
     var body: some View {
         NavigationStack {
@@ -28,7 +28,7 @@ struct RootView: View {
                 }
 
                 DrawerView(
-                    feeds: drawerFeeds,
+                    feedSectionState: drawerFeedViewModel.sectionState,
                     selectedItem: shellState.drawerSelection,
                     onSelectRoute: { route in
                         shellState.selectRoute(route)
@@ -64,6 +64,7 @@ struct RootView: View {
                 }
             }
             .task {
+                await drawerFeedViewModel.loadSubscriptions(repository: environment.feedRepository)
                 items = (try? await environment.feedRepository.crossFeedItems()) ?? []
             }
         }
@@ -103,7 +104,7 @@ struct RootView: View {
 
     @ViewBuilder
     private func feedContent(feedID: String, routeTitle: String) -> some View {
-        if drawerFeeds.contains(where: { $0.id == feedID }) {
+        if drawerFeedViewModel.sectionState.feeds.contains(where: { $0.id == feedID }) {
             itemList(
                 items.filter { $0.feedID == feedID },
                 emptyTitle: "\(routeTitle.isEmpty ? "フィード" : routeTitle) の記事はありません",
@@ -189,7 +190,7 @@ private struct ItemSummaryRow: View {
 }
 
 private struct DrawerView: View {
-    let feeds: [Feed]
+    let feedSectionState: AppShellDrawerFeedSectionState
     let selectedItem: AppShellDrawerSelection
     let onSelectRoute: (AppShellRoute) -> Void
     let onDismiss: () -> Void
@@ -223,7 +224,7 @@ private struct DrawerView: View {
                     .padding(.horizontal, 6)
 
                 VStack(spacing: 6) {
-                    ForEach(feeds) { feed in
+                    ForEach(Array(feedSectionState.feeds.enumerated()), id: \.offset) { _, feed in
                         DrawerFeedButton(
                             feed: feed,
                             isSelected: selectedItem == .feed(id: feed.id),
@@ -232,6 +233,8 @@ private struct DrawerView: View {
                             }
                         )
                     }
+
+                    feedSectionStatus
                 }
             }
 
@@ -277,6 +280,43 @@ private struct DrawerView: View {
             .accessibilityLabel("閉じる")
         }
         .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private var feedSectionStatus: some View {
+        switch feedSectionState {
+        case let .loading(feeds) where feeds.isEmpty:
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("読み込み中")
+                    .font(.caption)
+                    .foregroundStyle(FeedmanTheme.mutedForeground)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .accessibilityLabel("フィードを読み込み中")
+        case .loading:
+            EmptyView()
+        case .loaded:
+            EmptyView()
+        case .empty:
+            Text("購読フィードはありません")
+                .font(.caption)
+                .foregroundStyle(FeedmanTheme.mutedForeground)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        case let .failed(message, _):
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(FeedmanTheme.mutedForeground)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityLabel(message)
+        }
     }
 }
 
@@ -364,7 +404,7 @@ private struct DrawerFeedButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(feed.title)
-        .accessibilityValue(isSelected ? "選択中" : "")
+        .accessibilityValue(accessibilityValue)
     }
 
     private var feedIcon: some View {
@@ -387,14 +427,20 @@ private struct DrawerFeedButton: View {
             return "取得エラー"
         }
     }
-}
 
-private enum AppShellPreviewData {
-    static let drawerFeeds = [
-        Feed(id: "publickey", title: "Publickey", unreadCount: 12, status: .active),
-        Feed(id: "zenn", title: "Zenn トレンド", unreadCount: 5, status: .active),
-        Feed(id: "qiita", title: "Qiita 人気の記事", unreadCount: 0, status: .stopped(message: "手動で停止しました"))
-    ]
+    private var accessibilityValue: String {
+        var values: [String] = []
+        if isSelected {
+            values.append("選択中")
+        }
+        if feed.unreadCount > 0 {
+            values.append("未読 \(feed.unreadCount) 件")
+        }
+        if let statusText {
+            values.append(statusText)
+        }
+        return values.joined(separator: "、")
+    }
 }
 
 #Preview {
