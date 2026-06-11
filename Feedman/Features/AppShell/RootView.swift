@@ -30,8 +30,18 @@ struct RootView: View {
                 DrawerView(
                     feedSectionState: drawerFeedViewModel.sectionState,
                     selectedItem: shellState.drawerSelection,
+                    themeOverride: shellState.themeOverride,
                     onSelectRoute: { route in
                         shellState.selectRoute(route)
+                    },
+                    onShowAccount: {
+                        shellState.presentAccount()
+                    },
+                    onToggleTheme: {
+                        shellState.toggleThemeOverride()
+                    },
+                    onShowFeedRegistration: {
+                        shellState.presentFeedRegistration()
                     },
                     onDismiss: {
                         shellState.dismissDrawer()
@@ -54,20 +64,43 @@ struct RootView: View {
                     }
                     .accessibilityLabel("メニュー")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
-                        shellState.selectRoute(.search)
+                        shellState.activateSearch()
                     } label: {
                         Image(systemName: "magnifyingglass")
                     }
                     .accessibilityLabel("検索")
+
+                    Button {
+                        shellState.toggleThemeOverride()
+                    } label: {
+                        Image(systemName: shellState.themeOverride.systemImage)
+                    }
+                    .accessibilityLabel("テーマ切替")
+                    .accessibilityValue(shellState.themeOverride.title)
                 }
+            }
+            .sheet(item: activePresentationBinding) { presentation in
+                placeholderSheet(for: presentation)
             }
             .task {
                 await drawerFeedViewModel.loadSubscriptions(repository: environment.feedRepository)
                 items = (try? await environment.feedRepository.crossFeedItems()) ?? []
             }
         }
+        .preferredColorScheme(shellState.themeOverride.preferredColorScheme)
+    }
+
+    private var activePresentationBinding: Binding<AppShellPresentation?> {
+        Binding(
+            get: { shellState.activePresentation },
+            set: { presentation in
+                if presentation == nil {
+                    shellState.dismissPresentation()
+                }
+            }
+        )
     }
 
     @ViewBuilder
@@ -157,6 +190,41 @@ struct RootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(FeedmanTheme.background)
     }
+
+    private func placeholderSheet(for presentation: AppShellPresentation) -> some View {
+        FeedmanSheetShell(
+            title: presentation.title,
+            subtitle: presentation.subtitle,
+            onDismiss: {
+                shellState.dismissPresentation()
+            }
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                Label {
+                    Text(presentation.title)
+                        .font(.headline)
+                        .foregroundStyle(FeedmanTheme.foreground)
+                } icon: {
+                    Image(systemName: presentation.systemImage)
+                        .foregroundStyle(FeedmanTheme.accent)
+                }
+
+                Text(presentation.detail)
+                    .font(.subheadline)
+                    .foregroundStyle(FeedmanTheme.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(FeedmanTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(FeedmanTheme.border, lineWidth: 1)
+            }
+        }
+        .presentationDetents([.medium])
+    }
 }
 
 private struct ItemSummaryRow: View {
@@ -192,62 +260,34 @@ private struct ItemSummaryRow: View {
 private struct DrawerView: View {
     let feedSectionState: AppShellDrawerFeedSectionState
     let selectedItem: AppShellDrawerSelection
+    let themeOverride: AppShellThemeOverride
     let onSelectRoute: (AppShellRoute) -> Void
+    let onShowAccount: () -> Void
+    let onToggleTheme: () -> Void
+    let onShowFeedRegistration: () -> Void
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 14) {
             header
 
-            VStack(spacing: 6) {
-                DrawerRouteButton(
-                    title: "すべての新着",
-                    systemImage: "sparkles",
-                    isSelected: selectedItem == .timeline,
-                    onTap: { onSelectRoute(.timeline) }
-                )
-                DrawerRouteButton(
-                    title: "お気に入り",
-                    systemImage: "star",
-                    isSelected: selectedItem == .starred,
-                    onTap: { onSelectRoute(.starred) }
-                )
-            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    primaryRoutes
 
-            Divider()
-                .overlay(FeedmanTheme.border)
+                    Divider()
+                        .overlay(FeedmanTheme.border)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("フィード")
-                    .font(.caption.bold())
-                    .foregroundStyle(FeedmanTheme.mutedForeground)
-                    .padding(.horizontal, 6)
+                    feedsSection
 
-                VStack(spacing: 6) {
-                    ForEach(Array(feedSectionState.feeds.enumerated()), id: \.offset) { _, feed in
-                        DrawerFeedButton(
-                            feed: feed,
-                            isSelected: selectedItem == .feed(id: feed.id),
-                            onTap: {
-                                onSelectRoute(.feed(id: feed.id, title: feed.title))
-                            }
-                        )
-                    }
-
-                    feedSectionStatus
+                    footer
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 18)
             }
-
-            Spacer(minLength: 12)
-
-            DrawerRouteButton(
-                title: "アカウント",
-                systemImage: "person",
-                isSelected: selectedItem == .account,
-                onTap: { onSelectRoute(.account) }
-            )
+            .scrollIndicators(.automatic)
         }
-        .padding(18)
+        .padding(.horizontal, 18)
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .background(FeedmanTheme.background)
         .overlay(alignment: .trailing) {
@@ -255,6 +295,48 @@ private struct DrawerView: View {
                 .fill(FeedmanTheme.border)
                 .frame(width: 1)
         }
+    }
+
+    private var primaryRoutes: some View {
+        VStack(spacing: 6) {
+            DrawerRouteButton(
+                title: "すべての新着",
+                systemImage: "sparkles",
+                isSelected: selectedItem == .timeline,
+                onTap: { onSelectRoute(.timeline) }
+            )
+            DrawerRouteButton(
+                title: "お気に入り",
+                systemImage: "star",
+                isSelected: selectedItem == .starred,
+                onTap: { onSelectRoute(.starred) }
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var feedsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("フィード")
+                .font(.caption.bold())
+                .foregroundStyle(FeedmanTheme.mutedForeground)
+                .padding(.horizontal, 6)
+
+            VStack(spacing: 6) {
+                ForEach(Array(feedSectionState.feeds.enumerated()), id: \.offset) { _, feed in
+                    DrawerFeedButton(
+                        feed: feed,
+                        isSelected: selectedItem == .feed(id: feed.id),
+                        onTap: {
+                            onSelectRoute(.feed(id: feed.id, title: feed.title))
+                        }
+                    )
+                }
+
+                feedSectionStatus
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var header: some View {
@@ -279,7 +361,41 @@ private struct DrawerView: View {
             .foregroundStyle(FeedmanTheme.mutedForeground)
             .accessibilityLabel("閉じる")
         }
-        .padding(.top, 8)
+        .padding(.top, 18)
+        .padding(.bottom, 4)
+    }
+
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
+                .overlay(FeedmanTheme.border)
+                .padding(.bottom, 4)
+
+            DrawerFooterActionButton(
+                title: "アカウント",
+                subtitle: "設定と利用状況",
+                systemImage: "person.crop.circle",
+                onTap: onShowAccount
+            )
+
+            DrawerFooterActionButton(
+                title: "テーマ",
+                subtitle: themeOverride.title,
+                systemImage: themeOverride.systemImage,
+                onTap: onToggleTheme
+            )
+            .accessibilityLabel("テーマ切替")
+            .accessibilityValue(themeOverride.title)
+
+            DrawerFooterActionButton(
+                title: "フィードを登録",
+                subtitle: "新しい購読を追加",
+                systemImage: "plus.circle",
+                onTap: onShowFeedRegistration
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder
@@ -443,7 +559,115 @@ private struct DrawerFeedButton: View {
     }
 }
 
+private struct DrawerFooterActionButton: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(FeedmanTheme.accent)
+                    .frame(width: 24, height: 24)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(FeedmanTheme.foreground)
+                        .lineLimit(nil)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(FeedmanTheme.mutedForeground)
+                        .lineLimit(nil)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+
+                Spacer(minLength: 8)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .background(FeedmanTheme.surfaceSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+    }
+}
+
 #Preview {
     RootView()
         .environmentObject(AppEnvironment.preview)
+}
+
+private extension AppShellThemeOverride {
+    var preferredColorScheme: ColorScheme? {
+        switch self {
+        case .system:
+            return nil
+        case .dark:
+            return .dark
+        case .light:
+            return .light
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .system:
+            return "circle.lefthalf.filled"
+        case .dark:
+            return "moon"
+        case .light:
+            return "sun.max"
+        }
+    }
+}
+
+private extension AppShellPresentation {
+    var title: String {
+        switch self {
+        case .account:
+            return "アカウント"
+        case .feedRegistration:
+            return "フィードを登録"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .account:
+            return "アカウント機能の入口"
+        case .feedRegistration:
+            return "フィード登録機能の入口"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .account:
+            return "ログアウト、退会、ユーザー情報の表示は後続 Issue で実装します。この placeholder は実データや認証 API を使用しません。"
+        case .feedRegistration:
+            return "フィード URL の入力、検出、登録 API 連携は後続 Issue で実装します。この placeholder からネットワーク送信は行いません。"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .account:
+            return "person.crop.circle"
+        case .feedRegistration:
+            return "plus.circle"
+        }
+    }
 }
