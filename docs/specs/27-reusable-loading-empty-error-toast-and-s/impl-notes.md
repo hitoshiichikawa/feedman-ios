@@ -31,6 +31,10 @@ Toast は deterministic replacement behavior を採用した。
 - Sheet shell の header/dismiss が scroll content に隠れず、primary action あり/なしで action bar の有無が切り替わること。
 - Light/Dark mode で `FeedmanTheme` token に沿って表示されること。
 
+## Reviewer reject 是正
+
+- AC 6.2 対応として `FeedmanSheetShell` の dark mode preview を追加した。`Shared Primitives Dark` にも compact loading row を含め、sheet header、content、action bar、loading row の代表状態を light/dark 双方で確認できるようにした。
+
 ## 確認事項
 
 - Toast は queue ではなく replacement として確定した。連続メッセージを順番に見せる要件が後続 Issue で出た場合は、`FeedmanToastCenter` の内部 policy を queue に差し替える。

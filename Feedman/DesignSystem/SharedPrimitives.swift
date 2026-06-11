@@ -687,6 +687,7 @@ private struct FeedmanSecondaryButtonStyle: ButtonStyle {
     ScrollView {
         VStack(spacing: 16) {
             FeedmanLoadingView("最新の記事を読み込んでいます")
+            FeedmanCompactLoadingRow("さらに読み込み中")
             FeedmanEmptyStateView(
                 systemImage: "star",
                 title: "スター付き記事はまだありません",
@@ -724,4 +725,28 @@ private struct FeedmanSecondaryButtonStyle: ButtonStyle {
                 .font(.body)
         }
     }
+}
+
+#Preview("Sheet Shell Dark") {
+    FeedmanSheetShell(
+        title: "記事詳細",
+        subtitle: "読み込み状態",
+        onDismiss: {},
+        primaryAction: {
+            Button("元記事を開く") {}
+        }
+    ) {
+        VStack(alignment: .leading, spacing: 12) {
+            FeedmanCompactLoadingRow("関連記事を読み込んでいます")
+
+            Text("SwiftUI reusable primitives")
+                .font(.title3.bold())
+                .foregroundStyle(FeedmanTheme.foreground)
+
+            Text("Sheet shell は dark mode でも header、content、action bar の semantic token が崩れないことを確認します。")
+                .font(.body)
+                .foregroundStyle(FeedmanTheme.foreground)
+        }
+    }
+    .preferredColorScheme(.dark)
 }
