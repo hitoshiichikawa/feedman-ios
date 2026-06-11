@@ -50,6 +50,9 @@ enum FeedmanAPIError: Error {
     case feedmanError(FeedmanErrorContext)
     case malformedErrorResponse(MalformedFeedmanErrorContext)
     case successDecodingFailed(underlyingError: Error)
+    case invalidRequestURL(path: String)
+    case nonHTTPResponse(URLResponse)
+    case transportFailed(underlyingError: Error)
 }
 
 struct FeedmanErrorContext: Equatable {
