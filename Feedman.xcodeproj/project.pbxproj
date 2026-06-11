@@ -42,6 +42,8 @@
 		100000000000000000000133 /* SharedPrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000235 /* SharedPrimitives.swift */; };
 		100000000000000000000134 /* ArticleMetadataControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000236 /* ArticleMetadataControls.swift */; };
 		100000000000000000000135 /* ArticleMetadataControlsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000237 /* ArticleMetadataControlsTests.swift */; };
+		100000000000000000000136 /* AppShellState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000238 /* AppShellState.swift */; };
+		100000000000000000000137 /* AppShellStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000239 /* AppShellStateTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -92,6 +94,8 @@
 		100000000000000000000235 /* SharedPrimitives.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedPrimitives.swift; sourceTree = "<group>"; };
 		100000000000000000000236 /* ArticleMetadataControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleMetadataControls.swift; sourceTree = "<group>"; };
 		100000000000000000000237 /* ArticleMetadataControlsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleMetadataControlsTests.swift; sourceTree = "<group>"; };
+		100000000000000000000238 /* AppShellState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellState.swift; sourceTree = "<group>"; };
+		100000000000000000000239 /* AppShellStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellStateTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -138,6 +142,7 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000209 /* FeedmanTests.swift */,
+				100000000000000000000239 /* AppShellStateTests.swift */,
 				100000000000000000000213 /* APIDomainModelDecodeTests.swift */,
 				100000000000000000000228 /* APIResponseDecoderTests.swift */,
 				100000000000000000000230 /* APIClientTests.swift */,
@@ -206,6 +211,7 @@
 		100000000000000000000609 /* AppShell */ = {
 			isa = PBXGroup;
 			children = (
+				100000000000000000000238 /* AppShellState.swift */,
 				100000000000000000000206 /* RootView.swift */,
 			);
 			path = AppShell;
@@ -366,6 +372,7 @@
 				100000000000000000000131 /* FeedmanFaviconView.swift in Sources */,
 				100000000000000000000133 /* SharedPrimitives.swift in Sources */,
 				100000000000000000000134 /* ArticleMetadataControls.swift in Sources */,
+				100000000000000000000136 /* AppShellState.swift in Sources */,
 				100000000000000000000106 /* RootView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -375,6 +382,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				100000000000000000000109 /* FeedmanTests.swift in Sources */,
+				100000000000000000000137 /* AppShellStateTests.swift in Sources */,
 				100000000000000000000111 /* APIDomainModelDecodeTests.swift in Sources */,
 				100000000000000000000126 /* APIResponseDecoderTests.swift in Sources */,
 				100000000000000000000128 /* APIClientTests.swift in Sources */,
