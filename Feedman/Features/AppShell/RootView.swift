@@ -6,6 +6,7 @@ struct RootView: View {
     @State private var shellState = AppShellState()
     @State private var items: [FeedItem] = []
     @StateObject private var drawerFeedViewModel = AppShellDrawerFeedViewModel()
+    @StateObject private var toastCenter = FeedmanToastCenter()
 
     private let drawerWidth: CGFloat = 280
 
@@ -119,6 +120,7 @@ struct RootView: View {
                 await drawerFeedViewModel.loadSubscriptions(repository: environment.feedRepository)
                 items = (try? await environment.feedRepository.crossFeedItems()) ?? []
             }
+            .feedmanToastOverlay(toastCenter: toastCenter, edge: .top)
         }
         .preferredColorScheme(shellState.themeOverride.preferredColorScheme)
     }
@@ -236,7 +238,15 @@ struct RootView: View {
                 }
             )
         case .feedRegistration:
-            placeholderSheet(for: presentation)
+            RegisterFeedSheet(
+                repository: environment.feedRepository,
+                onDismiss: {
+                    shellState.dismissPresentation()
+                },
+                onRegistered: { registeredFeed in
+                    completeFeedRegistration(registeredFeed)
+                }
+            )
         }
     }
 
@@ -273,6 +283,12 @@ struct RootView: View {
             }
         }
         .presentationDetents([.medium])
+    }
+
+    private func completeFeedRegistration(_ registeredFeed: RegisteredFeed) {
+        drawerFeedViewModel.applyRegisteredFeed(registeredFeed)
+        toastCenter.show("\(registeredFeed.title) を登録しました", style: .success)
+        shellState.dismissPresentation()
     }
 }
 
@@ -710,7 +726,7 @@ private extension AppShellPresentation {
         case .account:
             return "アカウント機能の入口"
         case .feedRegistration:
-            return "フィード登録機能の入口"
+            return "サイト URL から購読を追加"
         }
     }
 
@@ -719,7 +735,7 @@ private extension AppShellPresentation {
         case .account:
             return "ログアウト、退会、ユーザー情報の表示は後続 Issue で実装します。この placeholder は実データや認証 API を使用しません。"
         case .feedRegistration:
-            return "フィード URL の入力、検出、登録 API 連携は後続 Issue で実装します。この placeholder からネットワーク送信は行いません。"
+            return "サイトの URL か RSS/Atom の URL を入力してフィードを登録します。"
         }
     }
 

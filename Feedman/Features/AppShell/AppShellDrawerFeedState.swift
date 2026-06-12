@@ -39,6 +39,19 @@ final class AppShellDrawerFeedViewModel: ObservableObject {
         }
     }
 
+    func applyRegisteredFeed(_ registeredFeed: RegisteredFeed) {
+        var feeds = sectionState.feeds
+        let drawerFeed = registeredFeed.drawerFeed
+
+        if let index = feeds.firstIndex(where: { $0.id == drawerFeed.id }) {
+            feeds[index] = drawerFeed
+        } else {
+            feeds.append(drawerFeed)
+        }
+
+        sectionState = .loaded(feeds: feeds)
+    }
+
     func route(for feed: Feed) -> AppShellRoute {
         .feed(id: feed.id, title: feed.title)
     }

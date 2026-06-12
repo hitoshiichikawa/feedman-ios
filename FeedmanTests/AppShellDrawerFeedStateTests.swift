@@ -105,6 +105,55 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
 
         XCTAssertTrue(environment.feedRepository is APIClientFeedRepository)
     }
+
+    func testApplyRegisteredFeedAddsFeedForDrawerRefreshBoundary() {
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: [
+            Feed(id: "feed-a", title: "Feed A", unreadCount: 1, status: .active)
+        ]))
+
+        viewModel.applyRegisteredFeed(
+            RegisteredFeed(
+                subscriptionID: "sub-b",
+                feedID: "feed-b",
+                title: "Feed B",
+                feedURL: "https://example.com/feed.xml",
+                siteURL: "https://example.com",
+                faviconURL: nil,
+                fetchIntervalMinutes: 60,
+                status: .active,
+                unreadCount: 0
+            )
+        )
+
+        XCTAssertEqual(viewModel.sectionState, .loaded(feeds: [
+            Feed(id: "feed-a", title: "Feed A", unreadCount: 1, status: .active),
+            Feed(id: "feed-b", title: "Feed B", unreadCount: 0, status: .active)
+        ]))
+    }
+
+    func testApplyRegisteredFeedReplacesExistingFeedByStableFeedID() {
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: [
+            Feed(id: "feed-a", title: "Old Title", unreadCount: 4, status: .error(message: "failed"))
+        ]))
+
+        viewModel.applyRegisteredFeed(
+            RegisteredFeed(
+                subscriptionID: "sub-a",
+                feedID: "feed-a",
+                title: "New Title",
+                feedURL: "https://example.com/feed.xml",
+                siteURL: "https://example.com",
+                faviconURL: nil,
+                fetchIntervalMinutes: 60,
+                status: .active,
+                unreadCount: 0
+            )
+        )
+
+        XCTAssertEqual(viewModel.sectionState, .loaded(feeds: [
+            Feed(id: "feed-a", title: "New Title", unreadCount: 0, status: .active)
+        ]))
+    }
 }
 
 private enum StubError: Error {
@@ -116,6 +165,20 @@ private struct StubFeedRepository: FeedRepository {
 
     func subscriptions() async throws -> [Feed] {
         try subscriptionsResult.get()
+    }
+
+    func registerFeed(url: String) async throws -> RegisteredFeed {
+        RegisteredFeed(
+            subscriptionID: "sub-stub",
+            feedID: "feed-stub",
+            title: "Stub Feed",
+            feedURL: url,
+            siteURL: nil,
+            faviconURL: nil,
+            fetchIntervalMinutes: 60,
+            status: .active,
+            unreadCount: 0
+        )
     }
 
     func crossFeedItems() async throws -> [FeedItem] {

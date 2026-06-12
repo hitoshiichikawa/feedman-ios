@@ -99,6 +99,7 @@ struct AuthRequiredContext {
 }
 
 enum AuthRequiredReason: Equatable {
+    case credentialsUnavailable
     case missingRefreshHook
     case refreshFailed
     case retryUnauthorized
