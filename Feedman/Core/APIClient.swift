@@ -67,6 +67,25 @@ struct APIClient {
         return try await send(responseType, request: request)
     }
 
+    /// 204 No Content のような body を持たない成功応答を期待する request を送信する。
+    func sendNoContent<Body: Encodable>(
+        method: HTTPMethod,
+        path: String,
+        queryItems: [URLQueryItem] = [],
+        body: Body,
+        accessToken: String? = nil
+    ) async throws {
+        let request = try makeRequest(
+            method: method,
+            path: path,
+            queryItems: queryItems,
+            body: body,
+            accessToken: accessToken
+        )
+        let (data, httpResponse) = try await perform(request)
+        try responseDecoder.validateNoContent(from: data, response: httpResponse)
+    }
+
     func makeRequest<Body: Encodable>(
         method: HTTPMethod,
         path: String,
@@ -95,6 +114,11 @@ struct APIClient {
         _ responseType: Response.Type,
         request: URLRequest
     ) async throws -> Response {
+        let (data, httpResponse) = try await perform(request)
+        return try responseDecoder.decode(responseType, from: data, response: httpResponse)
+    }
+
+    private func perform(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let data: Data
         let response: URLResponse
 
@@ -108,7 +132,7 @@ struct APIClient {
             throw FeedmanAPIError.nonHTTPResponse(response)
         }
 
-        return try responseDecoder.decode(responseType, from: data, response: httpResponse)
+        return (data, httpResponse)
     }
 
     private func makeURL(path: String, queryItems: [URLQueryItem]) throws -> URL {

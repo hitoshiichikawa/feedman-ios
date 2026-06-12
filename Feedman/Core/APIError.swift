@@ -20,19 +20,29 @@ struct APIResponseDecoder {
             }
         }
 
+        throw failureError(from: data, response: response)
+    }
+
+    /// 204 No Content のような body を持たない成功応答の検証。
+    /// 2xx は body を decode せず成功とし、非 2xx は `decode` と同一の error 変換を適用する。
+    func validateNoContent(from data: Data, response: HTTPURLResponse) throws {
+        guard Self.successStatusCodes.contains(response.statusCode) else {
+            throw failureError(from: data, response: response)
+        }
+    }
+
+    private func failureError(from data: Data, response: HTTPURLResponse) -> FeedmanAPIError {
         do {
             let errorResponse = try decoder.decode(FeedmanErrorResponse.self, from: data)
-            throw FeedmanAPIError.feedmanError(
+            return FeedmanAPIError.feedmanError(
                 FeedmanErrorContext(
                     statusCode: response.statusCode,
                     body: errorResponse.error,
                     retryAfter: response.value(forHTTPHeaderField: "Retry-After")
                 )
             )
-        } catch let error as FeedmanAPIError {
-            throw error
         } catch {
-            throw FeedmanAPIError.malformedErrorResponse(
+            return FeedmanAPIError.malformedErrorResponse(
                 MalformedFeedmanErrorContext(
                     statusCode: response.statusCode,
                     retryAfter: response.value(forHTTPHeaderField: "Retry-After"),
