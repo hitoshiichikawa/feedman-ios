@@ -6,9 +6,9 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
     func testMockFeedRepositoryReturnsDrawerFeedDisplayValues() async throws {
         let feeds = try await MockFeedRepository().subscriptions()
 
-        XCTAssertTrue(feeds.contains(Feed(id: "publickey", title: "Publickey", unreadCount: 12, status: .active)))
-        XCTAssertTrue(feeds.contains(Feed(id: "qiita", title: "Qiita 人気の記事", unreadCount: 14, status: .stopped(message: "手動で停止しました"))))
-        XCTAssertTrue(feeds.contains(Feed(id: "swift-blog", title: "Swift Blog", unreadCount: 0, status: .error(message: "前回の取得に失敗しました"))))
+        XCTAssertTrue(feeds.contains(Feed(id: "publickey", subscriptionID: "sub-publickey", title: "Publickey", unreadCount: 12, status: .active, fetchIntervalMinutes: 60)))
+        XCTAssertTrue(feeds.contains(Feed(id: "qiita", subscriptionID: "sub-qiita", title: "Qiita 人気の記事", unreadCount: 14, status: .stopped(message: "手動で停止しました"), fetchIntervalMinutes: 180)))
+        XCTAssertTrue(feeds.contains(Feed(id: "swift-blog", subscriptionID: "sub-swift-blog", title: "Swift Blog", unreadCount: 0, status: .error(message: "前回の取得に失敗しました"), fetchIntervalMinutes: 60)))
     }
 
     func testLoadSubscriptionsSuccessStoresRepositoryFeeds() async {
@@ -100,6 +100,56 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
         XCTAssertEqual(viewModel.route(for: feed), .feed(id: "stable-id", title: "Display Title"))
     }
 
+    func testApplySubscriptionSettingsUpdatesMatchingSubscriptionIDOnly() {
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: [
+            Feed(id: "feed-a", subscriptionID: "sub-a", title: "Feed A", unreadCount: 1, status: .active, fetchIntervalMinutes: 60),
+            Feed(id: "feed-b", subscriptionID: "sub-b", title: "Feed B", unreadCount: 2, status: .active, fetchIntervalMinutes: 30)
+        ]))
+
+        viewModel.applySubscriptionSettings(subscriptionID: "sub-b", fetchIntervalMinutes: 180)
+
+        XCTAssertEqual(viewModel.sectionState.feeds.map(\.fetchIntervalMinutes), [60, 180])
+    }
+
+    func testApplySubscriptionResumeUpdatesMatchingSubscriptionIDOnly() {
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: [
+            Feed(id: "feed-a", subscriptionID: "sub-a", title: "Feed A", unreadCount: 1, status: .error(message: "failed"), fetchIntervalMinutes: 60),
+            Feed(id: "feed-b", subscriptionID: "sub-b", title: "Feed B", unreadCount: 2, status: .stopped(message: "paused"), fetchIntervalMinutes: 30)
+        ]))
+
+        viewModel.applySubscriptionResume(subscriptionID: "sub-a")
+
+        XCTAssertEqual(viewModel.sectionState.feeds.map(\.status), [.active, .stopped(message: "paused")])
+    }
+
+    func testRemoveSubscriptionRemovesBySubscriptionIDAndSelectedRouteFallsBackToTimeline() {
+        var shellState = AppShellState(currentRoute: .feed(id: "feed-b", title: "Feed B"))
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: [
+            Feed(id: "feed-a", subscriptionID: "sub-a", title: "Same Title", unreadCount: 1, status: .active, fetchIntervalMinutes: 60),
+            Feed(id: "feed-b", subscriptionID: "sub-b", title: "Same Title", unreadCount: 2, status: .active, fetchIntervalMinutes: 30)
+        ]))
+
+        let removedFeed = viewModel.removeSubscription(subscriptionID: "sub-b")
+        shellState.selectTimelineIfCurrentFeedWasRemoved(feedID: removedFeed?.id ?? "")
+
+        XCTAssertEqual(removedFeed?.id, "feed-b")
+        XCTAssertEqual(viewModel.sectionState.feeds.map(\.id), ["feed-a"])
+        XCTAssertEqual(shellState.currentRoute, .timeline)
+    }
+
+    func testRemoveSubscriptionKeepsUnrelatedSelectedFeedRoute() {
+        var shellState = AppShellState(currentRoute: .feed(id: "feed-a", title: "Feed A"))
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: [
+            Feed(id: "feed-a", subscriptionID: "sub-a", title: "Feed A", unreadCount: 1, status: .active, fetchIntervalMinutes: 60),
+            Feed(id: "feed-b", subscriptionID: "sub-b", title: "Feed B", unreadCount: 2, status: .active, fetchIntervalMinutes: 30)
+        ]))
+
+        let removedFeed = viewModel.removeSubscription(subscriptionID: "sub-b")
+        shellState.selectTimelineIfCurrentFeedWasRemoved(feedID: removedFeed?.id ?? "")
+
+        XCTAssertEqual(shellState.currentRoute, .feed(id: "feed-a", title: "Feed A"))
+    }
+
     func testProductionEnvironmentUsesRealFeedRepository() {
         let environment = AppEnvironment.production(apiBaseURL: URL(string: "https://api.example.com")!)
 
@@ -127,7 +177,7 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
 
         XCTAssertEqual(viewModel.sectionState, .loaded(feeds: [
             Feed(id: "feed-a", title: "Feed A", unreadCount: 1, status: .active),
-            Feed(id: "feed-b", title: "Feed B", unreadCount: 0, status: .active)
+            Feed(id: "feed-b", subscriptionID: "sub-b", title: "Feed B", unreadCount: 0, status: .active, fetchIntervalMinutes: 60)
         ]))
     }
 
@@ -151,7 +201,7 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
         )
 
         XCTAssertEqual(viewModel.sectionState, .loaded(feeds: [
-            Feed(id: "feed-a", title: "New Title", unreadCount: 0, status: .active)
+            Feed(id: "feed-a", subscriptionID: "sub-a", title: "New Title", unreadCount: 0, status: .active, fetchIntervalMinutes: 60)
         ]))
     }
 }

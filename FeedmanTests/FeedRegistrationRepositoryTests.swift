@@ -25,7 +25,17 @@ final class FeedRegistrationRepositoryTests: XCTestCase {
         XCTAssertEqual(registeredFeed.feedID, "feed-registered")
         XCTAssertEqual(registeredFeed.title, "Registered Feed")
         XCTAssertEqual(registeredFeed.faviconURL, nil)
-        XCTAssertEqual(registeredFeed.drawerFeed, Feed(id: "feed-registered", title: "Registered Feed", unreadCount: 0, status: .active))
+        XCTAssertEqual(
+            registeredFeed.drawerFeed,
+            Feed(
+                id: "feed-registered",
+                subscriptionID: "sub-registered",
+                title: "Registered Feed",
+                unreadCount: 0,
+                status: .active,
+                fetchIntervalMinutes: 60
+            )
+        )
     }
 
     func testRegisterFeedPreservesDuplicateErrorContext() async throws {

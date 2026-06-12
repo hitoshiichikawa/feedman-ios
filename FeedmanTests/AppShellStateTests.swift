@@ -109,6 +109,31 @@ final class AppShellStateTests: XCTestCase {
         XCTAssertFalse(state.isDrawerOpen)
     }
 
+    func testPresentingSubscriptionSettingsClosesDrawerAndCarriesFeed() {
+        var state = AppShellState(isDrawerOpen: true)
+        let feed = Feed(
+            id: "feed-a",
+            subscriptionID: "sub-a",
+            title: "Feed A",
+            unreadCount: 1,
+            status: .active,
+            fetchIntervalMinutes: 60
+        )
+
+        state.presentSubscriptionSettings(feed: feed)
+
+        XCTAssertEqual(state.activePresentation, .subscriptionSettings(feed))
+        XCTAssertFalse(state.isDrawerOpen)
+    }
+
+    func testSelectedFeedRouteFallsBackToTimelineWhenRemoved() {
+        var state = AppShellState(currentRoute: .feed(id: "feed-a", title: "Feed A"))
+
+        state.selectTimelineIfCurrentFeedWasRemoved(feedID: "feed-a")
+
+        XCTAssertEqual(state.currentRoute, .timeline)
+    }
+
     func testDismissPresentationClearsActivePresentationOnly() {
         var state = AppShellState(currentRoute: .starred, activePresentation: .feedRegistration)
 

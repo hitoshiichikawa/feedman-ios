@@ -3,6 +3,12 @@ import Foundation
 protocol FeedRepository {
     func subscriptions() async throws -> [Feed]
     func registerFeed(url: String) async throws -> RegisteredFeed
+    func updateSubscriptionSettings(
+        subscriptionID: String,
+        request: SubscriptionSettingsRequest
+    ) async throws
+    func resumeSubscription(subscriptionID: String) async throws
+    func unsubscribe(subscriptionID: String) async throws
     func crossFeedItems() async throws -> [FeedItem]
     func loadCrossFeedFirstPage(limit: Int?) async throws -> CrossFeedPaginationSnapshot
     func loadCrossFeedNextPage() async throws -> CrossFeedPaginationSnapshot
@@ -127,6 +133,21 @@ extension FeedRepository {
     func registerFeed(url: String) async throws -> RegisteredFeed {
         throw CrossFeedRepositoryError.paginationUnsupported
     }
+
+    func updateSubscriptionSettings(
+        subscriptionID: String,
+        request: SubscriptionSettingsRequest
+    ) async throws {
+        throw CrossFeedRepositoryError.paginationUnsupported
+    }
+
+    func resumeSubscription(subscriptionID: String) async throws {
+        throw CrossFeedRepositoryError.paginationUnsupported
+    }
+
+    func unsubscribe(subscriptionID: String) async throws {
+        throw CrossFeedRepositoryError.paginationUnsupported
+    }
 }
 
 struct CrossFeedPaginationSnapshot: Equatable {
@@ -158,9 +179,12 @@ struct RegisteredFeed: Equatable {
     var drawerFeed: Feed {
         Feed(
             id: feedID,
+            subscriptionID: subscriptionID,
             title: title,
             unreadCount: unreadCount,
-            status: status
+            status: status,
+            faviconURL: faviconURL,
+            fetchIntervalMinutes: fetchIntervalMinutes
         )
     }
 }
@@ -248,6 +272,34 @@ actor APIClientFeedRepository: FeedRepository {
         )
 
         return RegisteredFeed(response: response)
+    }
+
+    func updateSubscriptionSettings(
+        subscriptionID: String,
+        request: SubscriptionSettingsRequest
+    ) async throws {
+        try await apiClient.sendNoContent(
+            method: .put,
+            path: "/api/subscriptions/\(subscriptionID)/settings",
+            body: request,
+            accessToken: try await accessTokenProvider()
+        )
+    }
+
+    func resumeSubscription(subscriptionID: String) async throws {
+        try await apiClient.sendNoContent(
+            method: .post,
+            path: "/api/subscriptions/\(subscriptionID)/resume",
+            accessToken: try await accessTokenProvider()
+        )
+    }
+
+    func unsubscribe(subscriptionID: String) async throws {
+        try await apiClient.sendNoContent(
+            method: .delete,
+            path: "/api/subscriptions/\(subscriptionID)",
+            accessToken: try await accessTokenProvider()
+        )
     }
 
     func crossFeedItems() async throws -> [FeedItem] {
@@ -374,10 +426,12 @@ actor APIClientFeedRepository: FeedRepository {
     private static func feed(from subscription: Subscription) -> Feed {
         Feed(
             id: subscription.feedID,
+            subscriptionID: subscription.id,
             title: subscription.feedTitle,
             unreadCount: max(0, subscription.unreadCount),
             status: feedStatus(from: subscription),
-            faviconURL: subscription.feedFaviconURL
+            faviconURL: subscription.feedFaviconURL,
+            fetchIntervalMinutes: subscription.fetchIntervalMinutes
         )
     }
 
@@ -399,17 +453,29 @@ actor MockFeedRepository: FeedRepository {
     private var sessionLimit = CrossFeedPageLimit.defaultValue
     private let pages: [CrossFeedItemsResponse]
     private var subscriptionFeeds: [Feed]
+    private(set) var settingsUpdates: [MockSubscriptionSettingsUpdate] = []
+    private(set) var resumedSubscriptionIDs: [String] = []
+    private(set) var unsubscribedSubscriptionIDs: [String] = []
     var registrationResult: Result<RegisteredFeed, Error>
+    var settingsUpdateResult: Result<Void, Error>
+    var resumeResult: Result<Void, Error>
+    var unsubscribeResult: Result<Void, Error>
     private(set) var registeredURLs: [String] = []
 
     init(
         pages: [CrossFeedItemsResponse]? = nil,
         subscriptionFeeds: [Feed]? = nil,
-        registrationResult: Result<RegisteredFeed, Error>? = nil
+        registrationResult: Result<RegisteredFeed, Error>? = nil,
+        settingsUpdateResult: Result<Void, Error> = .success(()),
+        resumeResult: Result<Void, Error> = .success(()),
+        unsubscribeResult: Result<Void, Error> = .success(())
     ) {
         self.pages = pages ?? Self.defaultPages
         self.subscriptionFeeds = subscriptionFeeds ?? Self.defaultSubscriptionFeeds
         self.registrationResult = registrationResult ?? .success(Self.defaultRegisteredFeed)
+        self.settingsUpdateResult = settingsUpdateResult
+        self.resumeResult = resumeResult
+        self.unsubscribeResult = unsubscribeResult
     }
 
     func subscriptions() async throws -> [Feed] {
@@ -422,6 +488,44 @@ actor MockFeedRepository: FeedRepository {
         let registeredFeed = try registrationResult.get()
         upsertSubscription(registeredFeed.drawerFeed)
         return registeredFeed
+    }
+
+    func updateSubscriptionSettings(
+        subscriptionID: String,
+        request: SubscriptionSettingsRequest
+    ) async throws {
+        settingsUpdates.append(
+            MockSubscriptionSettingsUpdate(
+                subscriptionID: subscriptionID,
+                request: request
+            )
+        )
+        try settingsUpdateResult.get()
+
+        guard let fetchIntervalMinutes = request.fetchIntervalMinutes,
+              let index = subscriptionFeeds.firstIndex(where: { $0.subscriptionID == subscriptionID }) else {
+            return
+        }
+
+        let feed = subscriptionFeeds[index]
+        subscriptionFeeds[index] = feed.updating(fetchIntervalMinutes: fetchIntervalMinutes)
+    }
+
+    func resumeSubscription(subscriptionID: String) async throws {
+        resumedSubscriptionIDs.append(subscriptionID)
+        try resumeResult.get()
+
+        guard let index = subscriptionFeeds.firstIndex(where: { $0.subscriptionID == subscriptionID }) else {
+            return
+        }
+
+        subscriptionFeeds[index] = subscriptionFeeds[index].updating(status: .active)
+    }
+
+    func unsubscribe(subscriptionID: String) async throws {
+        unsubscribedSubscriptionIDs.append(subscriptionID)
+        try unsubscribeResult.get()
+        subscriptionFeeds.removeAll { $0.subscriptionID == subscriptionID }
     }
 
     func crossFeedItems() async throws -> [FeedItem] {
@@ -495,6 +599,28 @@ actor MockFeedRepository: FeedRepository {
     }
 }
 
+struct MockSubscriptionSettingsUpdate: Equatable {
+    let subscriptionID: String
+    let request: SubscriptionSettingsRequest
+}
+
+private extension Feed {
+    func updating(
+        status: FeedStatus? = nil,
+        fetchIntervalMinutes: Int? = nil
+    ) -> Feed {
+        Feed(
+            id: id,
+            subscriptionID: subscriptionID,
+            title: title,
+            unreadCount: unreadCount,
+            status: status ?? self.status,
+            faviconURL: faviconURL,
+            fetchIntervalMinutes: fetchIntervalMinutes ?? self.fetchIntervalMinutes
+        )
+    }
+}
+
 private extension MockFeedRepository {
     static let emptyPage = CrossFeedItemsResponse(
         items: [],
@@ -504,10 +630,10 @@ private extension MockFeedRepository {
     )
 
     static let defaultSubscriptionFeeds = [
-        Feed(id: "publickey", title: "Publickey", unreadCount: 12, status: .active),
-        Feed(id: "zenn", title: "Zenn トレンド", unreadCount: 5, status: .active),
-        Feed(id: "qiita", title: "Qiita 人気の記事", unreadCount: 14, status: .stopped(message: "手動で停止しました")),
-        Feed(id: "swift-blog", title: "Swift Blog", unreadCount: 0, status: .error(message: "前回の取得に失敗しました"))
+        Feed(id: "publickey", subscriptionID: "sub-publickey", title: "Publickey", unreadCount: 12, status: .active, fetchIntervalMinutes: 60),
+        Feed(id: "zenn", subscriptionID: "sub-zenn", title: "Zenn トレンド", unreadCount: 5, status: .active, fetchIntervalMinutes: 30),
+        Feed(id: "qiita", subscriptionID: "sub-qiita", title: "Qiita 人気の記事", unreadCount: 14, status: .stopped(message: "手動で停止しました"), fetchIntervalMinutes: 180),
+        Feed(id: "swift-blog", subscriptionID: "sub-swift-blog", title: "Swift Blog", unreadCount: 0, status: .error(message: "前回の取得に失敗しました"), fetchIntervalMinutes: 60)
     ]
 
     static let defaultRegisteredFeed = RegisteredFeed(
