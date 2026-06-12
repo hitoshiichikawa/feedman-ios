@@ -20,18 +20,18 @@ struct APIResponseDecoder {
             }
         }
 
-        throw failureError(from: data, response: response)
+        throw error(from: data, response: response)
     }
 
     /// 204 No Content のような body を持たない成功応答の検証。
     /// 2xx は body を decode せず成功とし、非 2xx は `decode` と同一の error 変換を適用する。
     func validateNoContent(from data: Data, response: HTTPURLResponse) throws {
         guard Self.successStatusCodes.contains(response.statusCode) else {
-            throw failureError(from: data, response: response)
+            throw error(from: data, response: response)
         }
     }
 
-    private func failureError(from data: Data, response: HTTPURLResponse) -> FeedmanAPIError {
+    func error(from data: Data, response: HTTPURLResponse) -> FeedmanAPIError {
         do {
             let errorResponse = try decoder.decode(FeedmanErrorResponse.self, from: data)
             return FeedmanAPIError.feedmanError(
@@ -58,6 +58,7 @@ struct APIResponseDecoder {
 
 enum FeedmanAPIError: Error {
     case feedmanError(FeedmanErrorContext)
+    case authRequired(AuthRequiredContext)
     case malformedErrorResponse(MalformedFeedmanErrorContext)
     case successDecodingFailed(underlyingError: Error)
     case invalidRequestURL(path: String)
@@ -89,6 +90,18 @@ struct FeedmanErrorContext: Equatable {
     var retryAfterSeconds: Int? {
         body.details?["retry_after_seconds"]?.intValue
     }
+}
+
+struct AuthRequiredContext {
+    let reason: AuthRequiredReason
+    let statusCode: Int?
+    let underlyingError: Error?
+}
+
+enum AuthRequiredReason: Equatable {
+    case missingRefreshHook
+    case refreshFailed
+    case retryUnauthorized
 }
 
 struct MalformedFeedmanErrorContext {
