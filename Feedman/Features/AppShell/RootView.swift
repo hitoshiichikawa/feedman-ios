@@ -9,6 +9,21 @@ struct RootView: View {
     private let drawerWidth: CGFloat = 280
 
     var body: some View {
+        Group {
+            if environment.authenticationState.isAuthenticated {
+                authenticatedShell
+            } else {
+                LoginRouteView(
+                    authBaseURL: environment.authBaseURL,
+                    authRepository: environment.authRepository
+                ) { credentials in
+                    environment.completeLogin(with: credentials)
+                }
+            }
+        }
+    }
+
+    private var authenticatedShell: some View {
         NavigationStack {
             ZStack(alignment: .leading) {
                 routeContent
