@@ -46,6 +46,8 @@
 		100000000000000000000137 /* AppShellStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000239 /* AppShellStateTests.swift */; };
 		100000000000000000000138 /* AppShellDrawerFeedState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000240 /* AppShellDrawerFeedState.swift */; };
 		100000000000000000000139 /* AppShellDrawerFeedStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000241 /* AppShellDrawerFeedStateTests.swift */; };
+		100000000000000000000140 /* AuthRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000242 /* AuthRepository.swift */; };
+		100000000000000000000141 /* AuthRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000243 /* AuthRepositoryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -100,6 +102,8 @@
 		100000000000000000000239 /* AppShellStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellStateTests.swift; sourceTree = "<group>"; };
 		100000000000000000000240 /* AppShellDrawerFeedState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellDrawerFeedState.swift; sourceTree = "<group>"; };
 		100000000000000000000241 /* AppShellDrawerFeedStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellDrawerFeedStateTests.swift; sourceTree = "<group>"; };
+		100000000000000000000242 /* AuthRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthRepository.swift; sourceTree = "<group>"; };
+		100000000000000000000243 /* AuthRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthRepositoryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -148,6 +152,7 @@
 				100000000000000000000209 /* FeedmanTests.swift */,
 				100000000000000000000239 /* AppShellStateTests.swift */,
 				100000000000000000000241 /* AppShellDrawerFeedStateTests.swift */,
+				100000000000000000000243 /* AuthRepositoryTests.swift */,
 				100000000000000000000213 /* APIDomainModelDecodeTests.swift */,
 				100000000000000000000228 /* APIResponseDecoderTests.swift */,
 				100000000000000000000230 /* APIClientTests.swift */,
@@ -243,6 +248,7 @@
 				100000000000000000000221 /* PKCE.swift */,
 				100000000000000000000222 /* AuthCallbackParser.swift */,
 				100000000000000000000225 /* TokenStore.swift */,
+				100000000000000000000242 /* AuthRepository.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -373,6 +379,7 @@
 				100000000000000000000119 /* PKCE.swift in Sources */,
 				100000000000000000000120 /* AuthCallbackParser.swift in Sources */,
 				100000000000000000000123 /* TokenStore.swift in Sources */,
+				100000000000000000000140 /* AuthRepository.swift in Sources */,
 				100000000000000000000104 /* FeedRepository.swift in Sources */,
 				100000000000000000000105 /* FeedmanTheme.swift in Sources */,
 				100000000000000000000131 /* FeedmanFaviconView.swift in Sources */,
@@ -391,6 +398,7 @@
 				100000000000000000000109 /* FeedmanTests.swift in Sources */,
 				100000000000000000000137 /* AppShellStateTests.swift in Sources */,
 				100000000000000000000139 /* AppShellDrawerFeedStateTests.swift in Sources */,
+				100000000000000000000141 /* AuthRepositoryTests.swift in Sources */,
 				100000000000000000000111 /* APIDomainModelDecodeTests.swift in Sources */,
 				100000000000000000000126 /* APIResponseDecoderTests.swift in Sources */,
 				100000000000000000000128 /* APIClientTests.swift in Sources */,
