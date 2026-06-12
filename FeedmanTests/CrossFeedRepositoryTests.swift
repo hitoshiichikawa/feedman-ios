@@ -165,7 +165,158 @@ final class CrossFeedRepositoryTests: XCTestCase {
         }
     }
 
+    func testSubscriptionsRequestsAuthenticatedEndpointAndMapsDrawerFeeds() async throws {
+        let transport = RecordingSubscriptionTransport()
+        transport.enqueue(
+            subscriptions: [
+                subscription(
+                    id: "sub-active",
+                    feedID: "feed-active",
+                    title: "Active Feed",
+                    faviconURL: "data:image/png;base64,iVBORw0KGgo=",
+                    status: .active,
+                    errorMessage: nil,
+                    unreadCount: 3
+                ),
+                subscription(
+                    id: "sub-stopped",
+                    feedID: "feed-stopped",
+                    title: "Stopped Feed",
+                    faviconURL: nil,
+                    status: .stopped,
+                    errorMessage: "manually paused",
+                    unreadCount: 0
+                ),
+                subscription(
+                    id: "sub-error",
+                    feedID: "feed-error",
+                    title: "Error Feed",
+                    faviconURL: nil,
+                    status: .error,
+                    errorMessage: "404 Not Found",
+                    unreadCount: 12
+                )
+            ]
+        )
+        let repository = makeSubscriptionRepository(transport: transport)
+
+        let feeds = try await repository.subscriptions()
+
+        let request = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(request.url?.path, "/api/subscriptions")
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
+        XCTAssertEqual(
+            feeds,
+            [
+                Feed(
+                    id: "feed-active",
+                    title: "Active Feed",
+                    unreadCount: 3,
+                    status: .active,
+                    faviconURL: "data:image/png;base64,iVBORw0KGgo="
+                ),
+                Feed(
+                    id: "feed-stopped",
+                    title: "Stopped Feed",
+                    unreadCount: 0,
+                    status: .stopped(message: "manually paused")
+                ),
+                Feed(
+                    id: "feed-error",
+                    title: "Error Feed",
+                    unreadCount: 12,
+                    status: .error(message: "404 Not Found")
+                )
+            ]
+        )
+    }
+
+    func testSubscriptionsEmptyResponseReturnsEmptyFeeds() async throws {
+        let transport = RecordingSubscriptionTransport()
+        transport.enqueue(subscriptions: [])
+        let repository = makeSubscriptionRepository(transport: transport)
+
+        let feeds = try await repository.subscriptions()
+
+        XCTAssertEqual(feeds, [])
+    }
+
+    func testSubscriptionsClampsNegativeUnreadCount() async throws {
+        let transport = RecordingSubscriptionTransport()
+        transport.enqueue(
+            subscriptions: [
+                subscription(
+                    id: "sub-negative",
+                    feedID: "feed-negative",
+                    title: "Negative Feed",
+                    status: .active,
+                    unreadCount: -8
+                )
+            ]
+        )
+        let repository = makeSubscriptionRepository(transport: transport)
+
+        let feeds = try await repository.subscriptions()
+
+        XCTAssertEqual(feeds.first?.unreadCount, 0)
+    }
+
+    func testSubscriptionsRefreshesExpiredAccessTokenAndRetries() async throws {
+        let transport = RecordingSubscriptionTransport()
+        transport.enqueueErrorResponse(statusCode: 401, code: "ACCESS_TOKEN_EXPIRED")
+        transport.enqueue(
+            subscriptions: [
+                subscription(
+                    id: "sub-retried",
+                    feedID: "feed-retried",
+                    title: "Retried Feed",
+                    status: .active,
+                    unreadCount: 1
+                )
+            ]
+        )
+        let refreshHook = SubscriptionRefreshHook(refreshedAccessToken: "refreshed-access-token")
+        let repository = APIClientFeedRepository(
+            apiClient: APIClient(
+                baseURL: baseURL,
+                transport: transport,
+                accessTokenRefreshHook: {
+                    try await refreshHook.refresh()
+                }
+            ),
+            accessTokenProvider: {
+                "expired-access-token"
+            }
+        )
+
+        let feeds = try await repository.subscriptions()
+
+        XCTAssertEqual(feeds.map(\.id), ["feed-retried"])
+        XCTAssertEqual(await refreshHook.callCount, 1)
+        XCTAssertEqual(transport.requests.count, 2)
+        XCTAssertEqual(
+            transport.requests.first?.value(forHTTPHeaderField: "Authorization"),
+            "Bearer expired-access-token"
+        )
+        XCTAssertEqual(
+            transport.requests.last?.value(forHTTPHeaderField: "Authorization"),
+            "Bearer refreshed-access-token"
+        )
+    }
+
     private func makeRepository(transport: RecordingCrossFeedTransport) -> APIClientFeedRepository {
+        APIClientFeedRepository(
+            apiClient: APIClient(baseURL: baseURL, transport: transport),
+            accessTokenProvider: {
+                "access-token"
+            }
+        )
+    }
+
+    private func makeSubscriptionRepository(
+        transport: RecordingSubscriptionTransport
+    ) -> APIClientFeedRepository {
         APIClientFeedRepository(
             apiClient: APIClient(baseURL: baseURL, transport: transport),
             accessTokenProvider: {
@@ -213,6 +364,29 @@ final class CrossFeedRepositoryTests: XCTestCase {
             nextCursor: nextCursor,
             hasMore: hasMore,
             sinceTime: sinceTime
+        )
+    }
+
+    private func subscription(
+        id: String,
+        feedID: String,
+        title: String,
+        faviconURL: String? = nil,
+        status: SubscriptionFeedStatus,
+        errorMessage: String? = nil,
+        unreadCount: Int
+    ) -> Subscription {
+        Subscription(
+            id: id,
+            feedID: feedID,
+            feedTitle: title,
+            feedURL: "https://example.com/\(feedID).xml",
+            siteURL: "https://example.com/\(feedID)",
+            feedFaviconURL: faviconURL,
+            fetchIntervalMinutes: 60,
+            feedStatus: status,
+            errorMessage: errorMessage,
+            unreadCount: unreadCount
         )
     }
 }
@@ -275,5 +449,73 @@ private final class RecordingCrossFeedTransport: APITransport, @unchecked Sendab
             httpVersion: nil,
             headerFields: nil
         )!
+    }
+}
+
+private final class RecordingSubscriptionTransport: APITransport, @unchecked Sendable {
+    private enum Result {
+        case subscriptions([Subscription])
+        case errorResponse(statusCode: Int, code: String)
+    }
+
+    private(set) var requests: [URLRequest] = []
+    private var results: [Result] = []
+    private let encoder = JSONEncoder()
+
+    func enqueue(subscriptions: [Subscription]) {
+        results.append(.subscriptions(subscriptions))
+    }
+
+    func enqueueErrorResponse(statusCode: Int, code: String) {
+        results.append(.errorResponse(statusCode: statusCode, code: code))
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        requests.append(request)
+
+        guard !results.isEmpty else {
+            throw URLError(.badServerResponse)
+        }
+
+        switch results.removeFirst() {
+        case .subscriptions(let subscriptions):
+            let data = try encoder.encode(subscriptions)
+            return (data, httpResponse(statusCode: 200, request: request))
+        case .errorResponse(let statusCode, let code):
+            let data = Data("""
+            {
+              "error": {
+                "code": "\(code)",
+                "message": "rejected",
+                "category": "auth",
+                "action": "reauthenticate"
+              }
+            }
+            """.utf8)
+            return (data, httpResponse(statusCode: statusCode, request: request))
+        }
+    }
+
+    private func httpResponse(statusCode: Int, request: URLRequest) -> HTTPURLResponse {
+        HTTPURLResponse(
+            url: request.url ?? URL(string: "https://api.example.com")!,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+    }
+}
+
+private actor SubscriptionRefreshHook {
+    private let refreshedAccessToken: String
+    private(set) var callCount = 0
+
+    init(refreshedAccessToken: String) {
+        self.refreshedAccessToken = refreshedAccessToken
+    }
+
+    func refresh() async throws -> String {
+        callCount += 1
+        return refreshedAccessToken
     }
 }

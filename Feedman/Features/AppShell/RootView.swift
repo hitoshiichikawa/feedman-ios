@@ -58,6 +58,11 @@ struct RootView: View {
                     onShowFeedRegistration: {
                         shellState.presentFeedRegistration()
                     },
+                    onRetryFeeds: {
+                        Task {
+                            await drawerFeedViewModel.loadSubscriptions(repository: environment.feedRepository)
+                        }
+                    },
                     onDismiss: {
                         shellState.dismissDrawer()
                     }
@@ -280,6 +285,7 @@ private struct DrawerView: View {
     let onShowAccount: () -> Void
     let onToggleTheme: () -> Void
     let onShowFeedRegistration: () -> Void
+    let onRetryFeeds: () -> Void
     let onDismiss: () -> Void
 
     var body: some View {
@@ -440,13 +446,24 @@ private struct DrawerView: View {
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
         case let .failed(message, _):
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(FeedmanTheme.mutedForeground)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityLabel(message)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(FeedmanTheme.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button(action: onRetryFeeds) {
+                    Label("再試行", systemImage: "arrow.clockwise")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(FeedmanTheme.accent)
+                .accessibilityLabel("フィードを再試行")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .contain)
         }
     }
 }
@@ -539,12 +556,12 @@ private struct DrawerFeedButton: View {
     }
 
     private var feedIcon: some View {
-        Text(String(feed.title.prefix(1)))
-            .font(.caption.bold())
-            .foregroundStyle(FeedmanTheme.accent)
-            .frame(width: 28, height: 28)
-            .background(FeedmanTheme.surfaceSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+        FeedmanFaviconView(
+            faviconURL: feed.faviconURL,
+            displayName: feed.title,
+            size: 28,
+            cornerRadius: 8
+        )
             .accessibilityHidden(true)
     }
 
