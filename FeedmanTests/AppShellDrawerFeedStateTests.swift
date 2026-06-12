@@ -65,11 +65,45 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
         XCTAssertEqual(viewModel.sectionState, .failed(message: "フィードを読み込めませんでした", feeds: existingFeeds))
     }
 
+    func testRetrySubscriptionsCallsRepositoryAgainAndUpdatesUnreadCounts() async {
+        let repository = ScriptedFeedRepository(
+            results: [
+                .failure(StubError.failed),
+                .success([
+                    Feed(id: "feed-a", title: "Feed A", unreadCount: 7, status: .active),
+                    Feed(id: "feed-b", title: "Feed B", unreadCount: 0, status: .error(message: "failed"))
+                ]),
+                .success([
+                    Feed(id: "feed-a", title: "Feed A", unreadCount: 2, status: .active),
+                    Feed(id: "feed-b", title: "Feed B", unreadCount: 4, status: .error(message: "failed"))
+                ])
+            ]
+        )
+        let viewModel = AppShellDrawerFeedViewModel()
+
+        await viewModel.loadSubscriptions(repository: repository)
+        XCTAssertEqual(viewModel.sectionState, .failed(message: "フィードを読み込めませんでした", feeds: []))
+
+        await viewModel.loadSubscriptions(repository: repository)
+        XCTAssertEqual(viewModel.sectionState.feeds.map(\.unreadCount), [7, 0])
+
+        await viewModel.loadSubscriptions(repository: repository)
+        XCTAssertEqual(viewModel.sectionState.feeds.map(\.unreadCount), [2, 4])
+        let loadCallCount = await repository.callCount
+        XCTAssertEqual(loadCallCount, 3)
+    }
+
     func testRouteForFeedUsesStableIdentifierAndTitle() {
         let viewModel = AppShellDrawerFeedViewModel()
         let feed = Feed(id: "stable-id", title: "Display Title", unreadCount: 1, status: .error(message: "failed"))
 
         XCTAssertEqual(viewModel.route(for: feed), .feed(id: "stable-id", title: "Display Title"))
+    }
+
+    func testProductionEnvironmentUsesRealFeedRepository() {
+        let environment = AppEnvironment.production(apiBaseURL: URL(string: "https://api.example.com")!)
+
+        XCTAssertTrue(environment.feedRepository is APIClientFeedRepository)
     }
 }
 
@@ -82,6 +116,27 @@ private struct StubFeedRepository: FeedRepository {
 
     func subscriptions() async throws -> [Feed] {
         try subscriptionsResult.get()
+    }
+
+    func crossFeedItems() async throws -> [FeedItem] {
+        []
+    }
+}
+
+private actor ScriptedFeedRepository: FeedRepository {
+    private var results: [Result<[Feed], Error>]
+    private(set) var callCount = 0
+
+    init(results: [Result<[Feed], Error>]) {
+        self.results = results
+    }
+
+    func subscriptions() async throws -> [Feed] {
+        callCount += 1
+        guard !results.isEmpty else {
+            return []
+        }
+        return try results.removeFirst().get()
     }
 
     func crossFeedItems() async throws -> [FeedItem] {
