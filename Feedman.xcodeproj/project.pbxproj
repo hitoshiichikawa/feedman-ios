@@ -54,6 +54,10 @@
 		100000000000000000000145 /* LoginViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000247 /* LoginViewModelTests.swift */; };
 		100000000000000000000146 /* ItemRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000249 /* ItemRepositoryTests.swift */; };
 		100000000000000000000147 /* CrossFeedRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000250 /* CrossFeedRepositoryTests.swift */; };
+		100000000000000000000148 /* RegisterFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000251 /* RegisterFeedViewModel.swift */; };
+		100000000000000000000149 /* RegisterFeedSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000252 /* RegisterFeedSheet.swift */; };
+		100000000000000000000150 /* FeedRegistrationRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000253 /* FeedRegistrationRepositoryTests.swift */; };
+		100000000000000000000151 /* RegisterFeedViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000254 /* RegisterFeedViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -117,6 +121,10 @@
 		100000000000000000000248 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		100000000000000000000249 /* ItemRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemRepositoryTests.swift; sourceTree = "<group>"; };
 		100000000000000000000250 /* CrossFeedRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFeedRepositoryTests.swift; sourceTree = "<group>"; };
+		100000000000000000000251 /* RegisterFeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterFeedViewModel.swift; sourceTree = "<group>"; };
+		100000000000000000000252 /* RegisterFeedSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterFeedSheet.swift; sourceTree = "<group>"; };
+		100000000000000000000253 /* FeedRegistrationRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedRegistrationRepositoryTests.swift; sourceTree = "<group>"; };
+		100000000000000000000254 /* RegisterFeedViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterFeedViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -173,6 +181,8 @@
 				100000000000000000000230 /* APIClientTests.swift */,
 				100000000000000000000249 /* ItemRepositoryTests.swift */,
 				100000000000000000000250 /* CrossFeedRepositoryTests.swift */,
+				100000000000000000000253 /* FeedRegistrationRepositoryTests.swift */,
+				100000000000000000000254 /* RegisterFeedViewModelTests.swift */,
 				100000000000000000000232 /* CursorPaginationStateTests.swift */,
 				100000000000000000000234 /* FeedmanFaviconViewTests.swift */,
 				100000000000000000000237 /* ArticleMetadataControlsTests.swift */,
@@ -224,6 +234,7 @@
 			children = (
 				100000000000000000000609 /* AppShell */,
 				100000000000000000000613 /* Login */,
+				100000000000000000000614 /* RegisterFeed */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -287,6 +298,15 @@
 				100000000000000000000246 /* WebAuthenticationSessionCoordinator.swift */,
 			);
 			path = Login;
+			sourceTree = "<group>";
+		};
+		100000000000000000000614 /* RegisterFeed */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000251 /* RegisterFeedViewModel.swift */,
+				100000000000000000000252 /* RegisterFeedSheet.swift */,
+			);
+			path = RegisterFeed;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -419,6 +439,8 @@
 				100000000000000000000142 /* LoginViewModel.swift in Sources */,
 				100000000000000000000143 /* LoginView.swift in Sources */,
 				100000000000000000000144 /* WebAuthenticationSessionCoordinator.swift in Sources */,
+				100000000000000000000148 /* RegisterFeedViewModel.swift in Sources */,
+				100000000000000000000149 /* RegisterFeedSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -442,6 +464,8 @@
 				100000000000000000000124 /* TokenStoreTests.swift in Sources */,
 				100000000000000000000145 /* LoginViewModelTests.swift in Sources */,
 				100000000000000000000147 /* CrossFeedRepositoryTests.swift in Sources */,
+				100000000000000000000150 /* FeedRegistrationRepositoryTests.swift in Sources */,
+				100000000000000000000151 /* RegisterFeedViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

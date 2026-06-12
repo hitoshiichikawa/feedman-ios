@@ -2,6 +2,7 @@ import Foundation
 
 protocol FeedRepository {
     func subscriptions() async throws -> [Feed]
+    func registerFeed(url: String) async throws -> RegisteredFeed
     func crossFeedItems() async throws -> [FeedItem]
     func loadCrossFeedFirstPage(limit: Int?) async throws -> CrossFeedPaginationSnapshot
     func loadCrossFeedNextPage() async throws -> CrossFeedPaginationSnapshot
@@ -139,6 +140,54 @@ enum CrossFeedRepositoryError: Error, Equatable {
     case invalidItemLink(String)
 }
 
+struct RegisteredFeed: Equatable {
+    let subscriptionID: String
+    let feedID: String
+    let title: String
+    let feedURL: String?
+    let siteURL: String?
+    let faviconURL: String?
+    let fetchIntervalMinutes: Int
+    let status: FeedStatus
+    let unreadCount: Int
+
+    var drawerFeed: Feed {
+        Feed(
+            id: feedID,
+            title: title,
+            unreadCount: unreadCount,
+            status: status
+        )
+    }
+}
+
+extension RegisteredFeed {
+    init(response: FeedRegistrationResponse) {
+        self.subscriptionID = response.id
+        self.feedID = response.feedID
+        self.title = response.feedTitle
+        self.feedURL = response.feedURL
+        self.siteURL = response.siteURL
+        self.faviconURL = response.feedFaviconURL
+        self.fetchIntervalMinutes = response.fetchIntervalMinutes
+        self.status = FeedStatus(subscriptionStatus: response.feedStatus, message: response.errorMessage)
+        self.unreadCount = response.unreadCount
+    }
+}
+
+private extension FeedStatus {
+    init(subscriptionStatus: SubscriptionFeedStatus, message: String?) {
+        switch subscriptionStatus {
+        case .active:
+            self = .active
+        case .stopped:
+            self = .stopped(message: message ?? "停止中")
+        case .error:
+            self = .error(message: message ?? "取得エラー")
+        }
+    }
+}
+
 enum CrossFeedPageLimit {
     static let defaultValue = 50
     static let maximumValue = 200
@@ -176,7 +225,25 @@ actor APIClientFeedRepository: FeedRepository {
     }
 
     func subscriptions() async throws -> [Feed] {
-        throw CrossFeedRepositoryError.paginationUnsupported
+        let subscriptions = try await apiClient.send(
+            [Subscription].self,
+            path: "/api/subscriptions",
+            accessToken: try await accessTokenProvider()
+        )
+
+        return subscriptions.map(Self.feed(from:))
+    }
+
+    func registerFeed(url: String) async throws -> RegisteredFeed {
+        let response = try await apiClient.send(
+            FeedRegistrationResponse.self,
+            method: .post,
+            path: "/api/feeds",
+            body: FeedRegistrationRequest(url: url),
+            accessToken: try await accessTokenProvider()
+        )
+
+        return RegisteredFeed(response: response)
     }
 
     func crossFeedItems() async throws -> [FeedItem] {
@@ -299,6 +366,18 @@ actor APIClientFeedRepository: FeedRepository {
             hatebuCount: item.hatebuCount
         )
     }
+
+    private static func feed(from subscription: Subscription) -> Feed {
+        Feed(
+            id: subscription.feedID,
+            title: subscription.feedTitle,
+            unreadCount: subscription.unreadCount,
+            status: FeedStatus(
+                subscriptionStatus: subscription.feedStatus,
+                message: subscription.errorMessage
+            )
+        )
+    }
 }
 
 actor MockFeedRepository: FeedRepository {
@@ -306,18 +385,30 @@ actor MockFeedRepository: FeedRepository {
     private var sessionSinceTime: String?
     private var sessionLimit = CrossFeedPageLimit.defaultValue
     private let pages: [CrossFeedItemsResponse]
+    private var subscriptionFeeds: [Feed]
+    var registrationResult: Result<RegisteredFeed, Error>
+    private(set) var registeredURLs: [String] = []
 
-    init(pages: [CrossFeedItemsResponse]? = nil) {
+    init(
+        pages: [CrossFeedItemsResponse]? = nil,
+        subscriptionFeeds: [Feed]? = nil,
+        registrationResult: Result<RegisteredFeed, Error>? = nil
+    ) {
         self.pages = pages ?? Self.defaultPages
+        self.subscriptionFeeds = subscriptionFeeds ?? Self.defaultSubscriptionFeeds
+        self.registrationResult = registrationResult ?? .success(Self.defaultRegisteredFeed)
     }
 
     func subscriptions() async throws -> [Feed] {
-        [
-            Feed(id: "publickey", title: "Publickey", unreadCount: 12, status: .active),
-            Feed(id: "zenn", title: "Zenn トレンド", unreadCount: 5, status: .active),
-            Feed(id: "qiita", title: "Qiita 人気の記事", unreadCount: 14, status: .stopped(message: "手動で停止しました")),
-            Feed(id: "swift-blog", title: "Swift Blog", unreadCount: 0, status: .error(message: "前回の取得に失敗しました"))
-        ]
+        subscriptionFeeds
+    }
+
+    func registerFeed(url: String) async throws -> RegisteredFeed {
+        registeredURLs.append(url)
+
+        let registeredFeed = try registrationResult.get()
+        upsertSubscription(registeredFeed.drawerFeed)
+        return registeredFeed
     }
 
     func crossFeedItems() async throws -> [FeedItem] {
@@ -381,6 +472,14 @@ actor MockFeedRepository: FeedRepository {
             hatebuCount: item.hatebuCount
         )
     }
+
+    private func upsertSubscription(_ feed: Feed) {
+        if let index = subscriptionFeeds.firstIndex(where: { $0.id == feed.id }) {
+            subscriptionFeeds[index] = feed
+        } else {
+            subscriptionFeeds.append(feed)
+        }
+    }
 }
 
 private extension MockFeedRepository {
@@ -389,6 +488,25 @@ private extension MockFeedRepository {
         nextCursor: nil,
         hasMore: false,
         sinceTime: "2026-06-08T10:30:00Z"
+    )
+
+    static let defaultSubscriptionFeeds = [
+        Feed(id: "publickey", title: "Publickey", unreadCount: 12, status: .active),
+        Feed(id: "zenn", title: "Zenn トレンド", unreadCount: 5, status: .active),
+        Feed(id: "qiita", title: "Qiita 人気の記事", unreadCount: 14, status: .stopped(message: "手動で停止しました")),
+        Feed(id: "swift-blog", title: "Swift Blog", unreadCount: 0, status: .error(message: "前回の取得に失敗しました"))
+    ]
+
+    static let defaultRegisteredFeed = RegisteredFeed(
+        subscriptionID: "sub-example",
+        feedID: "feed-example",
+        title: "Example Blog",
+        feedURL: "https://example.com/feed.xml",
+        siteURL: "https://example.com",
+        faviconURL: nil,
+        fetchIntervalMinutes: 60,
+        status: .active,
+        unreadCount: 0
     )
 
     static let defaultPages = [
