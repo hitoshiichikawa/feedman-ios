@@ -67,3 +67,28 @@
 AC 未カバー、missing test、boundary 逸脱はいずれも検出しなかった。`develop..HEAD` に #20 merge commit が含まれるが、#23 要件側で #20 依存 mismatch として明記されている範囲であり、#23 commit 単体の実装差分は APIClient refresh retry hook とそのテストに閉じている。
 
 RESULT: approve
+
+---
+
+<!-- idd-claude:review round=2 model=claude-fable-5 timestamp=2026-06-12T06:56:16Z -->
+
+## Round 2 (macOS / Xcode 実機検証)
+
+- 実行: `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 17' test`
+
+### Findings (round 1 からの差分)
+
+1. **`await` in autoclosure のコンパイルエラー 6 箇所**: `XCTAssertEqual(await refreshHook.numberOfCalls(), N)` (5 箇所) と `&&` 右辺の `(await refreshHook.numberOfCalls()) == 1` (1 箇所) は、autoclosure (`XCTAssertEqual` の引数 / `&&` の短絡評価) 内で `await` を使えないため iOS simulator ビルドが失敗した。round 1 環境 (Linux) は XCTest を解決できず typecheck 対象外だったため検出されなかった。
+   - 対応: いずれも値を事前に `let refreshCallCount = await ...` で取り出してから assert する形へ書き換え。テストの検証観点は不変。
+
+### 検証結果
+
+- 修正後の `xcodebuild test`: **TEST SUCCEEDED** (128 tests, 0 failures。401 refresh retry / single-flight 共有 / authRequired 各系 7 tests を含む)
+
+### 設計所見 (追補)
+
+- `AccessTokenRefreshCoordinator` (actor) による single-flight 共有で並行 401 時の refresh 多重実行を防止。`testConcurrentAuthenticated401SharesInFlightRefresh` で検証済み。
+- Bearer なし request は retry 対象外のため、refresh hook 自身 (`/api/auth/refresh` は Bearer なし) への再帰なし。
+- retry 後の 401 は `authRequired(.retryUnauthorized)` で打ち切り、無限ループなし。
+
+RESULT: approve

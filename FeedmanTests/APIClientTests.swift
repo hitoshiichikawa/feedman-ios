@@ -251,7 +251,8 @@ final class APIClientTests: XCTestCase {
         let response = try await client.send(ProbeResponse.self, path: "/api/me", accessToken: "expired-access-token")
 
         XCTAssertEqual(response, ProbeResponse(ok: true))
-        XCTAssertEqual(await refreshHook.numberOfCalls(), 1)
+        let refreshCallCount = await refreshHook.numberOfCalls()
+        XCTAssertEqual(refreshCallCount, 1)
         XCTAssertEqual(transport.requests.count, 2)
         XCTAssertEqual(
             transport.requests.first?.value(forHTTPHeaderField: "Authorization"),
@@ -300,7 +301,8 @@ final class APIClientTests: XCTestCase {
             XCTAssertEqual(context.reason, .refreshFailed)
             XCTAssertEqual(context.statusCode, 401)
             XCTAssertTrue(context.underlyingError is AuthRepositoryError)
-            XCTAssertEqual(await refreshHook.numberOfCalls(), 1)
+            let refreshCallCount = await refreshHook.numberOfCalls()
+            XCTAssertEqual(refreshCallCount, 1)
             XCTAssertEqual(transport.requests.count, 1)
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -326,7 +328,8 @@ final class APIClientTests: XCTestCase {
             XCTAssertEqual(context.reason, .retryUnauthorized)
             XCTAssertEqual(context.statusCode, 401)
             XCTAssertTrue(context.underlyingError is FeedmanAPIError)
-            XCTAssertEqual(await refreshHook.numberOfCalls(), 1)
+            let refreshCallCount = await refreshHook.numberOfCalls()
+            XCTAssertEqual(refreshCallCount, 1)
             XCTAssertEqual(transport.requests.count, 2)
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -349,7 +352,8 @@ final class APIClientTests: XCTestCase {
         } catch FeedmanAPIError.feedmanError(let context) {
             XCTAssertEqual(context.statusCode, 401)
             XCTAssertEqual(context.code, "UNAUTHENTICATED")
-            XCTAssertEqual(await refreshHook.numberOfCalls(), 0)
+            let refreshCallCount = await refreshHook.numberOfCalls()
+            XCTAssertEqual(refreshCallCount, 0)
             XCTAssertEqual(transport.requests.count, 1)
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -378,7 +382,8 @@ final class APIClientTests: XCTestCase {
             XCTAssertEqual(context.statusCode, 429)
             XCTAssertEqual(context.code, "FEED_COOLDOWN")
             XCTAssertEqual(context.retryAfter, "120")
-            XCTAssertEqual(await refreshHook.numberOfCalls(), 0)
+            let refreshCallCount = await refreshHook.numberOfCalls()
+            XCTAssertEqual(refreshCallCount, 0)
             XCTAssertEqual(transport.requests.count, 1)
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -407,7 +412,8 @@ final class APIClientTests: XCTestCase {
         }
 
         let didStartSharedRefresh = try await waitUntil {
-            transport.requests.count == 2 && (await refreshHook.numberOfCalls()) == 1
+            let refreshCalls = await refreshHook.numberOfCalls()
+            return transport.requests.count == 2 && refreshCalls == 1
         }
         if !didStartSharedRefresh {
             await refreshHook.succeed(with: "shared-refreshed-access-token")
@@ -422,7 +428,8 @@ final class APIClientTests: XCTestCase {
 
         XCTAssertEqual(firstResponse, ProbeResponse(ok: true))
         XCTAssertEqual(secondResponse, ProbeResponse(ok: true))
-        XCTAssertEqual(await refreshHook.numberOfCalls(), 1)
+        let refreshCallCount = await refreshHook.numberOfCalls()
+        XCTAssertEqual(refreshCallCount, 1)
         XCTAssertEqual(transport.requests.count, 4)
         XCTAssertEqual(
             transport.requests.suffix(2).map { $0.value(forHTTPHeaderField: "Authorization") },
