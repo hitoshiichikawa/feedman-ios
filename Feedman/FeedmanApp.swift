@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct FeedmanApp: App {
-    @StateObject private var environment = AppEnvironment.preview
+    @StateObject private var environment = AppEnvironment.production()
 
     var body: some Scene {
         WindowGroup {
@@ -11,4 +11,3 @@ struct FeedmanApp: App {
         }
     }
 }
-
