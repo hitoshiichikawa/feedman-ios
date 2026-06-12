@@ -293,7 +293,8 @@ final class CrossFeedRepositoryTests: XCTestCase {
         let feeds = try await repository.subscriptions()
 
         XCTAssertEqual(feeds.map(\.id), ["feed-retried"])
-        XCTAssertEqual(await refreshHook.callCount, 1)
+        let awaitedCallCount1 = await refreshHook.callCount
+        XCTAssertEqual(awaitedCallCount1, 1)
         XCTAssertEqual(transport.requests.count, 2)
         XCTAssertEqual(
             transport.requests.first?.value(forHTTPHeaderField: "Authorization"),

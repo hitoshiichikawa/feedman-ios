@@ -2,12 +2,13 @@ import Combine
 import Foundation
 
 enum AppAuthenticationState: Equatable {
+    case restoring
     case unauthenticated
     case authenticated(accessToken: String)
 
     var isAuthenticated: Bool {
         switch self {
-        case .unauthenticated:
+        case .restoring, .unauthenticated:
             return false
         case .authenticated:
             return true
@@ -75,6 +76,30 @@ final class AppEnvironment: ObservableObject {
         authenticationState = .authenticated(accessToken: credentials.accessToken)
     }
 
+    /// 起動時に保存済み refresh token からセッションを復元する。
+    /// `restoring` 状態のときだけ実行され、結果に応じて authenticated / unauthenticated へ遷移する。
+    func restoreSessionAtLaunch() async {
+        guard case .restoring = authenticationState else {
+            return
+        }
+
+        do {
+            let credentials = try await authRepository.refreshTokens()
+            accessTokenStore.update(accessToken: credentials.accessToken)
+            authenticationState = .authenticated(accessToken: credentials.accessToken)
+        } catch AuthRepositoryError.missingRefreshToken {
+            // 保存 token がなければ消すものもないため、そのまま未認証へ。
+            accessTokenStore.update(accessToken: nil)
+            authenticationState = .unauthenticated
+        } catch {
+            // 保存 token があるのに refresh が拒否された場合は失効済みとして
+            // ローカル credential を破棄する (server への revoke は行わない)。
+            try? authRepository.clearLocalCredentials()
+            accessTokenStore.update(accessToken: nil)
+            authenticationState = .unauthenticated
+        }
+    }
+
     static func production(
         apiBaseURL: URL = URL(string: "http://localhost:3000")!
     ) -> AppEnvironment {
@@ -101,6 +126,7 @@ final class AppEnvironment: ObservableObject {
             ),
             authRepository: authRepository,
             authBaseURL: apiBaseURL,
+            authenticationState: .restoring,
             accessTokenStore: accessTokenStore
         )
     }
@@ -116,7 +142,7 @@ final class AppEnvironment: ObservableObject {
 private extension AppAuthenticationState {
     var accessToken: String? {
         switch self {
-        case .unauthenticated:
+        case .restoring, .unauthenticated:
             return nil
         case let .authenticated(accessToken):
             return accessToken
@@ -136,4 +162,6 @@ struct UnavailableAuthRepository: AuthRepository {
     }
 
     func revokeAndClearCredentials(accessToken: String?) async throws {}
+
+    func clearLocalCredentials() throws {}
 }

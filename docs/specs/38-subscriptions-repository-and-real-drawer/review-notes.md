@@ -57,3 +57,26 @@
 numeric AC に対応する実装とテストを確認し、AC 未カバー / missing test / boundary 逸脱に該当する reject 要因は検出しませんでした。`tasks.md` と `design.md` は spec dir に存在しなかったため、tasks の `_Boundary:_` アノテーションは確認不能でしたが、差分は提示された edit paths と requirements の実装境界内に収まっています。
 
 RESULT: approve
+
+---
+
+<!-- idd-claude:review round=2 model=claude-fable-5 timestamp=2026-06-12T08:18:27Z -->
+
+## Round 2 (macOS / Xcode 実機検証 / #22 統合)
+
+### Findings (round 1 からの差分)
+
+1. **#22 (PR #79) との統合**: 本ブランチ作成後に launch session 復元が develop へ merge されたため、`AppEnvironment.production()` の引数 conflict を統合 (`authenticationState: .restoring` + `accessTokenStore:` の両立)。さらにテキストマージで捕捉できない 2 点を修正:
+   - `restoreSessionAtLaunch()` の成功パスで `accessTokenStore.update(...)` が呼ばれず、復元セッションで data repository が `missingAccessToken` になる統合バグ → 成功/失敗の全分岐で store を更新。
+   - `AppAuthenticationState.accessToken` (本ブランチ追加の private extension) の switch に `.restoring` ケースがなく非網羅 → `.restoring → nil` を追加。
+2. **autoclosure 内 await のコンパイルエラー 2 箇所** (`AppShellDrawerFeedStateTests` / `CrossFeedRepositoryTests` の actor 化 mock 参照) → 値を事前束縛へ書き換え (検証観点不変)。
+
+### 検証結果
+
+- 統合後の `xcodebuild test`: **TEST SUCCEEDED** (166 tests, 0 failures)
+
+### 設計所見 (追補)
+
+- 本 PR により #23 の `accessTokenRefreshHook` と #31 の `APIClientFeedRepository` が `production()` で実結線され、認証付きデータ取得の縦が通った。#22 で deferred とした hook 結線はここで完了。
+
+RESULT: approve

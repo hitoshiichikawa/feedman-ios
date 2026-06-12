@@ -89,7 +89,8 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
 
         await viewModel.loadSubscriptions(repository: repository)
         XCTAssertEqual(viewModel.sectionState.feeds.map(\.unreadCount), [2, 4])
-        XCTAssertEqual(await repository.callCount, 3)
+        let loadCallCount = await repository.callCount
+        XCTAssertEqual(loadCallCount, 3)
     }
 
     func testRouteForFeedUsesStableIdentifierAndTitle() {

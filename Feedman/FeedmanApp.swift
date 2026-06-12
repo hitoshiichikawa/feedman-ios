@@ -8,6 +8,9 @@ struct FeedmanApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(environment)
+                .task {
+                    await environment.restoreSessionAtLaunch()
+                }
         }
     }
 }
