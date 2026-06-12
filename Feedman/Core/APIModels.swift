@@ -210,7 +210,7 @@ struct ItemStateUpdateRequest: Codable, Equatable {
 
 struct UserResponse: Codable, Equatable {
     let id: String
-    let email: String
+    let email: String?
     let name: String?
     let avatarURL: String?
 

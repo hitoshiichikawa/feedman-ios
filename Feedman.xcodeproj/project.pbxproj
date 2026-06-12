@@ -54,11 +54,17 @@
 		100000000000000000000145 /* LoginViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000247 /* LoginViewModelTests.swift */; };
 		100000000000000000000146 /* ItemRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000249 /* ItemRepositoryTests.swift */; };
 		100000000000000000000147 /* CrossFeedRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000250 /* CrossFeedRepositoryTests.swift */; };
-		100000000000000000000148 /* SearchRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000251 /* SearchRepository.swift */; };
-		100000000000000000000149 /* GlobalSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000252 /* GlobalSearchViewModel.swift */; };
-		100000000000000000000150 /* GlobalSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000253 /* GlobalSearchView.swift */; };
-		100000000000000000000151 /* SearchRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000254 /* SearchRepositoryTests.swift */; };
-		100000000000000000000152 /* GlobalSearchViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000255 /* GlobalSearchViewModelTests.swift */; };
+		100000000000000000000148 /* AppEnvironmentSessionRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000251 /* AppEnvironmentSessionRestoreTests.swift */; };
+		100000000000000000000149 /* AccountRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000252 /* AccountRepository.swift */; };
+		100000000000000000000150 /* AccountViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000253 /* AccountViewModel.swift */; };
+		100000000000000000000151 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000254 /* AccountView.swift */; };
+		100000000000000000000152 /* AccountViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000255 /* AccountViewModelTests.swift */; };
+		100000000000000000000153 /* AccountRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000256 /* AccountRepositoryTests.swift */; };
+		100000000000000000000154 /* SearchRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000257 /* SearchRepository.swift */; };
+		100000000000000000000155 /* GlobalSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000258 /* GlobalSearchViewModel.swift */; };
+		100000000000000000000156 /* GlobalSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000259 /* GlobalSearchView.swift */; };
+		100000000000000000000158 /* SearchRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000261 /* SearchRepositoryTests.swift */; };
+		100000000000000000000157 /* GlobalSearchViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000260 /* GlobalSearchViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -122,11 +128,17 @@
 		100000000000000000000248 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		100000000000000000000249 /* ItemRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemRepositoryTests.swift; sourceTree = "<group>"; };
 		100000000000000000000250 /* CrossFeedRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFeedRepositoryTests.swift; sourceTree = "<group>"; };
-		100000000000000000000251 /* SearchRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchRepository.swift; sourceTree = "<group>"; };
-		100000000000000000000252 /* GlobalSearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchViewModel.swift; sourceTree = "<group>"; };
-		100000000000000000000253 /* GlobalSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchView.swift; sourceTree = "<group>"; };
-		100000000000000000000254 /* SearchRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchRepositoryTests.swift; sourceTree = "<group>"; };
-		100000000000000000000255 /* GlobalSearchViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchViewModelTests.swift; sourceTree = "<group>"; };
+		100000000000000000000251 /* AppEnvironmentSessionRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironmentSessionRestoreTests.swift; sourceTree = "<group>"; };
+		100000000000000000000252 /* AccountRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountRepository.swift; sourceTree = "<group>"; };
+		100000000000000000000253 /* AccountViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountViewModel.swift; sourceTree = "<group>"; };
+		100000000000000000000254 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+		100000000000000000000255 /* AccountViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountViewModelTests.swift; sourceTree = "<group>"; };
+		100000000000000000000256 /* AccountRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountRepositoryTests.swift; sourceTree = "<group>"; };
+		100000000000000000000257 /* SearchRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchRepository.swift; sourceTree = "<group>"; };
+		100000000000000000000258 /* GlobalSearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchViewModel.swift; sourceTree = "<group>"; };
+		100000000000000000000259 /* GlobalSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchView.swift; sourceTree = "<group>"; };
+		100000000000000000000261 /* SearchRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchRepositoryTests.swift; sourceTree = "<group>"; };
+		100000000000000000000260 /* GlobalSearchViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -177,14 +189,17 @@
 				100000000000000000000239 /* AppShellStateTests.swift */,
 				100000000000000000000241 /* AppShellDrawerFeedStateTests.swift */,
 				100000000000000000000243 /* AuthRepositoryTests.swift */,
+				100000000000000000000256 /* AccountRepositoryTests.swift */,
+				100000000000000000000255 /* AccountViewModelTests.swift */,
 				100000000000000000000247 /* LoginViewModelTests.swift */,
 				100000000000000000000213 /* APIDomainModelDecodeTests.swift */,
 				100000000000000000000228 /* APIResponseDecoderTests.swift */,
 				100000000000000000000230 /* APIClientTests.swift */,
 				100000000000000000000249 /* ItemRepositoryTests.swift */,
 				100000000000000000000250 /* CrossFeedRepositoryTests.swift */,
-				100000000000000000000254 /* SearchRepositoryTests.swift */,
-				100000000000000000000255 /* GlobalSearchViewModelTests.swift */,
+				100000000000000000000251 /* AppEnvironmentSessionRestoreTests.swift */,
+				100000000000000000000261 /* SearchRepositoryTests.swift */,
+				100000000000000000000260 /* GlobalSearchViewModelTests.swift */,
 				100000000000000000000232 /* CursorPaginationStateTests.swift */,
 				100000000000000000000234 /* FeedmanFaviconViewTests.swift */,
 				100000000000000000000237 /* ArticleMetadataControlsTests.swift */,
@@ -216,7 +231,8 @@
 				100000000000000000000612 /* Pagination */,
 				100000000000000000000611 /* Auth */,
 				100000000000000000000204 /* FeedRepository.swift */,
-				100000000000000000000251 /* SearchRepository.swift */,
+				100000000000000000000252 /* AccountRepository.swift */,
+				100000000000000000000257 /* SearchRepository.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -236,8 +252,9 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000609 /* AppShell */,
+				100000000000000000000614 /* Account */,
 				100000000000000000000613 /* Login */,
-				100000000000000000000614 /* Search */,
+				100000000000000000000615 /* Search */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -303,11 +320,20 @@
 			path = Login;
 			sourceTree = "<group>";
 		};
-		100000000000000000000614 /* Search */ = {
+		100000000000000000000614 /* Account */ = {
 			isa = PBXGroup;
 			children = (
-				100000000000000000000252 /* GlobalSearchViewModel.swift */,
-				100000000000000000000253 /* GlobalSearchView.swift */,
+				100000000000000000000253 /* AccountViewModel.swift */,
+				100000000000000000000254 /* AccountView.swift */,
+			);
+			path = Account;
+			sourceTree = "<group>";
+		};
+		100000000000000000000615 /* Search */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000258 /* GlobalSearchViewModel.swift */,
+				100000000000000000000259 /* GlobalSearchView.swift */,
 			);
 			path = Search;
 			sourceTree = "<group>";
@@ -432,7 +458,8 @@
 				100000000000000000000123 /* TokenStore.swift in Sources */,
 				100000000000000000000140 /* AuthRepository.swift in Sources */,
 				100000000000000000000104 /* FeedRepository.swift in Sources */,
-				100000000000000000000148 /* SearchRepository.swift in Sources */,
+				100000000000000000000149 /* AccountRepository.swift in Sources */,
+				100000000000000000000154 /* SearchRepository.swift in Sources */,
 				100000000000000000000105 /* FeedmanTheme.swift in Sources */,
 				100000000000000000000131 /* FeedmanFaviconView.swift in Sources */,
 				100000000000000000000133 /* SharedPrimitives.swift in Sources */,
@@ -440,11 +467,13 @@
 				100000000000000000000136 /* AppShellState.swift in Sources */,
 				100000000000000000000138 /* AppShellDrawerFeedState.swift in Sources */,
 				100000000000000000000106 /* RootView.swift in Sources */,
+				100000000000000000000150 /* AccountViewModel.swift in Sources */,
+				100000000000000000000151 /* AccountView.swift in Sources */,
 				100000000000000000000142 /* LoginViewModel.swift in Sources */,
 				100000000000000000000143 /* LoginView.swift in Sources */,
 				100000000000000000000144 /* WebAuthenticationSessionCoordinator.swift in Sources */,
-				100000000000000000000149 /* GlobalSearchViewModel.swift in Sources */,
-				100000000000000000000150 /* GlobalSearchView.swift in Sources */,
+				100000000000000000000155 /* GlobalSearchViewModel.swift in Sources */,
+				100000000000000000000156 /* GlobalSearchView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -456,6 +485,8 @@
 				100000000000000000000137 /* AppShellStateTests.swift in Sources */,
 				100000000000000000000139 /* AppShellDrawerFeedStateTests.swift in Sources */,
 				100000000000000000000141 /* AuthRepositoryTests.swift in Sources */,
+				100000000000000000000153 /* AccountRepositoryTests.swift in Sources */,
+				100000000000000000000152 /* AccountViewModelTests.swift in Sources */,
 				100000000000000000000111 /* APIDomainModelDecodeTests.swift in Sources */,
 				100000000000000000000126 /* APIResponseDecoderTests.swift in Sources */,
 				100000000000000000000128 /* APIClientTests.swift in Sources */,
@@ -468,8 +499,9 @@
 				100000000000000000000124 /* TokenStoreTests.swift in Sources */,
 				100000000000000000000145 /* LoginViewModelTests.swift in Sources */,
 				100000000000000000000147 /* CrossFeedRepositoryTests.swift in Sources */,
-				100000000000000000000151 /* SearchRepositoryTests.swift in Sources */,
-				100000000000000000000152 /* GlobalSearchViewModelTests.swift in Sources */,
+				100000000000000000000148 /* AppEnvironmentSessionRestoreTests.swift in Sources */,
+				100000000000000000000158 /* SearchRepositoryTests.swift in Sources */,
+				100000000000000000000157 /* GlobalSearchViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

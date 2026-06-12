@@ -17,7 +17,9 @@ final class GlobalSearchViewModelTests: XCTestCase {
         await viewModel.submitSearch("")
         await viewModel.submitSearch("   \n\t")
 
-        XCTAssertEqual(await repository.calls(), [])
+        let awaitedCalls1 = await repository.calls()
+
+        XCTAssertEqual(awaitedCalls1, [])
         XCTAssertEqual(viewModel.state, .suggestions)
     }
 
@@ -53,7 +55,8 @@ final class GlobalSearchViewModelTests: XCTestCase {
         await viewModel.submitSearch("missing")
 
         XCTAssertEqual(viewModel.state, .empty(query: "missing"))
-        XCTAssertEqual(await repository.calls(), [SearchRepositoryCall(query: "missing", scope: .global)])
+        let awaitedCalls2 = await repository.calls()
+        XCTAssertEqual(awaitedCalls2, [SearchRepositoryCall(query: "missing", scope: .global)])
     }
 
     func testFailureStateIsDistinctFromEmptyAndRetryUsesSameQuery() async {
@@ -70,7 +73,8 @@ final class GlobalSearchViewModelTests: XCTestCase {
         await repository.setResult(.success([hit(id: "recovered")]))
         await viewModel.retry()
 
-        XCTAssertEqual(await repository.calls(), [
+        let retriedCalls = await repository.calls()
+        XCTAssertEqual(retriedCalls, [
             SearchRepositoryCall(query: "Swift", scope: .global),
             SearchRepositoryCall(query: "Swift", scope: .global)
         ])
@@ -140,7 +144,8 @@ final class GlobalSearchViewModelTests: XCTestCase {
         await viewModel.submitSuggestion("Swift")
 
         XCTAssertEqual(viewModel.query, "Swift")
-        XCTAssertEqual(await repository.calls(), [SearchRepositoryCall(query: "Swift", scope: .global)])
+        let awaitedCalls3 = await repository.calls()
+        XCTAssertEqual(awaitedCalls3, [SearchRepositoryCall(query: "Swift", scope: .global)])
         XCTAssertEqual(viewModel.state, .results(query: "Swift", hits: [hit(id: "suggested")]))
     }
 

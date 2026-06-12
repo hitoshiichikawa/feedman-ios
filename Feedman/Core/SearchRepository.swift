@@ -53,7 +53,7 @@ actor MockSearchRepository: SearchRepository {
 
     init(
         responsesByQuery: [String: MockSearchRepositoryResponse] = [:],
-        defaultResponse: MockSearchRepositoryResponse = .success(Self.defaultHits)
+        defaultResponse: MockSearchRepositoryResponse = .success(MockSearchRepository.defaultHits)
     ) {
         self.responsesByQuery = responsesByQuery
         self.defaultResponse = defaultResponse
