@@ -10,17 +10,27 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if environment.authenticationState.isAuthenticated {
-                authenticatedShell
-            } else {
+            switch environment.authenticationState {
+            case .restoring:
+                sessionRestoringView
+            case .unauthenticated:
                 LoginRouteView(
                     authBaseURL: environment.authBaseURL,
                     authRepository: environment.authRepository
                 ) { credentials in
                     environment.completeLogin(with: credentials)
                 }
+            case .authenticated:
+                authenticatedShell
             }
         }
+    }
+
+    private var sessionRestoringView: some View {
+        FeedmanLoadingView("セッションを確認しています", accessibilityLabel: "セッションを確認中")
+            .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(FeedmanTheme.background)
     }
 
     private var authenticatedShell: some View {
