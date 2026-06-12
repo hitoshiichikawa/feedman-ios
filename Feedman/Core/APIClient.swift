@@ -14,22 +14,29 @@ enum HTTPMethod: String {
 }
 
 struct APIClient {
+    typealias AccessTokenRefreshHook = @Sendable () async throws -> String
+
     let baseURL: URL
 
     private let transport: APITransport
     private let encoder: JSONEncoder
     private let responseDecoder: APIResponseDecoder
+    private let accessTokenRefreshHook: AccessTokenRefreshHook?
+    private let refreshCoordinator: AccessTokenRefreshCoordinator
 
     init(
         baseURL: URL,
         transport: APITransport = URLSession.shared,
         encoder: JSONEncoder = JSONEncoder(),
-        responseDecoder: APIResponseDecoder = APIResponseDecoder()
+        responseDecoder: APIResponseDecoder = APIResponseDecoder(),
+        accessTokenRefreshHook: AccessTokenRefreshHook? = nil
     ) {
         self.baseURL = baseURL
         self.transport = transport
         self.encoder = encoder
         self.responseDecoder = responseDecoder
+        self.accessTokenRefreshHook = accessTokenRefreshHook
+        self.refreshCoordinator = AccessTokenRefreshCoordinator()
     }
 
     func send<Response: Decodable>(
@@ -82,7 +89,7 @@ struct APIClient {
             body: body,
             accessToken: accessToken
         )
-        let (data, httpResponse) = try await perform(request)
+        let (data, httpResponse) = try await performWithRefreshRetry(request)
         try responseDecoder.validateNoContent(from: data, response: httpResponse)
     }
 
@@ -114,8 +121,71 @@ struct APIClient {
         _ responseType: Response.Type,
         request: URLRequest
     ) async throws -> Response {
-        let (data, httpResponse) = try await perform(request)
+        let (data, httpResponse) = try await performWithRefreshRetry(request)
         return try responseDecoder.decode(responseType, from: data, response: httpResponse)
+    }
+
+    private func performWithRefreshRetry(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let (data, httpResponse) = try await perform(request)
+        guard shouldRefresh(for: request, response: httpResponse) else {
+            return (data, httpResponse)
+        }
+
+        let refreshedAccessToken = try await refreshAccessToken(
+            after: data,
+            response: httpResponse
+        )
+
+        var retryRequest = request
+        retryRequest.setValue("Bearer \(refreshedAccessToken)", forHTTPHeaderField: "Authorization")
+
+        let (retryData, retryResponse) = try await perform(retryRequest)
+        if retryResponse.statusCode == 401 {
+            throw FeedmanAPIError.authRequired(
+                AuthRequiredContext(
+                    reason: .retryUnauthorized,
+                    statusCode: retryResponse.statusCode,
+                    underlyingError: responseDecoder.error(from: retryData, response: retryResponse)
+                )
+            )
+        }
+
+        return (retryData, retryResponse)
+    }
+
+    private func shouldRefresh(for request: URLRequest, response: HTTPURLResponse) -> Bool {
+        guard response.statusCode == 401 else {
+            return false
+        }
+
+        return request.value(forHTTPHeaderField: "Authorization")?.hasPrefix("Bearer ") == true
+    }
+
+    private func refreshAccessToken(
+        after data: Data,
+        response: HTTPURLResponse
+    ) async throws -> String {
+        guard let accessTokenRefreshHook else {
+            throw FeedmanAPIError.authRequired(
+                AuthRequiredContext(
+                    reason: .missingRefreshHook,
+                    statusCode: response.statusCode,
+                    underlyingError: responseDecoder.error(from: data, response: response)
+                )
+            )
+        }
+
+        do {
+            return try await refreshCoordinator.refresh(using: accessTokenRefreshHook)
+        } catch {
+            throw FeedmanAPIError.authRequired(
+                AuthRequiredContext(
+                    reason: .refreshFailed,
+                    statusCode: response.statusCode,
+                    underlyingError: error
+                )
+            )
+        }
     }
 
     private func perform(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
@@ -181,5 +251,25 @@ struct APIClient {
         case (false, false):
             return "/" + trimmedBase + "/" + trimmedEndpoint
         }
+    }
+}
+
+private actor AccessTokenRefreshCoordinator {
+    private var inFlightTask: Task<String, Error>?
+
+    func refresh(using hook: @escaping APIClient.AccessTokenRefreshHook) async throws -> String {
+        if let inFlightTask {
+            return try await inFlightTask.value
+        }
+
+        let task = Task {
+            try await hook()
+        }
+        inFlightTask = task
+        defer {
+            inFlightTask = nil
+        }
+
+        return try await task.value
     }
 }
