@@ -54,6 +54,11 @@
 		100000000000000000000145 /* LoginViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000247 /* LoginViewModelTests.swift */; };
 		100000000000000000000146 /* ItemRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000249 /* ItemRepositoryTests.swift */; };
 		100000000000000000000147 /* CrossFeedRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000250 /* CrossFeedRepositoryTests.swift */; };
+		100000000000000000000148 /* SearchRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000251 /* SearchRepository.swift */; };
+		100000000000000000000149 /* GlobalSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000252 /* GlobalSearchViewModel.swift */; };
+		100000000000000000000150 /* GlobalSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000253 /* GlobalSearchView.swift */; };
+		100000000000000000000151 /* SearchRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000254 /* SearchRepositoryTests.swift */; };
+		100000000000000000000152 /* GlobalSearchViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000255 /* GlobalSearchViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -117,6 +122,11 @@
 		100000000000000000000248 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		100000000000000000000249 /* ItemRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemRepositoryTests.swift; sourceTree = "<group>"; };
 		100000000000000000000250 /* CrossFeedRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFeedRepositoryTests.swift; sourceTree = "<group>"; };
+		100000000000000000000251 /* SearchRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchRepository.swift; sourceTree = "<group>"; };
+		100000000000000000000252 /* GlobalSearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchViewModel.swift; sourceTree = "<group>"; };
+		100000000000000000000253 /* GlobalSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchView.swift; sourceTree = "<group>"; };
+		100000000000000000000254 /* SearchRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchRepositoryTests.swift; sourceTree = "<group>"; };
+		100000000000000000000255 /* GlobalSearchViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -173,6 +183,8 @@
 				100000000000000000000230 /* APIClientTests.swift */,
 				100000000000000000000249 /* ItemRepositoryTests.swift */,
 				100000000000000000000250 /* CrossFeedRepositoryTests.swift */,
+				100000000000000000000254 /* SearchRepositoryTests.swift */,
+				100000000000000000000255 /* GlobalSearchViewModelTests.swift */,
 				100000000000000000000232 /* CursorPaginationStateTests.swift */,
 				100000000000000000000234 /* FeedmanFaviconViewTests.swift */,
 				100000000000000000000237 /* ArticleMetadataControlsTests.swift */,
@@ -204,6 +216,7 @@
 				100000000000000000000612 /* Pagination */,
 				100000000000000000000611 /* Auth */,
 				100000000000000000000204 /* FeedRepository.swift */,
+				100000000000000000000251 /* SearchRepository.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -224,6 +237,7 @@
 			children = (
 				100000000000000000000609 /* AppShell */,
 				100000000000000000000613 /* Login */,
+				100000000000000000000614 /* Search */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -287,6 +301,15 @@
 				100000000000000000000246 /* WebAuthenticationSessionCoordinator.swift */,
 			);
 			path = Login;
+			sourceTree = "<group>";
+		};
+		100000000000000000000614 /* Search */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000252 /* GlobalSearchViewModel.swift */,
+				100000000000000000000253 /* GlobalSearchView.swift */,
+			);
+			path = Search;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -409,6 +432,7 @@
 				100000000000000000000123 /* TokenStore.swift in Sources */,
 				100000000000000000000140 /* AuthRepository.swift in Sources */,
 				100000000000000000000104 /* FeedRepository.swift in Sources */,
+				100000000000000000000148 /* SearchRepository.swift in Sources */,
 				100000000000000000000105 /* FeedmanTheme.swift in Sources */,
 				100000000000000000000131 /* FeedmanFaviconView.swift in Sources */,
 				100000000000000000000133 /* SharedPrimitives.swift in Sources */,
@@ -419,6 +443,8 @@
 				100000000000000000000142 /* LoginViewModel.swift in Sources */,
 				100000000000000000000143 /* LoginView.swift in Sources */,
 				100000000000000000000144 /* WebAuthenticationSessionCoordinator.swift in Sources */,
+				100000000000000000000149 /* GlobalSearchViewModel.swift in Sources */,
+				100000000000000000000150 /* GlobalSearchView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -442,6 +468,8 @@
 				100000000000000000000124 /* TokenStoreTests.swift in Sources */,
 				100000000000000000000145 /* LoginViewModelTests.swift in Sources */,
 				100000000000000000000147 /* CrossFeedRepositoryTests.swift in Sources */,
+				100000000000000000000151 /* SearchRepositoryTests.swift in Sources */,
+				100000000000000000000152 /* GlobalSearchViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

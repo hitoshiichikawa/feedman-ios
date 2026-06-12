@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
+    @Environment(\.openURL) private var openURL
     @State private var shellState = AppShellState()
     @State private var items: [FeedItem] = []
     @StateObject private var drawerFeedViewModel = AppShellDrawerFeedViewModel()
@@ -136,10 +137,12 @@ struct RootView: View {
         case let .feed(id, title):
             feedContent(feedID: id, routeTitle: title)
         case .search:
-            placeholderContent(
-                systemImage: "magnifyingglass",
-                title: "検索",
-                subtitle: "検索画面の本実装は後続 Issue で追加します。"
+            GlobalSearchView(
+                repository: environment.makeSearchRepository(),
+                onSelectItem: { _ in },
+                onOpenLink: { url in
+                    openURL(url)
+                }
             )
         case .account:
             placeholderContent(
