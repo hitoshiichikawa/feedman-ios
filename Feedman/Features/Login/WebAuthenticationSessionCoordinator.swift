@@ -18,6 +18,12 @@ protocol WebAuthenticationSessionStarting {
 final class ASWebAuthenticationSessionCoordinator: NSObject, WebAuthenticationSessionStarting {
     private var activeSession: ASWebAuthenticationSession?
 
+    // LoginViewModel.init の default 引数 (nonisolated 文脈) から生成できるようにする。
+    // 保持状態の初期化のみで main actor 隔離が必要な処理は行わない。
+    nonisolated override init() {
+        super.init()
+    }
+
     func start(url: URL, callbackURLScheme: String) async throws -> URL {
         guard activeSession == nil else {
             throw FeedmanWebAuthenticationError.sessionAlreadyActive

@@ -46,3 +46,22 @@ round=2 の独立レビューとして `AGENTS.md`、`requirements.md`、`impl-n
 前回指摘の login URL path 正規化と session start 失敗時テストは HEAD commit で対応済み。`plutil -lint Feedman.xcodeproj/project.pbxproj Feedman/Info.plist` は成功し、`xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` は Xcode 未選択のため実行不能だったが、reject 対象の AC 未カバー / missing test / boundary 逸脱は見つからなかった。
 
 RESULT: approve
+
+---
+
+<!-- idd-claude:review round=2 model=claude-fable-5 timestamp=2026-06-12T07:06:41Z -->
+
+## Round 2 (macOS / Xcode 実機検証)
+
+- 実行: `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 17' test`
+
+### Findings (round 1 からの差分)
+
+1. **default 引数での main actor 隔離 init 呼び出し 2 箇所**: `LoginViewModel.init` の `= ASWebAuthenticationSessionCoordinator()` と、テスト `makeViewModel` の `= PendingWebAuthenticationSessionStarter()` は、default 引数が nonisolated 文脈で評価されるため `@MainActor` クラスの隔離 init を呼べず iOS simulator ビルドが失敗した。round 1 環境 (Linux) は AuthenticationServices / XCTest を解決できないため検出されなかった。
+   - 対応: 両クラスへ `nonisolated init` を明示 (初期化は保持状態のみで main actor 隔離が必要な処理を含まない)。API・テスト観点は不変。
+
+### 検証結果
+
+- 修正後の `xcodebuild test`: **TEST SUCCEEDED** (136 tests, 0 failures。LoginViewModelTests 8 件を含む)
+
+RESULT: approve

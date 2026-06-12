@@ -231,6 +231,9 @@ private final class PendingWebAuthenticationSessionStarter: WebAuthenticationSes
     private(set) var requests: [WebAuthenticationRequest] = []
     private var continuation: CheckedContinuation<URL, Error>?
 
+    // makeViewModel の default 引数 (nonisolated 文脈) から生成できるようにする。
+    nonisolated init() {}
+
     func start(url: URL, callbackURLScheme: String) async throws -> URL {
         requests.append(WebAuthenticationRequest(url: url, callbackURLScheme: callbackURLScheme))
         return try await withCheckedThrowingContinuation { continuation in
