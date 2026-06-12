@@ -299,6 +299,8 @@ private final class RecordingAuthRepository: AuthRepository {
     }
 
     func revokeAndClearCredentials(accessToken: String?) async throws {}
+
+    func clearLocalCredentials() throws {}
 }
 
 private enum LoginTestError: Error {

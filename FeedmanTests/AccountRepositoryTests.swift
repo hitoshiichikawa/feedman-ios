@@ -42,7 +42,8 @@ final class AccountRepositoryTests: XCTestCase {
         let user = try await repository.currentUser(accessToken: "access-1")
 
         XCTAssertEqual(user.email, "you@example.com")
-        XCTAssertEqual(await refreshHook.callCount, 1)
+        let awaitedCallCount1 = await refreshHook.callCount
+        XCTAssertEqual(awaitedCallCount1, 1)
         XCTAssertEqual(transport.requests.count, 2)
         XCTAssertEqual(
             transport.requests.first?.value(forHTTPHeaderField: "Authorization"),
