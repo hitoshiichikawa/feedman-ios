@@ -33,3 +33,17 @@
 ## 確認事項
 
 - 本番 API / auth base URL の正式値は未確認。Stage A では `AppEnvironment.production()` の default を `http://localhost:3000` としている。
+
+## レビュー指摘対応
+
+- `LoginViewModel.makeGoogleLoginURL(codeChallenge:)` で `authBaseURL` に既存 path が含まれる場合でも、OAuth login URL の path を必ず `/auth/google/login` に正規化するように修正した。
+- `authBaseURL` の既存 query は保守的に維持しつつ、`flow` と `code_challenge` は native login 用の値で上書きするようにした。
+- `FeedmanTests/LoginViewModelTests.swift` に `FeedmanWebAuthenticationError.unableToStart` 相当の session start 失敗ケースを追加し、loading が解除されること、再試行可能な failed state になること、token exchange が呼ばれないことを検証した。
+
+## レビュー指摘対応の検証
+
+- `plutil -lint Feedman.xcodeproj/project.pbxproj Feedman/Info.plist`
+  - 結果: 成功。
+- `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`
+  - 結果: 実行不可。
+  - 理由: `xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory '/Library/Developer/CommandLineTools' is a command line tools instance`

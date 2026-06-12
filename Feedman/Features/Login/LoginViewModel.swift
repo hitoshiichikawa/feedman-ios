@@ -100,11 +100,11 @@ final class LoginViewModel: ObservableObject {
             throw FeedmanAPIError.invalidRequestURL(path: "/auth/google/login")
         }
 
-        components.percentEncodedPath = joinedPath(
-            components.percentEncodedPath,
-            "/auth/google/login"
-        )
-        components.queryItems = (components.queryItems ?? []) + [
+        components.path = "/auth/google/login"
+        let inheritedQueryItems = (components.queryItems ?? []).filter {
+            $0.name != "flow" && $0.name != "code_challenge"
+        }
+        components.queryItems = inheritedQueryItems + [
             URLQueryItem(name: "flow", value: "native"),
             URLQueryItem(name: "code_challenge", value: codeChallenge)
         ]
@@ -113,21 +113,5 @@ final class LoginViewModel: ObservableObject {
             throw FeedmanAPIError.invalidRequestURL(path: "/auth/google/login")
         }
         return url
-    }
-
-    private func joinedPath(_ basePath: String, _ endpointPath: String) -> String {
-        let trimmedBase = basePath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let trimmedEndpoint = endpointPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-
-        switch (trimmedBase.isEmpty, trimmedEndpoint.isEmpty) {
-        case (true, true):
-            return "/"
-        case (true, false):
-            return "/" + trimmedEndpoint
-        case (false, true):
-            return "/" + trimmedBase
-        case (false, false):
-            return "/" + trimmedBase + "/" + trimmedEndpoint
-        }
     }
 }

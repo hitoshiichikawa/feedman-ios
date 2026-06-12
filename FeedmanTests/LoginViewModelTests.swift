@@ -25,6 +25,7 @@ final class LoginViewModelTests: XCTestCase {
         XCTAssertEqual(request.callbackURLScheme, "feedman")
         XCTAssertEqual(request.url.path, "/auth/google/login")
         let components = try XCTUnwrap(URLComponents(url: request.url, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(components.queryItems?.first(named: "diagnostic")?.value, "1")
         XCTAssertEqual(components.queryItems?.first(named: "flow")?.value, "native")
         XCTAssertEqual(components.queryItems?.first(named: "code_challenge")?.value, "challenge-1")
 
@@ -144,13 +145,30 @@ final class LoginViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.state.isRetryEnabled)
     }
 
+    func testSessionUnableToStartShowsRetryableFailureAndDoesNotExchange() async {
+        let sessionStarter = FailingWebAuthenticationSessionStarter(error: FeedmanWebAuthenticationError.unableToStart)
+        let repository = RecordingAuthRepository()
+        let viewModel = makeViewModel(
+            repository: repository,
+            sessionStarter: sessionStarter
+        )
+
+        await viewModel.startGoogleLogin()
+
+        XCTAssertEqual(sessionStarter.requests.count, 1)
+        XCTAssertTrue(repository.exchanges.isEmpty)
+        XCTAssertFalse(viewModel.state.isLoading)
+        XCTAssertFailed(viewModel.state)
+        XCTAssertTrue(viewModel.state.isRetryEnabled)
+    }
+
     private func makeViewModel(
         repository: RecordingAuthRepository = RecordingAuthRepository(),
-        sessionStarter: PendingWebAuthenticationSessionStarter = PendingWebAuthenticationSessionStarter(),
+        sessionStarter: any WebAuthenticationSessionStarting = PendingWebAuthenticationSessionStarter(),
         onAuthenticated: @escaping (TokenCredentials) -> Void = { _ in }
     ) -> LoginViewModel {
         LoginViewModel(
-            authBaseURL: URL(string: "https://api.example.com/base")!,
+            authBaseURL: URL(string: "https://api.example.com/base?diagnostic=1&flow=web&code_challenge=old")!,
             authRepository: repository,
             sessionStarter: sessionStarter,
             pkceGenerator: FixedPKCELoginChallengeGenerator(
@@ -228,6 +246,21 @@ private final class PendingWebAuthenticationSessionStarter: WebAuthenticationSes
     func cancel() {
         continuation?.resume(throwing: FeedmanWebAuthenticationError.canceled)
         continuation = nil
+    }
+}
+
+@MainActor
+private final class FailingWebAuthenticationSessionStarter: WebAuthenticationSessionStarting {
+    private(set) var requests: [WebAuthenticationRequest] = []
+    private let error: Error
+
+    init(error: Error) {
+        self.error = error
+    }
+
+    func start(url: URL, callbackURLScheme: String) async throws -> URL {
+        requests.append(WebAuthenticationRequest(url: url, callbackURLScheme: callbackURLScheme))
+        throw error
     }
 }
 
