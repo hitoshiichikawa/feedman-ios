@@ -52,7 +52,8 @@
 		100000000000000000000143 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000245 /* LoginView.swift */; };
 		100000000000000000000144 /* WebAuthenticationSessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000246 /* WebAuthenticationSessionCoordinator.swift */; };
 		100000000000000000000145 /* LoginViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000247 /* LoginViewModelTests.swift */; };
-		100000000000000000000146 /* CrossFeedRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000249 /* CrossFeedRepositoryTests.swift */; };
+		100000000000000000000146 /* ItemRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000249 /* ItemRepositoryTests.swift */; };
+		100000000000000000000147 /* CrossFeedRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000250 /* CrossFeedRepositoryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -114,7 +115,8 @@
 		100000000000000000000246 /* WebAuthenticationSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAuthenticationSessionCoordinator.swift; sourceTree = "<group>"; };
 		100000000000000000000247 /* LoginViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewModelTests.swift; sourceTree = "<group>"; };
 		100000000000000000000248 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		100000000000000000000249 /* CrossFeedRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFeedRepositoryTests.swift; sourceTree = "<group>"; };
+		100000000000000000000249 /* ItemRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemRepositoryTests.swift; sourceTree = "<group>"; };
+		100000000000000000000250 /* CrossFeedRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossFeedRepositoryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -169,7 +171,8 @@
 				100000000000000000000213 /* APIDomainModelDecodeTests.swift */,
 				100000000000000000000228 /* APIResponseDecoderTests.swift */,
 				100000000000000000000230 /* APIClientTests.swift */,
-				100000000000000000000249 /* CrossFeedRepositoryTests.swift */,
+				100000000000000000000249 /* ItemRepositoryTests.swift */,
+				100000000000000000000250 /* CrossFeedRepositoryTests.swift */,
 				100000000000000000000232 /* CursorPaginationStateTests.swift */,
 				100000000000000000000234 /* FeedmanFaviconViewTests.swift */,
 				100000000000000000000237 /* ArticleMetadataControlsTests.swift */,
@@ -430,6 +433,7 @@
 				100000000000000000000111 /* APIDomainModelDecodeTests.swift in Sources */,
 				100000000000000000000126 /* APIResponseDecoderTests.swift in Sources */,
 				100000000000000000000128 /* APIClientTests.swift in Sources */,
+				100000000000000000000146 /* ItemRepositoryTests.swift in Sources */,
 				100000000000000000000130 /* CursorPaginationStateTests.swift in Sources */,
 				100000000000000000000132 /* FeedmanFaviconViewTests.swift in Sources */,
 				100000000000000000000135 /* ArticleMetadataControlsTests.swift in Sources */,
@@ -437,7 +441,7 @@
 				100000000000000000000122 /* AuthCallbackParserTests.swift in Sources */,
 				100000000000000000000124 /* TokenStoreTests.swift in Sources */,
 				100000000000000000000145 /* LoginViewModelTests.swift in Sources */,
-				100000000000000000000146 /* CrossFeedRepositoryTests.swift in Sources */,
+				100000000000000000000147 /* CrossFeedRepositoryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
