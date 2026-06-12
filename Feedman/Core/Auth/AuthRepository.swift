@@ -31,7 +31,7 @@ protocol AuthRepository {
     func refreshTokens() async throws -> TokenCredentials
 
     /// 保存済み refresh token を server 側で失効させ、成功時にローカル credential を消去する。
-    func revokeAndClearCredentials(accessToken: String?) async throws
+    func revokeAndClearCredentials(accessToken: String) async throws
 }
 
 struct FeedmanAuthRepository: AuthRepository {
@@ -66,7 +66,7 @@ struct FeedmanAuthRepository: AuthRepository {
         return credentials
     }
 
-    func revokeAndClearCredentials(accessToken: String?) async throws {
+    func revokeAndClearCredentials(accessToken: String) async throws {
         guard let storedToken = try tokenStore.loadRefreshToken() else {
             // 失効対象がなければ冪等なログアウトとしてローカル消去のみ行う。
             try tokenStore.clearCredentials()
