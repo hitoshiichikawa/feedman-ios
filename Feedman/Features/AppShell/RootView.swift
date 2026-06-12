@@ -112,7 +112,7 @@ struct RootView: View {
                 }
             }
             .sheet(item: activePresentationBinding) { presentation in
-                placeholderSheet(for: presentation)
+                sheetContent(for: presentation)
             }
             .task {
                 await drawerFeedViewModel.loadSubscriptions(repository: environment.feedRepository)
@@ -219,6 +219,22 @@ struct RootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(FeedmanTheme.background)
+    }
+
+    @ViewBuilder
+    private func sheetContent(for presentation: AppShellPresentation) -> some View {
+        switch presentation {
+        case .account:
+            AccountRouteView(
+                repository: environment.accountRepository,
+                accessToken: environment.currentAccessToken,
+                onDismiss: {
+                    shellState.dismissPresentation()
+                }
+            )
+        case .feedRegistration:
+            placeholderSheet(for: presentation)
+        }
     }
 
     private func placeholderSheet(for presentation: AppShellPresentation) -> some View {

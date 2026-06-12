@@ -10,6 +10,7 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         AppEnvironment(
             feedRepository: MockFeedRepository(),
             authRepository: repository,
+            accountRepository: UnavailableAccountRepository(),
             authBaseURL: URL(string: "https://api.example.com")!,
             authenticationState: state
         )

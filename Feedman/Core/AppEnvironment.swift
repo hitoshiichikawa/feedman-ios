@@ -49,6 +49,7 @@ final class AppAccessTokenStore: @unchecked Sendable {
 final class AppEnvironment: ObservableObject {
     let feedRepository: FeedRepository
     let authRepository: any AuthRepository
+    let accountRepository: any AccountRepository
     let authBaseURL: URL
 
     private let accessTokenStore: AppAccessTokenStore
@@ -58,17 +59,28 @@ final class AppEnvironment: ObservableObject {
     init(
         feedRepository: FeedRepository,
         authRepository: any AuthRepository,
+        accountRepository: any AccountRepository,
         authBaseURL: URL,
         authenticationState: AppAuthenticationState = .unauthenticated,
         accessTokenStore: AppAccessTokenStore? = nil
     ) {
         self.feedRepository = feedRepository
         self.authRepository = authRepository
+        self.accountRepository = accountRepository
         self.authBaseURL = authBaseURL
         self.accessTokenStore = accessTokenStore ?? AppAccessTokenStore(
             accessToken: authenticationState.accessToken
         )
         self.authenticationState = authenticationState
+    }
+
+    var currentAccessToken: String? {
+        switch authenticationState {
+        case .restoring, .unauthenticated:
+            return nil
+        case let .authenticated(accessToken):
+            return accessToken
+        }
     }
 
     func completeLogin(with credentials: TokenCredentials) {
@@ -125,6 +137,7 @@ final class AppEnvironment: ObservableObject {
                 }
             ),
             authRepository: authRepository,
+            accountRepository: FeedmanAccountRepository(apiClient: apiClient),
             authBaseURL: apiBaseURL,
             authenticationState: .restoring,
             accessTokenStore: accessTokenStore
@@ -134,6 +147,7 @@ final class AppEnvironment: ObservableObject {
     static let preview = AppEnvironment(
         feedRepository: MockFeedRepository(),
         authRepository: UnavailableAuthRepository(),
+        accountRepository: UnavailableAccountRepository(),
         authBaseURL: URL(string: "https://example.com")!,
         authenticationState: .authenticated(accessToken: "preview-access-token")
     )
