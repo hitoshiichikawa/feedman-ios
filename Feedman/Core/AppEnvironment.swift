@@ -19,6 +19,7 @@ enum AppAuthenticationState: Equatable {
 final class AppEnvironment: ObservableObject {
     let feedRepository: FeedRepository
     let authRepository: any AuthRepository
+    let accountRepository: any AccountRepository
     let authBaseURL: URL
 
     @Published private(set) var authenticationState: AppAuthenticationState
@@ -26,13 +27,24 @@ final class AppEnvironment: ObservableObject {
     init(
         feedRepository: FeedRepository,
         authRepository: any AuthRepository,
+        accountRepository: any AccountRepository,
         authBaseURL: URL,
         authenticationState: AppAuthenticationState = .unauthenticated
     ) {
         self.feedRepository = feedRepository
         self.authRepository = authRepository
+        self.accountRepository = accountRepository
         self.authBaseURL = authBaseURL
         self.authenticationState = authenticationState
+    }
+
+    var currentAccessToken: String? {
+        switch authenticationState {
+        case .unauthenticated:
+            return nil
+        case let .authenticated(accessToken):
+            return accessToken
+        }
     }
 
     func completeLogin(with credentials: TokenCredentials) {
@@ -42,13 +54,21 @@ final class AppEnvironment: ObservableObject {
     static func production(
         apiBaseURL: URL = URL(string: "http://localhost:3000")!
     ) -> AppEnvironment {
-        let apiClient = APIClient(baseURL: apiBaseURL)
+        let tokenStore = KeychainTokenStore()
+        let authRepository = FeedmanAuthRepository(
+            apiClient: APIClient(baseURL: apiBaseURL),
+            tokenStore: tokenStore
+        )
+        let authenticatedAPIClient = APIClient(
+            baseURL: apiBaseURL,
+            accessTokenRefreshHook: {
+                try await authRepository.refreshTokens().accessToken
+            }
+        )
         return AppEnvironment(
             feedRepository: MockFeedRepository(),
-            authRepository: FeedmanAuthRepository(
-                apiClient: apiClient,
-                tokenStore: KeychainTokenStore()
-            ),
+            authRepository: authRepository,
+            accountRepository: FeedmanAccountRepository(apiClient: authenticatedAPIClient),
             authBaseURL: apiBaseURL
         )
     }
@@ -56,6 +76,7 @@ final class AppEnvironment: ObservableObject {
     static let preview = AppEnvironment(
         feedRepository: MockFeedRepository(),
         authRepository: UnavailableAuthRepository(),
+        accountRepository: UnavailableAccountRepository(),
         authBaseURL: URL(string: "https://example.com")!,
         authenticationState: .authenticated(accessToken: "preview-access-token")
     )
