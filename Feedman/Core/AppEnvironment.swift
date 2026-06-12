@@ -47,10 +47,13 @@ final class AppAccessTokenStore: @unchecked Sendable {
 
 @MainActor
 final class AppEnvironment: ObservableObject {
+    typealias SearchRepositoryFactory = (String) -> any SearchRepository
+
     let feedRepository: FeedRepository
     let authRepository: any AuthRepository
     let accountRepository: any AccountRepository
     let authBaseURL: URL
+    private let searchRepositoryFactory: SearchRepositoryFactory
 
     private let accessTokenStore: AppAccessTokenStore
 
@@ -61,6 +64,7 @@ final class AppEnvironment: ObservableObject {
         authRepository: any AuthRepository,
         accountRepository: any AccountRepository,
         authBaseURL: URL,
+        searchRepositoryFactory: @escaping SearchRepositoryFactory = { _ in MockSearchRepository() },
         authenticationState: AppAuthenticationState = .unauthenticated,
         accessTokenStore: AppAccessTokenStore? = nil
     ) {
@@ -68,6 +72,7 @@ final class AppEnvironment: ObservableObject {
         self.authRepository = authRepository
         self.accountRepository = accountRepository
         self.authBaseURL = authBaseURL
+        self.searchRepositoryFactory = searchRepositoryFactory
         self.accessTokenStore = accessTokenStore ?? AppAccessTokenStore(
             accessToken: authenticationState.accessToken
         )
@@ -112,6 +117,14 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
+    func makeSearchRepository() -> any SearchRepository {
+        guard case let .authenticated(accessToken) = authenticationState else {
+            return MockSearchRepository(defaultResponse: .success([]))
+        }
+
+        return searchRepositoryFactory(accessToken)
+    }
+
     static func production(
         apiBaseURL: URL = URL(string: "http://localhost:3000")!
     ) -> AppEnvironment {
@@ -139,6 +152,14 @@ final class AppEnvironment: ObservableObject {
             authRepository: authRepository,
             accountRepository: FeedmanAccountRepository(apiClient: apiClient),
             authBaseURL: apiBaseURL,
+            searchRepositoryFactory: { accessToken in
+                APIClientSearchRepository(
+                    apiClient: apiClient,
+                    accessTokenProvider: {
+                        accessToken
+                    }
+                )
+            },
             authenticationState: .restoring,
             accessTokenStore: accessTokenStore
         )
@@ -149,6 +170,7 @@ final class AppEnvironment: ObservableObject {
         authRepository: UnavailableAuthRepository(),
         accountRepository: UnavailableAccountRepository(),
         authBaseURL: URL(string: "https://example.com")!,
+        searchRepositoryFactory: { _ in MockSearchRepository() },
         authenticationState: .authenticated(accessToken: "preview-access-token")
     )
 }
