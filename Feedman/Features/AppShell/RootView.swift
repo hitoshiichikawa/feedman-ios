@@ -5,6 +5,7 @@ struct RootView: View {
     @Environment(\.openURL) private var openURL
     @State private var shellState = AppShellState()
     @State private var items: [FeedItem] = []
+    @State private var selectedArticle: ArticleDetailSheetInput?
     @StateObject private var drawerFeedViewModel = AppShellDrawerFeedViewModel()
     @StateObject private var toastCenter = FeedmanToastCenter()
 
@@ -116,6 +117,19 @@ struct RootView: View {
             .sheet(item: activePresentationBinding) { presentation in
                 sheetContent(for: presentation)
             }
+            .sheet(item: $selectedArticle) { article in
+                ArticleDetailSheet(
+                    input: article,
+                    repository: environment.itemRepository,
+                    accessToken: environment.currentAccessToken,
+                    onDismiss: {
+                        selectedArticle = nil
+                    },
+                    onOpenOriginal: { _ in
+                        toastCenter.show("元記事を開く処理は後続 Issue で接続します")
+                    }
+                )
+            }
             .task {
                 await drawerFeedViewModel.loadSubscriptions(repository: environment.feedRepository)
                 items = (try? await environment.feedRepository.crossFeedItems()) ?? []
@@ -156,7 +170,9 @@ struct RootView: View {
         case .search:
             GlobalSearchView(
                 repository: environment.makeSearchRepository(),
-                onSelectItem: { _ in },
+                onSelectItem: { itemID in
+                    selectedArticle = ArticleDetailSheetInput(id: itemID)
+                },
                 onOpenLink: { url in
                     openURL(url)
                 }
@@ -201,7 +217,14 @@ struct RootView: View {
                 )
             } else {
                 List(visibleItems) { item in
-                    ItemSummaryRow(item: item)
+                    Button {
+                        selectedArticle = ArticleDetailSheetInput(item: item)
+                    } label: {
+                        ItemSummaryRow(item: item)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(item.title)
+                    .accessibilityHint("記事詳細を開きます")
                 }
                 .listStyle(.plain)
                 .background(FeedmanTheme.background)
