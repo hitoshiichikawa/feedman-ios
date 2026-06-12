@@ -5,6 +5,21 @@ struct Feed: Identifiable, Equatable {
     let title: String
     let unreadCount: Int
     let status: FeedStatus
+    let faviconURL: String?
+
+    init(
+        id: String,
+        title: String,
+        unreadCount: Int,
+        status: FeedStatus,
+        faviconURL: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.unreadCount = unreadCount
+        self.status = status
+        self.faviconURL = faviconURL
+    }
 }
 
 enum FeedStatus: Equatable {
@@ -25,4 +40,3 @@ struct FeedItem: Identifiable, Equatable {
     var isStarred: Bool
     let hatebuCount: Int?
 }
-

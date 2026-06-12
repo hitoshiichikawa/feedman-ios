@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
+    @Environment(\.openURL) private var openURL
     @State private var shellState = AppShellState()
     @State private var items: [FeedItem] = []
     @StateObject private var drawerFeedViewModel = AppShellDrawerFeedViewModel()
@@ -11,17 +12,27 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if environment.authenticationState.isAuthenticated {
-                authenticatedShell
-            } else {
+            switch environment.authenticationState {
+            case .restoring:
+                sessionRestoringView
+            case .unauthenticated:
                 LoginRouteView(
                     authBaseURL: environment.authBaseURL,
                     authRepository: environment.authRepository
                 ) { credentials in
                     environment.completeLogin(with: credentials)
                 }
+            case .authenticated:
+                authenticatedShell
             }
         }
+    }
+
+    private var sessionRestoringView: some View {
+        FeedmanLoadingView("セッションを確認しています", accessibilityLabel: "セッションを確認中")
+            .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(FeedmanTheme.background)
     }
 
     private var authenticatedShell: some View {
@@ -58,6 +69,11 @@ struct RootView: View {
                     },
                     onShowFeedRegistration: {
                         shellState.presentFeedRegistration()
+                    },
+                    onRetryFeeds: {
+                        Task {
+                            await drawerFeedViewModel.loadSubscriptions(repository: environment.feedRepository)
+                        }
                     },
                     onDismiss: {
                         shellState.dismissDrawer()
@@ -98,7 +114,7 @@ struct RootView: View {
                 }
             }
             .sheet(item: activePresentationBinding) { presentation in
-                presentationSheet(for: presentation)
+                sheetContent(for: presentation)
             }
             .task {
                 await drawerFeedViewModel.loadSubscriptions(repository: environment.feedRepository)
@@ -138,10 +154,12 @@ struct RootView: View {
         case let .feed(id, title):
             feedContent(feedID: id, routeTitle: title)
         case .search:
-            placeholderContent(
-                systemImage: "magnifyingglass",
-                title: "検索",
-                subtitle: "検索画面の本実装は後続 Issue で追加します。"
+            GlobalSearchView(
+                repository: environment.makeSearchRepository(),
+                onSelectItem: { _ in },
+                onOpenLink: { url in
+                    openURL(url)
+                }
             )
         case .account:
             placeholderContent(
@@ -209,10 +227,16 @@ struct RootView: View {
     }
 
     @ViewBuilder
-    private func presentationSheet(for presentation: AppShellPresentation) -> some View {
+    private func sheetContent(for presentation: AppShellPresentation) -> some View {
         switch presentation {
         case .account:
-            placeholderSheet(for: presentation)
+            AccountRouteView(
+                repository: environment.accountRepository,
+                accessToken: environment.currentAccessToken,
+                onDismiss: {
+                    shellState.dismissPresentation()
+                }
+            )
         case .feedRegistration:
             RegisterFeedSheet(
                 repository: environment.feedRepository,
@@ -306,6 +330,7 @@ private struct DrawerView: View {
     let onShowAccount: () -> Void
     let onToggleTheme: () -> Void
     let onShowFeedRegistration: () -> Void
+    let onRetryFeeds: () -> Void
     let onDismiss: () -> Void
 
     var body: some View {
@@ -466,13 +491,24 @@ private struct DrawerView: View {
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
         case let .failed(message, _):
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(FeedmanTheme.mutedForeground)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityLabel(message)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(FeedmanTheme.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button(action: onRetryFeeds) {
+                    Label("再試行", systemImage: "arrow.clockwise")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(FeedmanTheme.accent)
+                .accessibilityLabel("フィードを再試行")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .contain)
         }
     }
 }
@@ -565,12 +601,12 @@ private struct DrawerFeedButton: View {
     }
 
     private var feedIcon: some View {
-        Text(String(feed.title.prefix(1)))
-            .font(.caption.bold())
-            .foregroundStyle(FeedmanTheme.accent)
-            .frame(width: 28, height: 28)
-            .background(FeedmanTheme.surfaceSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+        FeedmanFaviconView(
+            faviconURL: feed.faviconURL,
+            displayName: feed.title,
+            size: 28,
+            cornerRadius: 8
+        )
             .accessibilityHidden(true)
     }
 

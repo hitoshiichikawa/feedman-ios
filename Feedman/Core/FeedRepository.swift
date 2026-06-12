@@ -123,6 +123,10 @@ extension FeedRepository {
     func loadCrossFeedNextPage() async throws -> CrossFeedPaginationSnapshot {
         throw CrossFeedRepositoryError.paginationUnsupported
     }
+
+    func registerFeed(url: String) async throws -> RegisteredFeed {
+        throw CrossFeedRepositoryError.paginationUnsupported
+    }
 }
 
 struct CrossFeedPaginationSnapshot: Equatable {
@@ -371,12 +375,21 @@ actor APIClientFeedRepository: FeedRepository {
         Feed(
             id: subscription.feedID,
             title: subscription.feedTitle,
-            unreadCount: subscription.unreadCount,
-            status: FeedStatus(
-                subscriptionStatus: subscription.feedStatus,
-                message: subscription.errorMessage
-            )
+            unreadCount: max(0, subscription.unreadCount),
+            status: feedStatus(from: subscription),
+            faviconURL: subscription.feedFaviconURL
         )
+    }
+
+    private static func feedStatus(from subscription: Subscription) -> FeedStatus {
+        switch subscription.feedStatus {
+        case .active:
+            return .active
+        case .stopped:
+            return .stopped(message: subscription.errorMessage ?? "停止中")
+        case .error:
+            return .error(message: subscription.errorMessage ?? "取得エラー")
+        }
     }
 }
 
