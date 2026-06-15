@@ -46,6 +46,27 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil)])
     }
 
+    func testInitialLoadWithExistingItemsDoesNotRefetchOnRouteReturn() async {
+        let repository = RecordingTimelineFeedRepository(
+            firstPageResults: [
+                .success(snapshot(items: [item(id: "unexpected")], canLoadMore: false))
+            ]
+        )
+        let existingItem = item(id: "existing")
+        let viewModel = TimelineViewModel(
+            repository: repository,
+            state: .loaded,
+            items: [existingItem],
+            canLoadMore: false
+        )
+
+        await viewModel.loadInitialIfNeeded()
+
+        XCTAssertEqual(viewModel.state, .loaded)
+        XCTAssertEqual(viewModel.items, [existingItem])
+        XCTAssertEqual(await repository.calls(), [])
+    }
+
     func testInitialLoadFailureCanRetryFirstPage() async {
         let repository = RecordingTimelineFeedRepository(
             firstPageResults: [
