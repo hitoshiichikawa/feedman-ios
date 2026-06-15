@@ -38,3 +38,15 @@
 
 - `plutil -lint Feedman.xcodeproj/project.pbxproj` は成功。
 - `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` は、この環境の active developer directory が `/Library/Developer/CommandLineTools` で Xcode ではないため実行できなかった。
+
+## Reviewer round=2 reject 対応
+
+- `RootView` の authenticated shell `.task` から旧 placeholder 用の `environment.feedRepository.crossFeedItems()` 呼び出しを削除し、shell 起動時の repository load は drawer subscriptions のみにした。
+- `.timeline` の横断タイムライン初回取得は `TimelineView.task`、`TimelineViewModel.loadInitialIfNeeded()`、`FeedRepository.loadCrossFeedFirstPage(limit: nil)` の 1 経路に集約した。Repository 側の pagination 排他や `crossFeedItems()` wrapper は変更していない。
+- `RootView` の `items` state、`itemList`、`ItemSummaryRow` を削除し、`.starred` / `.feed` route は後続 Issue 用 placeholder 表示に戻した。これにより AppShell placeholder が cross-feed pagination session に触れない。
+- `AppShellDrawerFeedStateTests` に authenticated 初期 `.timeline` 表示を `UIHostingController` で起動する regression test を追加した。記録用 repository で `crossFeedItems()` と `loadCrossFeedFirstPage(limit:)` を別々に記録し、AppShell 側の `crossFeedItems()` が 0 回、TimelineViewModel 側の `loadCrossFeedFirstPage(limit: nil)` が 1 回であることを検証する。
+
+## Reviewer round=2 検証
+
+- `plutil -lint Feedman.xcodeproj/project.pbxproj` は成功。
+- `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` は、この環境の active developer directory が `/Library/Developer/CommandLineTools` で Xcode ではないため実行できなかった。

@@ -1,3 +1,5 @@
+import SwiftUI
+import UIKit
 import XCTest
 @testable import Feedman
 
@@ -154,6 +156,43 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
             Feed(id: "feed-a", title: "New Title", unreadCount: 0, status: .active)
         ]))
     }
+
+    func testAuthenticatedTimelineStartupDoesNotUseLegacyCrossFeedItems() async {
+        let subscriptionsLoaded = expectation(description: "AppShell loads drawer subscriptions")
+        let firstPageLoaded = expectation(description: "Timeline loads first cross-feed page")
+        let legacyCrossFeedItemsLoaded = expectation(description: "AppShell must not load legacy cross-feed items")
+        legacyCrossFeedItemsLoaded.isInverted = true
+
+        let repository = RecordingAppShellTimelineStartupRepository(
+            subscriptionsLoaded: subscriptionsLoaded,
+            firstPageLoaded: firstPageLoaded,
+            legacyCrossFeedItemsLoaded: legacyCrossFeedItemsLoaded
+        )
+        let environment = AppEnvironment(
+            feedRepository: repository,
+            authRepository: UnavailableAuthRepository(),
+            accountRepository: UnavailableAccountRepository(),
+            authBaseURL: URL(string: "https://example.com")!,
+            authenticationState: .authenticated(accessToken: "test-access-token")
+        )
+        let window = UIWindow(frame: UIScreen.main.bounds)
+
+        window.rootViewController = UIHostingController(
+            rootView: RootView()
+                .environmentObject(environment)
+        )
+        window.makeKeyAndVisible()
+
+        await fulfillment(of: [subscriptionsLoaded, firstPageLoaded], timeout: 3)
+        await fulfillment(of: [legacyCrossFeedItemsLoaded], timeout: 0.3)
+
+        XCTAssertEqual(await repository.subscriptionsCallCount(), 1)
+        XCTAssertEqual(await repository.crossFeedItemsCallCount(), 0)
+        XCTAssertEqual(await repository.firstPageLimitCalls(), [Optional<Int>.none])
+
+        window.isHidden = true
+        window.rootViewController = nil
+    }
 }
 
 private enum StubError: Error {
@@ -204,5 +243,69 @@ private actor ScriptedFeedRepository: FeedRepository {
 
     func crossFeedItems() async throws -> [FeedItem] {
         []
+    }
+}
+
+private actor RecordingAppShellTimelineStartupRepository: FeedRepository {
+    private let subscriptionsLoaded: XCTestExpectation
+    private let firstPageLoaded: XCTestExpectation
+    private let legacyCrossFeedItemsLoaded: XCTestExpectation
+    private var subscriptionsCalls = 0
+    private var crossFeedItemsCalls = 0
+    private var firstPageLimits: [Int?] = []
+
+    init(
+        subscriptionsLoaded: XCTestExpectation,
+        firstPageLoaded: XCTestExpectation,
+        legacyCrossFeedItemsLoaded: XCTestExpectation
+    ) {
+        self.subscriptionsLoaded = subscriptionsLoaded
+        self.firstPageLoaded = firstPageLoaded
+        self.legacyCrossFeedItemsLoaded = legacyCrossFeedItemsLoaded
+    }
+
+    func subscriptionsCallCount() -> Int {
+        subscriptionsCalls
+    }
+
+    func crossFeedItemsCallCount() -> Int {
+        crossFeedItemsCalls
+    }
+
+    func firstPageLimitCalls() -> [Int?] {
+        firstPageLimits
+    }
+
+    func subscriptions() async throws -> [Feed] {
+        subscriptionsCalls += 1
+        if subscriptionsCalls == 1 {
+            subscriptionsLoaded.fulfill()
+        }
+
+        return [
+            Feed(id: "feed-a", title: "Feed A", unreadCount: 1, status: .active)
+        ]
+    }
+
+    func crossFeedItems() async throws -> [FeedItem] {
+        crossFeedItemsCalls += 1
+
+        legacyCrossFeedItemsLoaded.fulfill()
+        return []
+    }
+
+    func loadCrossFeedFirstPage(limit: Int?) async throws -> CrossFeedPaginationSnapshot {
+        firstPageLimits.append(limit)
+        if firstPageLimits.count == 1 {
+            firstPageLoaded.fulfill()
+        }
+
+        return CrossFeedPaginationSnapshot(
+            items: [],
+            nextCursor: nil,
+            canLoadMore: false,
+            sinceTime: nil,
+            limit: CrossFeedPageLimit.defaultValue
+        )
     }
 }
