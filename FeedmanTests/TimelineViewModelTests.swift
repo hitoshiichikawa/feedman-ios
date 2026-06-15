@@ -29,6 +29,23 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.canLoadMore)
     }
 
+    func testInitialLoadEmptyStateDoesNotRefetchOnRouteReturn() async {
+        let repository = RecordingTimelineFeedRepository(
+            firstPageResults: [
+                .success(snapshot(items: [], canLoadMore: false)),
+                .success(snapshot(items: [item(id: "unexpected")], canLoadMore: false))
+            ]
+        )
+        let viewModel = TimelineViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded()
+        await viewModel.loadInitialIfNeeded()
+
+        XCTAssertEqual(viewModel.state, .empty)
+        XCTAssertEqual(viewModel.items, [])
+        XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil)])
+    }
+
     func testInitialLoadFailureCanRetryFirstPage() async {
         let repository = RecordingTimelineFeedRepository(
             firstPageResults: [

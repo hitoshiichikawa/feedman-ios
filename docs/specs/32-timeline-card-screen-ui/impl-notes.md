@@ -27,3 +27,14 @@
 
 - macOS/Xcode 環境で `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` を実行する必要がある。
 - 記事詳細 sheet、既読化、real star mutation sync、SFSafariViewController presenter は本 Issue のスコープ外として未実装。
+
+## Reviewer round=1 reject 対応
+
+- `TimelineViewModel.loadInitialIfNeeded()` を `.idle` の場合だけ first page を取得する guard に変更し、初回取得後の `.empty` / `.loaded` / `.failed` など表示済み state で route 復帰しても自動 refetch しないようにした。
+- empty state 後に `loadInitialIfNeeded()` が再度呼ばれても first page request が増えない ViewModel test を追加した。`retryInitialLoad()` と `refresh()` は明示操作として引き続き first page load を実行する。
+- `RootView` の `.timeline` は `TimelineView` のまま維持し、`.starred` / `.feed` は develop 版の `crossFeedItems()` 読み込み、`itemList`、`ItemSummaryRow` による既存表示へ戻した。
+
+## Reviewer round=1 検証
+
+- `plutil -lint Feedman.xcodeproj/project.pbxproj` は成功。
+- `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` は、この環境の active developer directory が `/Library/Developer/CommandLineTools` で Xcode ではないため実行できなかった。

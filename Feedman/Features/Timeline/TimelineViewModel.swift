@@ -131,7 +131,7 @@ final class TimelineViewModel: ObservableObject {
     }
 
     func loadInitialIfNeeded() async {
-        guard items.isEmpty, state != .loading else {
+        guard state == .idle else {
             return
         }
 
