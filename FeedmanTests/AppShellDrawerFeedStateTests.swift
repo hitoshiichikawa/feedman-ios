@@ -186,9 +186,13 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
         await fulfillment(of: [subscriptionsLoaded, firstPageLoaded], timeout: 3)
         await fulfillment(of: [legacyCrossFeedItemsLoaded], timeout: 0.3)
 
-        XCTAssertEqual(await repository.subscriptionsCallCount(), 1)
-        XCTAssertEqual(await repository.crossFeedItemsCallCount(), 0)
-        XCTAssertEqual(await repository.firstPageLimitCalls(), [Optional<Int>.none])
+        let subscriptionsCallCount = await repository.subscriptionsCallCount()
+        let crossFeedItemsCallCount = await repository.crossFeedItemsCallCount()
+        let firstPageLimitCalls = await repository.firstPageLimitCalls()
+
+        XCTAssertEqual(subscriptionsCallCount, 1)
+        XCTAssertEqual(crossFeedItemsCallCount, 0)
+        XCTAssertEqual(firstPageLimitCalls, [Optional<Int>.none])
 
         window.isHidden = true
         window.rootViewController = nil
