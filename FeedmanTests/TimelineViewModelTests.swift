@@ -13,7 +13,8 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.state, .loaded)
         XCTAssertEqual(viewModel.items.map(\.id), ["first", "second"])
         XCTAssertTrue(viewModel.canLoadMore)
-        XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil)])
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil)])
     }
 
     func testInitialLoadEmptyPageExposesEmptyState() async {
@@ -43,7 +44,8 @@ final class TimelineViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.state, .empty)
         XCTAssertEqual(viewModel.items, [])
-        XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil)])
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil)])
     }
 
     func testInitialLoadWithExistingItemsDoesNotRefetchOnRouteReturn() async {
@@ -64,7 +66,8 @@ final class TimelineViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.state, .loaded)
         XCTAssertEqual(viewModel.items, [existingItem])
-        XCTAssertEqual(await repository.calls(), [])
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [])
     }
 
     func testInitialLoadFailureCanRetryFirstPage() async {
@@ -85,7 +88,8 @@ final class TimelineViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.state, .loaded)
         XCTAssertEqual(viewModel.items.map(\.id), ["recovered"])
-        XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil), .firstPage(limit: nil)])
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil), .firstPage(limit: nil)])
     }
 
     func testRefreshFailurePreservesExistingItems() async {
@@ -122,7 +126,8 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.items.map(\.id), ["first", "second"])
         XCTAssertFalse(viewModel.canLoadMore)
         XCTAssertEqual(viewModel.state, .loaded)
-        XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil), .nextPage])
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil), .nextPage])
     }
 
     func testNextPageFailurePreservesExistingItemsAndShowsRetryableError() async {
@@ -164,7 +169,8 @@ final class TimelineViewModelTests: XCTestCase {
         await viewModel.loadNextPageIfNeeded(currentItemID: "only")
 
         XCTAssertEqual(viewModel.items.map(\.id), ["only"])
-        XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil)])
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil)])
     }
 
     func testLocalStarToggleDoesNotCallRepositoryMutation() async throws {
@@ -178,8 +184,10 @@ final class TimelineViewModelTests: XCTestCase {
         await viewModel.loadInitialIfNeeded()
         viewModel.toggleStar(id: "target")
 
-        XCTAssertTrue(XCTUnwrap(viewModel.items.first).isStarred)
-        XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil)])
+        let firstItem = try XCTUnwrap(viewModel.items.first)
+        XCTAssertTrue(firstItem.isStarred)
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil)])
     }
 
     func testLocalStarToggleSurvivesPaginationSnapshotReplacement() async throws {
