@@ -12,10 +12,13 @@ final class ArticleDetailViewModelTests: XCTestCase {
 
         await viewModel.open()
 
-        XCTAssertEqual(await repository.detailCalls(), [
+        let detailCalls = await repository.detailCalls()
+        let stateUpdateCalls = await repository.stateUpdateCalls()
+
+        XCTAssertEqual(detailCalls, [
             ArticleDetailCall(itemID: "item-123", accessToken: "test-access-token")
         ])
-        XCTAssertEqual(await repository.stateUpdateCalls(), [
+        XCTAssertEqual(stateUpdateCalls, [
             ArticleDetailStateUpdateCall(
                 itemID: "item-123",
                 request: ItemStateUpdateRequest(isRead: true, isStarred: nil),
