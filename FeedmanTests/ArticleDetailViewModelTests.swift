@@ -161,6 +161,17 @@ final class ArticleDetailViewModelTests: XCTestCase {
         XCTAssertNil(presentation.linkURL)
     }
 
+    func testPublishedDateFormatterFormatsSummaryPreviewDate() {
+        let dateText = ArticleDetailPublishedDateFormatter.string(
+            from: "2026-06-08T08:30:00Z",
+            isEstimated: true
+        )
+
+        XCTAssertFalse(dateText?.contains("T") ?? true)
+        XCTAssertFalse(dateText?.contains("Z") ?? true)
+        XCTAssertTrue(dateText?.contains("推定") ?? false)
+    }
+
     private func makeViewModel(
         repository: any ItemRepository,
         accessToken: String? = "test-access-token"

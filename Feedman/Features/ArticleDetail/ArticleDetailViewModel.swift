@@ -94,19 +94,17 @@ struct ArticleDetailPresentation: Equatable {
 
     init(detail: ItemDetail) {
         self.id = detail.id
+        let publishedDateText = ArticleDetailPublishedDateFormatter.string(
+            from: detail.publishedAt,
+            isEstimated: detail.isDateEstimated
+        )
         self.sourceMetadata = ArticleSourceMetadata(
             feedTitle: detail.feedTitle,
             faviconURL: detail.feedFaviconURL,
-            relativeDate: Self.formattedPublishedDate(
-                detail.publishedAt,
-                isEstimated: detail.isDateEstimated
-            )
+            relativeDate: publishedDateText
         )
         self.title = detail.title
-        self.publishedDateText = Self.formattedPublishedDate(
-            detail.publishedAt,
-            isEstimated: detail.isDateEstimated
-        )
+        self.publishedDateText = publishedDateText
         self.authorText = detail.author.nilIfBlank
         self.isDateEstimated = detail.isDateEstimated
         self.isRead = detail.isRead
@@ -122,20 +120,6 @@ struct ArticleDetailPresentation: Equatable {
         )
     }
 
-    private static func formattedPublishedDate(_ rfc3339: String, isEstimated: Bool) -> String? {
-        guard let date = ISO8601DateFormatter.feedmanDate(from: rfc3339) else {
-            return rfc3339.nilIfBlank
-        }
-
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.timeZone = TimeZone.current
-        formatter.dateFormat = "yyyy/MM/dd HH:mm"
-
-        let formatted = formatter.string(from: date)
-        return isEstimated ? "\(formatted) 推定" : formatted
-    }
-
     private static func validHTTPURL(from rawValue: String) -> URL? {
         guard let url = URL(string: rawValue),
               let scheme = url.scheme?.lowercased(),
@@ -146,6 +130,26 @@ struct ArticleDetailPresentation: Equatable {
         }
 
         return url
+    }
+}
+
+enum ArticleDetailPublishedDateFormatter {
+    static func string(from rfc3339: String?, isEstimated: Bool?) -> String? {
+        guard let rfc3339 = rfc3339.nilIfBlank else {
+            return nil
+        }
+
+        guard let date = ISO8601DateFormatter.feedmanDate(from: rfc3339) else {
+            return rfc3339
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy/MM/dd HH:mm"
+
+        let formatted = formatter.string(from: date)
+        return isEstimated == true ? "\(formatted) 推定" : formatted
     }
 }
 

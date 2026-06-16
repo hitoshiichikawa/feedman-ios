@@ -126,7 +126,10 @@ private struct ArticleDetailSummaryPreview: View {
                 ArticleSourceRow(
                     feedTitle: feedTitle,
                     faviconURL: summary.feedFaviconURL,
-                    relativeDate: summary.publishedAt,
+                    relativeDate: ArticleDetailPublishedDateFormatter.string(
+                        from: summary.publishedAt,
+                        isEstimated: summary.isDateEstimated
+                    ),
                     size: .standard
                 )
             }
