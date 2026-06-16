@@ -141,6 +141,7 @@ final class ArticleDetailViewModelTests: XCTestCase {
         )
 
         XCTAssertEqual(preview.source, .content)
+        XCTAssertEqual(preview.text, longBody)
         XCTAssertTrue(preview.text.hasPrefix("本文 本文"))
         XCTAssertFalse(preview.text.contains("<article>"))
     }
