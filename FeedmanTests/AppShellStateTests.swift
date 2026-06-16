@@ -109,6 +109,30 @@ final class AppShellStateTests: XCTestCase {
         XCTAssertFalse(state.isDrawerOpen)
     }
 
+    func testPresentingArticleDetailStoresSelectedInputAndClosesDrawer() {
+        var state = AppShellState(currentRoute: .search, isDrawerOpen: true)
+        let input = ArticleDetailSheetInput(
+            id: "item-47",
+            summary: ArticleDetailSummary(id: "item-47", title: "Search Result")
+        )
+
+        let didPresent = state.presentArticleDetail(input)
+
+        XCTAssertTrue(didPresent)
+        XCTAssertEqual(state.currentRoute, .search)
+        XCTAssertEqual(state.activePresentation, .articleDetail(input))
+        XCTAssertFalse(state.isDrawerOpen)
+    }
+
+    func testInvalidArticleDetailInputDoesNotPresentBrokenSheet() {
+        var state = AppShellState(currentRoute: .search)
+
+        let didPresent = state.presentArticleDetail(ArticleDetailSheetInput(id: "   "))
+
+        XCTAssertFalse(didPresent)
+        XCTAssertNil(state.activePresentation)
+    }
+
     func testDismissPresentationClearsActivePresentationOnly() {
         var state = AppShellState(currentRoute: .starred, activePresentation: .feedRegistration)
 
@@ -116,6 +140,30 @@ final class AppShellStateTests: XCTestCase {
 
         XCTAssertEqual(state.currentRoute, .starred)
         XCTAssertNil(state.activePresentation)
+    }
+
+    func testSelectingRouteClearsPendingArticleDetailPresentation() {
+        let input = ArticleDetailSheetInput(id: "item-47")
+        var state = AppShellState(currentRoute: .search, activePresentation: .articleDetail(input))
+
+        state.selectRoute(.timeline)
+
+        XCTAssertEqual(state.currentRoute, .timeline)
+        XCTAssertNil(state.activePresentation)
+    }
+
+    func testApplyingItemStateChangeKeepsLatestConfirmedChange() {
+        var state = AppShellState(currentRoute: .search)
+        let change = ItemStateChange(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000047")!,
+            itemID: "item-47",
+            isRead: true,
+            isStarred: false
+        )
+
+        state.applyItemStateChange(change)
+
+        XCTAssertEqual(state.itemStateChange, change)
     }
 
     func testThemeOverrideCyclesThroughSystemDarkAndLight() {

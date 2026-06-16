@@ -49,6 +49,7 @@ enum AppShellDrawerSelection: Equatable, Hashable {
 enum AppShellPresentation: Equatable, Identifiable {
     case account
     case feedRegistration
+    case articleDetail(ArticleDetailSheetInput)
 
     var id: String {
         switch self {
@@ -56,6 +57,8 @@ enum AppShellPresentation: Equatable, Identifiable {
             return "account"
         case .feedRegistration:
             return "feedRegistration"
+        case let .articleDetail(input):
+            return "articleDetail-\(input.id)"
         }
     }
 }
@@ -93,17 +96,20 @@ struct AppShellState: Equatable {
     private(set) var isDrawerOpen: Bool
     private(set) var activePresentation: AppShellPresentation?
     private(set) var themeOverride: AppShellThemeOverride
+    private(set) var itemStateChange: ItemStateChange?
 
     init(
         currentRoute: AppShellRoute = .timeline,
         isDrawerOpen: Bool = false,
         activePresentation: AppShellPresentation? = nil,
-        themeOverride: AppShellThemeOverride = .system
+        themeOverride: AppShellThemeOverride = .system,
+        itemStateChange: ItemStateChange? = nil
     ) {
         self.currentRoute = currentRoute
         self.isDrawerOpen = isDrawerOpen
         self.activePresentation = activePresentation
         self.themeOverride = themeOverride
+        self.itemStateChange = itemStateChange
     }
 
     var title: String {
@@ -148,8 +154,22 @@ struct AppShellState: Equatable {
         isDrawerOpen = false
     }
 
+    mutating func presentArticleDetail(_ input: ArticleDetailSheetInput) -> Bool {
+        guard !input.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+
+        activePresentation = .articleDetail(input)
+        isDrawerOpen = false
+        return true
+    }
+
     mutating func dismissPresentation() {
         activePresentation = nil
+    }
+
+    mutating func applyItemStateChange(_ change: ItemStateChange) {
+        itemStateChange = change
     }
 
     mutating func toggleThemeOverride() {

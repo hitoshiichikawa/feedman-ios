@@ -14,6 +14,11 @@ struct ArticleDetailSheetInput: Identifiable, Equatable {
         self.id = item.id
         self.summary = ArticleDetailSummary(item: item)
     }
+
+    init(searchHit: ItemSearchHit) {
+        self.id = searchHit.id
+        self.summary = ArticleDetailSummary(searchHit: searchHit)
+    }
 }
 
 struct ArticleDetailSummary: Equatable {
@@ -68,6 +73,23 @@ struct ArticleDetailSummary: Equatable {
             publishedAt: item.publishedAt,
             isStarred: item.isStarred,
             hatebuCount: item.hatebuCount
+        )
+    }
+
+    init(searchHit: ItemSearchHit) {
+        self.init(
+            id: searchHit.id,
+            feedTitle: searchHit.feedTitle,
+            feedFaviconURL: searchHit.faviconURL,
+            title: searchHit.title,
+            summary: searchHit.summary,
+            link: searchHit.link,
+            publishedAt: searchHit.publishedAt,
+            isDateEstimated: searchHit.isDateEstimated,
+            isStarred: searchHit.isStarred,
+            hatebuCount: searchHit.hatebuCount,
+            hatebuFetchedAt: nil,
+            author: searchHit.author
         )
     }
 }
@@ -244,6 +266,7 @@ final class ArticleDetailViewModel: ObservableObject {
     private let repository: any ItemRepository
     private let accessToken: String?
     private let onAuthRequired: () -> Void
+    private let onItemStateChange: (ItemStateChange) -> Void
     private var hasOpened = false
     private var didMarkReadOnOpen = false
     private var detail: ItemDetail?
@@ -253,13 +276,15 @@ final class ArticleDetailViewModel: ObservableObject {
         summary: ArticleDetailSummary? = nil,
         repository: any ItemRepository,
         accessToken: String?,
-        onAuthRequired: @escaping () -> Void = {}
+        onAuthRequired: @escaping () -> Void = {},
+        onItemStateChange: @escaping (ItemStateChange) -> Void = { _ in }
     ) {
         self.itemID = itemID
         self.summary = summary
         self.repository = repository
         self.accessToken = accessToken
         self.onAuthRequired = onAuthRequired
+        self.onItemStateChange = onItemStateChange
         self.state = .idle
     }
 
@@ -306,6 +331,9 @@ final class ArticleDetailViewModel: ObservableObject {
             )
             applyDetail(detail.updating(isStarred: targetValue))
             mutationMessage = nil
+            onItemStateChange(
+                ItemStateChange(itemID: itemID, isRead: nil, isStarred: targetValue)
+            )
         } catch {
             applyMutationFailure(.starFailure, error: error)
         }
@@ -344,6 +372,9 @@ final class ArticleDetailViewModel: ObservableObject {
                 accessToken: accessToken
             )
             didMarkReadOnOpen = true
+            onItemStateChange(
+                ItemStateChange(itemID: itemID, isRead: true, isStarred: nil)
+            )
 
             if let detail {
                 applyDetail(detail.updating(isRead: true))
@@ -369,6 +400,15 @@ final class ArticleDetailViewModel: ObservableObject {
             return
         }
 
+        if case AppEnvironmentError.missingAccessToken = error {
+            onAuthRequired()
+            state = .failed(
+                message: "認証の有効期限が切れました。もう一度ログインしてください。",
+                isAuthRequired: true
+            )
+            return
+        }
+
         state = .failed(
             message: "記事詳細を読み込めませんでした。",
             isAuthRequired: false
@@ -380,6 +420,15 @@ final class ArticleDetailViewModel: ObservableObject {
         error: Error
     ) {
         if case FeedmanAPIError.authRequired = error {
+            onAuthRequired()
+            mutationMessage = ArticleDetailMutationMessage(
+                kind: message.kind,
+                message: "認証の有効期限が切れました。もう一度ログインしてください。"
+            )
+            return
+        }
+
+        if case AppEnvironmentError.missingAccessToken = error {
             onAuthRequired()
             mutationMessage = ArticleDetailMutationMessage(
                 kind: message.kind,

@@ -40,3 +40,22 @@ struct FeedItem: Identifiable, Equatable {
     var isStarred: Bool
     let hatebuCount: Int?
 }
+
+struct ItemStateChange: Identifiable, Equatable {
+    let id: UUID
+    let itemID: String
+    let isRead: Bool?
+    let isStarred: Bool?
+
+    init(
+        id: UUID = UUID(),
+        itemID: String,
+        isRead: Bool? = nil,
+        isStarred: Bool? = nil
+    ) {
+        self.id = id
+        self.itemID = itemID
+        self.isRead = isRead
+        self.isStarred = isStarred
+    }
+}

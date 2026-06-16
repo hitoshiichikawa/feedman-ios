@@ -8,7 +8,10 @@ final class ArticleDetailViewModelTests: XCTestCase {
             detailResults: [.success(makeDetail(isRead: false, isStarred: false))],
             stateUpdateResults: [.success(())]
         )
-        let viewModel = makeViewModel(repository: repository)
+        var stateChanges: [ItemStateChange] = []
+        let viewModel = makeViewModel(repository: repository) { change in
+            stateChanges.append(change)
+        }
 
         await viewModel.open()
 
@@ -34,6 +37,9 @@ final class ArticleDetailViewModelTests: XCTestCase {
         XCTAssertTrue(presentation.isRead)
         XCTAssertFalse(presentation.isStarred)
         XCTAssertNil(viewModel.mutationMessage)
+        XCTAssertEqual(stateChanges.map(\.itemID), ["item-123"])
+        XCTAssertEqual(stateChanges.map(\.isRead), [true])
+        XCTAssertEqual(stateChanges.map(\.isStarred), [nil])
     }
 
     func testDetailFailureShowsRecoverableStateAndRetryUsesSameItem() async throws {
@@ -80,7 +86,10 @@ final class ArticleDetailViewModelTests: XCTestCase {
             detailResults: [.success(makeDetail(isRead: true, isStarred: false))],
             stateUpdateResults: [.success(()), .success(())]
         )
-        let viewModel = makeViewModel(repository: repository)
+        var stateChanges: [ItemStateChange] = []
+        let viewModel = makeViewModel(repository: repository) { change in
+            stateChanges.append(change)
+        }
 
         await viewModel.open()
         await viewModel.toggleStar()
@@ -92,6 +101,9 @@ final class ArticleDetailViewModelTests: XCTestCase {
         ])
         XCTAssertEqual(viewModel.loadedPresentation?.isStarred, true)
         XCTAssertNil(viewModel.mutationMessage)
+        XCTAssertEqual(stateChanges.map(\.itemID), ["item-123", "item-123"])
+        XCTAssertEqual(stateChanges.map(\.isRead), [true, nil])
+        XCTAssertEqual(stateChanges.map(\.isStarred), [nil, true])
     }
 
     func testStarFailureKeepsDeterministicFinalStateAndSurfacesMessage() async throws {
@@ -172,9 +184,43 @@ final class ArticleDetailViewModelTests: XCTestCase {
         XCTAssertTrue(dateText?.contains("推定") ?? false)
     }
 
+    func testSearchHitSummaryMappingPreservesNullableFields() {
+        let input = ArticleDetailSheetInput(
+            searchHit: ItemSearchHit(
+                id: "search-hit",
+                feedID: "feed-search-hit",
+                feedTitle: "Search Feed",
+                faviconURL: nil,
+                title: "Search Title",
+                summary: "Search Summary",
+                link: "https://example.com/search-hit",
+                publishedAt: nil,
+                isDateEstimated: nil,
+                isRead: nil,
+                isStarred: nil,
+                hatebuCount: nil,
+                author: nil
+            )
+        )
+
+        XCTAssertEqual(input.id, "search-hit")
+        XCTAssertEqual(input.summary?.feedTitle, "Search Feed")
+        XCTAssertNil(input.summary?.feedFaviconURL)
+        XCTAssertEqual(input.summary?.title, "Search Title")
+        XCTAssertEqual(input.summary?.summary, "Search Summary")
+        XCTAssertEqual(input.summary?.link, "https://example.com/search-hit")
+        XCTAssertNil(input.summary?.publishedAt)
+        XCTAssertNil(input.summary?.isDateEstimated)
+        XCTAssertNil(input.summary?.isStarred)
+        XCTAssertNil(input.summary?.hatebuCount)
+        XCTAssertNil(input.summary?.hatebuFetchedAt)
+        XCTAssertNil(input.summary?.author)
+    }
+
     private func makeViewModel(
         repository: any ItemRepository,
-        accessToken: String? = "test-access-token"
+        accessToken: String? = "test-access-token",
+        onItemStateChange: @escaping (ItemStateChange) -> Void = { _ in }
     ) -> ArticleDetailViewModel {
         ArticleDetailViewModel(
             itemID: "item-123",
@@ -189,7 +235,8 @@ final class ArticleDetailViewModelTests: XCTestCase {
                 hatebuCount: 1
             ),
             repository: repository,
-            accessToken: accessToken
+            accessToken: accessToken,
+            onItemStateChange: onItemStateChange
         )
     }
 

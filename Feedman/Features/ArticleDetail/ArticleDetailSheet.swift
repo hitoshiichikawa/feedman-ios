@@ -13,7 +13,8 @@ struct ArticleDetailSheet: View {
         accessToken: String?,
         onDismiss: @escaping () -> Void,
         onOpenOriginal: @escaping (URL) -> Void,
-        onAuthRequired: @escaping () -> Void = {}
+        onAuthRequired: @escaping () -> Void = {},
+        onItemStateChange: @escaping (ItemStateChange) -> Void = { _ in }
     ) {
         self.input = input
         self.onDismiss = onDismiss
@@ -24,7 +25,8 @@ struct ArticleDetailSheet: View {
                 summary: input.summary,
                 repository: repository,
                 accessToken: accessToken,
-                onAuthRequired: onAuthRequired
+                onAuthRequired: onAuthRequired,
+                onItemStateChange: onItemStateChange
             )
         )
     }
