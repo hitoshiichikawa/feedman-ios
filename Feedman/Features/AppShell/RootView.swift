@@ -4,9 +4,8 @@ struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.openURL) private var openURL
     @State private var shellState = AppShellState()
-    @State private var items: [FeedItem] = []
-    @State private var selectedArticle: ArticleDetailSheetInput?
     @StateObject private var drawerFeedViewModel = AppShellDrawerFeedViewModel()
+    @StateObject private var timelineViewModel = TimelineViewModel()
     @StateObject private var toastCenter = FeedmanToastCenter()
 
     private let drawerWidth: CGFloat = 280
@@ -117,22 +116,8 @@ struct RootView: View {
             .sheet(item: activePresentationBinding) { presentation in
                 sheetContent(for: presentation)
             }
-            .sheet(item: $selectedArticle) { article in
-                ArticleDetailSheet(
-                    input: article,
-                    repository: environment.itemRepository,
-                    accessToken: environment.currentAccessToken,
-                    onDismiss: {
-                        selectedArticle = nil
-                    },
-                    onOpenOriginal: { _ in
-                        toastCenter.show("元記事を開く処理は後続 Issue で接続します")
-                    }
-                )
-            }
             .task {
                 await drawerFeedViewModel.loadSubscriptions(repository: environment.feedRepository)
-                items = (try? await environment.feedRepository.crossFeedItems()) ?? []
             }
             .feedmanToastOverlay(toastCenter: toastCenter, edge: .top)
         }
@@ -154,25 +139,26 @@ struct RootView: View {
     private var routeContent: some View {
         switch shellState.currentRoute {
         case .timeline:
-            itemList(
-                items,
-                emptyTitle: "新着記事はありません",
-                emptySubtitle: "購読フィードの記事が取得できるとここに表示されます。"
+            TimelineView(
+                viewModel: timelineViewModel,
+                repository: environment.feedRepository,
+                onSelectItem: { _ in },
+                onOpenLink: { url in
+                    openURL(url)
+                }
             )
         case .starred:
-            itemList(
-                items.filter(\.isStarred),
-                emptyTitle: "お気に入りはありません",
-                emptySubtitle: "スターした記事がここに表示されます。"
+            placeholderContent(
+                systemImage: "star",
+                title: "お気に入り",
+                subtitle: "スター一覧は後続 Issue で追加します。"
             )
         case let .feed(id, title):
             feedContent(feedID: id, routeTitle: title)
         case .search:
             GlobalSearchView(
                 repository: environment.makeSearchRepository(),
-                onSelectItem: { itemID in
-                    selectedArticle = ArticleDetailSheetInput(id: itemID)
-                },
+                onSelectItem: { _ in },
                 onOpenLink: { url in
                     openURL(url)
                 }
@@ -189,10 +175,10 @@ struct RootView: View {
     @ViewBuilder
     private func feedContent(feedID: String, routeTitle: String) -> some View {
         if drawerFeedViewModel.sectionState.feeds.contains(where: { $0.id == feedID }) {
-            itemList(
-                items.filter { $0.feedID == feedID },
-                emptyTitle: "\(routeTitle.isEmpty ? "フィード" : routeTitle) の記事はありません",
-                emptySubtitle: "フィード別一覧の本実装は後続 Issue で追加します。"
+            placeholderContent(
+                systemImage: "tray.full",
+                title: routeTitle.isEmpty ? "フィード別記事一覧" : routeTitle,
+                subtitle: "フィード別記事一覧は後続 Issue で追加します。"
             )
         } else {
             placeholderContent(
@@ -200,35 +186,6 @@ struct RootView: View {
                 title: "フィードを表示できません",
                 subtitle: "選択中のフィードは現在の placeholder 一覧にありません。"
             )
-        }
-    }
-
-    private func itemList(
-        _ visibleItems: [FeedItem],
-        emptyTitle: String,
-        emptySubtitle: String
-    ) -> some View {
-        Group {
-            if visibleItems.isEmpty {
-                placeholderContent(
-                    systemImage: "tray",
-                    title: emptyTitle,
-                    subtitle: emptySubtitle
-                )
-            } else {
-                List(visibleItems) { item in
-                    Button {
-                        selectedArticle = ArticleDetailSheetInput(item: item)
-                    } label: {
-                        ItemSummaryRow(item: item)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(item.title)
-                    .accessibilityHint("記事詳細を開きます")
-                }
-                .listStyle(.plain)
-                .background(FeedmanTheme.background)
-            }
         }
     }
 
@@ -312,36 +269,6 @@ struct RootView: View {
         drawerFeedViewModel.applyRegisteredFeed(registeredFeed)
         toastCenter.show("\(registeredFeed.title) を登録しました", style: .success)
         shellState.dismissPresentation()
-    }
-}
-
-private struct ItemSummaryRow: View {
-    let item: FeedItem
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(item.feedTitle)
-                    .font(.caption)
-                    .foregroundStyle(FeedmanTheme.mutedForeground)
-                    .lineLimit(1)
-                Spacer()
-                if item.isStarred {
-                    Image(systemName: "star.fill")
-                        .foregroundStyle(FeedmanTheme.star)
-                        .accessibilityLabel("スター済み")
-                }
-            }
-            Text(item.title)
-                .font(.headline)
-                .foregroundStyle(item.isRead ? FeedmanTheme.mutedForeground : FeedmanTheme.foreground)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(item.summary)
-                .font(.subheadline)
-                .foregroundStyle(FeedmanTheme.mutedForeground)
-                .lineLimit(2)
-        }
-        .padding(.vertical, 6)
     }
 }
 

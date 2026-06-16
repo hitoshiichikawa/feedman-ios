@@ -50,7 +50,6 @@ final class AppEnvironment: ObservableObject {
     typealias SearchRepositoryFactory = (String) -> any SearchRepository
 
     let feedRepository: FeedRepository
-    let itemRepository: any ItemRepository
     let authRepository: any AuthRepository
     let accountRepository: any AccountRepository
     let authBaseURL: URL
@@ -62,7 +61,6 @@ final class AppEnvironment: ObservableObject {
 
     init(
         feedRepository: FeedRepository,
-        itemRepository: any ItemRepository = MockItemRepository(),
         authRepository: any AuthRepository,
         accountRepository: any AccountRepository,
         authBaseURL: URL,
@@ -71,7 +69,6 @@ final class AppEnvironment: ObservableObject {
         accessTokenStore: AppAccessTokenStore? = nil
     ) {
         self.feedRepository = feedRepository
-        self.itemRepository = itemRepository
         self.authRepository = authRepository
         self.accountRepository = accountRepository
         self.authBaseURL = authBaseURL
@@ -152,7 +149,6 @@ final class AppEnvironment: ObservableObject {
                     try accessTokenStore.currentAccessToken()
                 }
             ),
-            itemRepository: FeedmanItemRepository(apiClient: apiClient),
             authRepository: authRepository,
             accountRepository: FeedmanAccountRepository(apiClient: apiClient),
             authBaseURL: apiBaseURL,
@@ -171,44 +167,6 @@ final class AppEnvironment: ObservableObject {
 
     static let preview = AppEnvironment(
         feedRepository: MockFeedRepository(),
-        itemRepository: MockItemRepository(
-            itemDetails: [
-                "item-1": ItemDetail(
-                    id: "item-1",
-                    feedID: "publickey",
-                    feedTitle: "Publickey",
-                    feedFaviconURL: nil,
-                    title: "Goの新しいイテレータが安定版に、range-over-funcの実用例まとめ",
-                    summary: "range-over-func が GA となり、独自コレクションのイテレートが書きやすくなった。",
-                    content: "<p>range-over-func が GA となり、独自コレクションのイテレートが書きやすくなった。</p><p>実装例と注意点を整理します。</p>",
-                    link: "https://example.com/articles/1",
-                    publishedAt: "2026-06-08T08:30:00Z",
-                    isDateEstimated: false,
-                    isRead: false,
-                    isStarred: false,
-                    hatebuCount: 142,
-                    hatebuFetchedAt: "2026-06-08T08:35:00Z",
-                    author: "Feedman"
-                ),
-                "item-2": ItemDetail(
-                    id: "item-2",
-                    feedID: "zenn",
-                    feedTitle: "Zenn トレンド",
-                    feedFaviconURL: nil,
-                    title: "個人開発のSaaSを1年運用して分かったコスト最適化の勘所",
-                    summary: "小さく始めて計測しながら削る、という当たり前を徹底した結果を共有する。",
-                    content: "<p>小さく始めて計測しながら削る、という当たり前を徹底した結果を共有する。</p>",
-                    link: "https://example.com/articles/2",
-                    publishedAt: "2026-06-08T06:45:00Z",
-                    isDateEstimated: false,
-                    isRead: true,
-                    isStarred: true,
-                    hatebuCount: 64,
-                    hatebuFetchedAt: "2026-06-08T06:50:00Z",
-                    author: nil
-                )
-            ]
-        ),
         authRepository: UnavailableAuthRepository(),
         accountRepository: UnavailableAccountRepository(),
         authBaseURL: URL(string: "https://example.com")!,
