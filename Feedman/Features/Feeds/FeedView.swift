@@ -82,7 +82,7 @@ struct FeedView: View {
 
     @ViewBuilder
     private var stateContent: some View {
-        switch viewModel.state {
+        switch viewModel.visibleState(for: feed.id) {
         case .idle, .loading:
             FeedmanLoadingView(
                 "記事を読み込んでいます",

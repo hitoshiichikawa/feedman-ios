@@ -141,6 +141,19 @@ final class FeedViewModelTests: XCTestCase {
         )
     }
 
+    func testVisibleStateHidesLoadedItemsForDifferentRouteFeed() {
+        let viewModel = FeedViewModel(
+            state: .loaded,
+            items: [item(id: "old")],
+            canLoadMore: false,
+            currentFeedID: "feed-1"
+        )
+
+        XCTAssertEqual(viewModel.visibleState(for: "feed-1"), .loaded)
+        XCTAssertEqual(viewModel.visibleState(for: "feed-2"), .loading)
+        XCTAssertEqual(viewModel.items.map(\.id), ["old"])
+    }
+
     func testNextPageSuccessAppendsItemsInRepositoryOrder() async {
         let repository = RecordingFeedItemsRepository(
             firstPageResults: [

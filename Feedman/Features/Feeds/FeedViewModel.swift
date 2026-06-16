@@ -260,6 +260,14 @@ final class FeedViewModel: ObservableObject {
         FeedItemCardDescriptor(item: item, now: now)
     }
 
+    func visibleState(for feedID: String) -> FeedViewState {
+        guard currentFeedID == feedID else {
+            return .loading
+        }
+
+        return state
+    }
+
     var emptySubtitle: String {
         switch filter {
         case .all:
