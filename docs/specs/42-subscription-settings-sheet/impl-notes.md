@@ -38,3 +38,11 @@
   - `git diff --check`
   - `plutil -lint Feedman.xcodeproj/project.pbxproj`
 - UI / XCTest を含む typecheck は CommandLineTools 環境に `UIKit` / `XCTest` module がなく実行不可。
+
+## round=1 reject 是正
+
+- Issue #42 と無関係に削除されていた `docs/specs/32-timeline-card-screen-ui/` と `docs/specs/39-feed-item-list-repository-with-filters-a/` の spec 成果物を `develop` と同等に復元した。
+- `Feedman/Features/Timeline/TimelineView.swift`、`Feedman/Features/Timeline/TimelineViewModel.swift`、`FeedmanTests/TimelineViewModelTests.swift` を `develop` と同等に復元した。
+- `Feedman.xcodeproj/project.pbxproj` は Subscription settings の追加参照を残しつつ、Timeline source/test の file reference、group、build phase 参照を追加した。
+- 追加検証として `git diff --check` と `plutil -lint Feedman.xcodeproj/project.pbxproj` を実行した。`xcodebuild` は active developer directory が CommandLineTools のため引き続き実行不可。
+- Timeline を含む UI 依存ファイルの `swiftc -typecheck` も試行したが、CommandLineTools 環境では SwiftUI preview macro plugin を解決できず検証として完了できなかった。
