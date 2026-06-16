@@ -307,36 +307,21 @@ struct RootView: View {
     }
 
     private func openSearchResultLink(_ request: SearchResultOpenLinkRequest) {
-        openURL(request.url)
-
         Task {
-            await markSearchResultRead(itemID: request.itemID)
-        }
-    }
-
-    private func markSearchResultRead(itemID: String) async {
-        guard let accessToken = environment.currentAccessToken?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !accessToken.isEmpty
-        else {
-            toastCenter.show("再ログインが必要です。", style: .warning)
-            return
-        }
-
-        do {
-            try await environment.itemRepository.updateItemState(
-                id: itemID,
-                request: ItemStateUpdateRequest(isRead: true, isStarred: nil),
-                accessToken: accessToken
+            await AppShellSearchResultOpenLinkCoordinator(
+                itemRepository: environment.itemRepository,
+                accessToken: environment.currentAccessToken,
+                openURL: { url in
+                    openURL(url)
+                },
+                onItemStateChange: { change in
+                    shellState.applyItemStateChange(change)
+                },
+                onFailure: { failure in
+                    toastCenter.show(failure.message, style: .warning)
+                }
             )
-            shellState.applyItemStateChange(
-                ItemStateChange(itemID: itemID, isRead: true, isStarred: nil)
-            )
-        } catch {
-            if case FeedmanAPIError.authRequired = error {
-                toastCenter.show("再ログインが必要です。", style: .warning)
-            } else {
-                toastCenter.show("既読状態を保存できませんでした。", style: .warning)
-            }
+            .open(request)
         }
     }
 }

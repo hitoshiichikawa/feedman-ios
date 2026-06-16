@@ -166,6 +166,115 @@ final class AppShellStateTests: XCTestCase {
         XCTAssertEqual(state.itemStateChange, change)
     }
 
+    @MainActor
+    func testSearchResultOpenLinkCoordinatorOpensURLMarksReadAndDoesNotSelectDetail() async throws {
+        let repository = AppShellSearchResultRecordingItemRepository(updateResult: .success(()))
+        let descriptor = SearchResultRowDescriptor(hit: searchHit(id: "item-47", isRead: false))
+        let request = try XCTUnwrap(descriptor.openLinkRequest)
+        var openedURLs: [URL] = []
+        var itemStateChanges: [ItemStateChange] = []
+        var failures: [AppShellSearchResultOpenLinkFailure] = []
+        var selectedInputs: [ArticleDetailSheetInput] = []
+
+        let coordinator = AppShellSearchResultOpenLinkCoordinator(
+            itemRepository: repository,
+            accessToken: " access-token ",
+            openURL: { url in
+                openedURLs.append(url)
+            },
+            onItemStateChange: { change in
+                itemStateChanges.append(change)
+            },
+            onFailure: { failure in
+                failures.append(failure)
+            }
+        )
+
+        await performSearchResultOpenLinkAction(
+            descriptor: descriptor,
+            onSelectItem: { input in
+                selectedInputs.append(input)
+            },
+            onOpenLink: { request in
+                await coordinator.open(request)
+            }
+        )
+
+        XCTAssertTrue(selectedInputs.isEmpty)
+        XCTAssertEqual(openedURLs, [try XCTUnwrap(URL(string: "https://example.com/item-47"))])
+        XCTAssertEqual(
+            await repository.stateUpdateCalls(),
+            [
+                AppShellSearchResultStateUpdateCall(
+                    itemID: "item-47",
+                    request: ItemStateUpdateRequest(isRead: true, isStarred: nil),
+                    accessToken: "access-token"
+                )
+            ]
+        )
+        XCTAssertEqual(itemStateChanges.count, 1)
+        XCTAssertEqual(itemStateChanges.first?.itemID, "item-47")
+        XCTAssertEqual(itemStateChanges.first?.isRead, true)
+        XCTAssertNil(itemStateChanges.first?.isStarred)
+        XCTAssertTrue(failures.isEmpty)
+        XCTAssertEqual(request.itemID, "item-47")
+    }
+
+    @MainActor
+    func testSearchResultOpenLinkCoordinatorDoesNotApplyReadStateWhenReadMarkingFails() async throws {
+        let repository = AppShellSearchResultRecordingItemRepository(
+            updateResult: .failure(AppShellSearchResultTestError.transport)
+        )
+        let request = SearchResultOpenLinkRequest(
+            itemID: "item-47",
+            url: try XCTUnwrap(URL(string: "https://example.com/item-47"))
+        )
+        let viewModel = GlobalSearchViewModel(
+            state: .results(
+                query: "Swift",
+                hits: [searchHit(id: "item-47", isRead: false)]
+            ),
+            repository: RecordingAppShellSearchRepository()
+        )
+        var shellState = AppShellState(currentRoute: .search)
+        var openedURLs: [URL] = []
+        var failures: [AppShellSearchResultOpenLinkFailure] = []
+
+        await AppShellSearchResultOpenLinkCoordinator(
+            itemRepository: repository,
+            accessToken: "access-token",
+            openURL: { url in
+                openedURLs.append(url)
+            },
+            onItemStateChange: { change in
+                shellState.applyItemStateChange(change)
+                viewModel.applyItemStateChange(change)
+            },
+            onFailure: { failure in
+                failures.append(failure)
+            }
+        )
+        .open(request)
+
+        XCTAssertEqual(openedURLs, [request.url])
+        XCTAssertEqual(
+            await repository.stateUpdateCalls(),
+            [
+                AppShellSearchResultStateUpdateCall(
+                    itemID: "item-47",
+                    request: ItemStateUpdateRequest(isRead: true, isStarred: nil),
+                    accessToken: "access-token"
+                )
+            ]
+        )
+        XCTAssertNil(shellState.itemStateChange)
+        XCTAssertEqual(failures, [.readMarkingFailed])
+        guard case let .results(_, hits) = viewModel.state else {
+            return XCTFail("Expected results state")
+        }
+        XCTAssertEqual(hits.first?.isRead, false)
+    }
+
     func testThemeOverrideCyclesThroughSystemDarkAndLight() {
         var state = AppShellState()
 
@@ -187,5 +296,88 @@ final class AppShellStateTests: XCTestCase {
         XCTAssertEqual(state.currentRoute, .feed(id: "zenn", title: "Zenn"))
         XCTAssertTrue(state.isDrawerOpen)
         XCTAssertEqual(state.themeOverride, .dark)
+    }
+
+    private func searchHit(id: String, isRead: Bool?) -> ItemSearchHit {
+        ItemSearchHit(
+            id: id,
+            feedID: "feed-\(id)",
+            feedTitle: "Feed \(id)",
+            faviconURL: nil,
+            title: "Title \(id)",
+            summary: "Summary \(id)",
+            link: "https://example.com/\(id)",
+            publishedAt: "2026-06-08T08:30:00Z",
+            isDateEstimated: false,
+            isRead: isRead,
+            isStarred: false,
+            hatebuCount: nil,
+            author: nil
+        )
+    }
+
+    @MainActor
+    private func performSearchResultOpenLinkAction(
+        descriptor: SearchResultRowDescriptor,
+        onSelectItem: (ArticleDetailSheetInput) -> Void,
+        onOpenLink: (SearchResultOpenLinkRequest) async -> Void
+    ) async {
+        _ = onSelectItem
+        var request: SearchResultOpenLinkRequest?
+        descriptor.openLink { openLinkRequest in
+            request = openLinkRequest
+        }
+
+        if let request {
+            await onOpenLink(request)
+        }
+    }
+}
+
+private struct AppShellSearchResultStateUpdateCall: Equatable {
+    let itemID: String
+    let request: ItemStateUpdateRequest
+    let accessToken: String
+}
+
+private enum AppShellSearchResultTestError: Error {
+    case transport
+}
+
+private actor AppShellSearchResultRecordingItemRepository: ItemRepository {
+    private let updateResult: Result<Void, Error>
+    private var recordedStateUpdateCalls: [AppShellSearchResultStateUpdateCall] = []
+
+    init(updateResult: Result<Void, Error>) {
+        self.updateResult = updateResult
+    }
+
+    func stateUpdateCalls() -> [AppShellSearchResultStateUpdateCall] {
+        recordedStateUpdateCalls
+    }
+
+    func itemDetail(id: String, accessToken: String) async throws -> ItemDetail {
+        throw AppShellSearchResultTestError.transport
+    }
+
+    func updateItemState(
+        id: String,
+        request: ItemStateUpdateRequest,
+        accessToken: String
+    ) async throws {
+        recordedStateUpdateCalls.append(
+            AppShellSearchResultStateUpdateCall(
+                itemID: id,
+                request: request,
+                accessToken: accessToken
+            )
+        )
+        try updateResult.get()
+    }
+}
+
+private actor RecordingAppShellSearchRepository: SearchRepository {
+    func searchItems(query: String, scope: SearchScope) async throws -> [ItemSearchHit] {
+        []
     }
 }

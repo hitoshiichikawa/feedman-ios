@@ -31,3 +31,9 @@
 
 - 既存コードには `SFSafariViewController` presentation 境界がまだないため、検索結果の元記事 open は #46 と同じ SwiftUI `openURL` 境界を継続利用した。SFSafari 境界が確定した時点で置き換え対象となる。
 - 検索結果、詳細、他一覧をまたぐ global item state store は追加していない。状態反映は現在表示中の検索 results と active detail sheet に限定した。
+
+## Reviewer round=1 指摘への是正
+
+- 検索結果の元記事 open 処理を `AppShellSearchResultOpenLinkCoordinator` に切り出し、外部 open、`ItemRepository.updateItemState(isRead: true, isStarred: nil)`、成功時の `ItemStateChange`、失敗時の user-presentable failure を AppShell 境界で検証できるようにした。
+- `AppShellStateTests` に、open-link action が外部 open と read marking request を発生させ、detail selection と分離されていることを確認するテストを追加した。
+- `AppShellStateTests` に、read marking 失敗時は外部 open 自体をブロックせず、visible search result に `isRead: true` を反映せず、warning failure を表面化することを確認するテストを追加した。

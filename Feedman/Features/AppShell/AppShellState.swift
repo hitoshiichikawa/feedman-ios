@@ -91,6 +91,55 @@ enum AppShellThemeOverride: Equatable {
     }
 }
 
+enum AppShellSearchResultOpenLinkFailure: Equatable {
+    case authRequired
+    case readMarkingFailed
+
+    var message: String {
+        switch self {
+        case .authRequired:
+            return "再ログインが必要です。"
+        case .readMarkingFailed:
+            return "既読状態を保存できませんでした。"
+        }
+    }
+}
+
+@MainActor
+struct AppShellSearchResultOpenLinkCoordinator {
+    let itemRepository: any ItemRepository
+    let accessToken: String?
+    let openURL: (URL) -> Void
+    let onItemStateChange: (ItemStateChange) -> Void
+    let onFailure: (AppShellSearchResultOpenLinkFailure) -> Void
+
+    func open(_ request: SearchResultOpenLinkRequest) async {
+        openURL(request.url)
+
+        guard let accessToken = accessToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !accessToken.isEmpty
+        else {
+            onFailure(.authRequired)
+            return
+        }
+
+        do {
+            try await itemRepository.updateItemState(
+                id: request.itemID,
+                request: ItemStateUpdateRequest(isRead: true, isStarred: nil),
+                accessToken: accessToken
+            )
+            onItemStateChange(ItemStateChange(itemID: request.itemID, isRead: true, isStarred: nil))
+        } catch {
+            if case FeedmanAPIError.authRequired = error {
+                onFailure(.authRequired)
+            } else {
+                onFailure(.readMarkingFailed)
+            }
+        }
+    }
+}
+
 struct AppShellState: Equatable {
     private(set) var currentRoute: AppShellRoute
     private(set) var isDrawerOpen: Bool
