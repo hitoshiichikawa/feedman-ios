@@ -94,6 +94,23 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
 
         XCTAssertEqual(environment.authenticationState, .authenticated(accessToken: "login-access"))
     }
+
+    func testAccountDeletionSessionClearClearsCredentialsAndShowsLogin() {
+        let repository = SessionRestoreAuthRepositoryMock(
+            refreshResult: .failure(AuthRepositoryError.missingRefreshToken)
+        )
+        let environment = makeEnvironment(
+            repository: repository,
+            state: .authenticated(accessToken: "existing-access")
+        )
+
+        environment.clearLocalAuthenticationAfterAccountDeletion()
+
+        XCTAssertEqual(environment.authenticationState, .unauthenticated)
+        XCTAssertNil(environment.currentAccessToken)
+        XCTAssertEqual(repository.clearLocalCallCount, 1)
+        XCTAssertEqual(repository.revokeCallCount, 0)
+    }
 }
 
 private enum SessionRestoreTestError: Error {
@@ -104,6 +121,7 @@ private final class SessionRestoreAuthRepositoryMock: AuthRepository {
     private let refreshResult: Result<TokenCredentials, Error>
     private(set) var refreshCallCount = 0
     private(set) var clearLocalCallCount = 0
+    private(set) var revokeCallCount = 0
 
     init(refreshResult: Result<TokenCredentials, Error>) {
         self.refreshResult = refreshResult
@@ -120,7 +138,9 @@ private final class SessionRestoreAuthRepositoryMock: AuthRepository {
         return try refreshResult.get()
     }
 
-    func revokeAndClearCredentials(accessToken: String?) async throws {}
+    func revokeAndClearCredentials(accessToken: String?) async throws {
+        revokeCallCount += 1
+    }
 
     func clearLocalCredentials() throws {
         clearLocalCallCount += 1
