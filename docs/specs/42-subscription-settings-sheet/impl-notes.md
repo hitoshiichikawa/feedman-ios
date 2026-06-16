@@ -46,3 +46,17 @@
 - `Feedman.xcodeproj/project.pbxproj` は Subscription settings の追加参照を残しつつ、Timeline source/test の file reference、group、build phase 参照を追加した。
 - 追加検証として `git diff --check` と `plutil -lint Feedman.xcodeproj/project.pbxproj` を実行した。`xcodebuild` は active developer directory が CommandLineTools のため引き続き実行不可。
 - Timeline を含む UI 依存ファイルの `swiftc -typecheck` も試行したが、CommandLineTools 環境では SwiftUI preview macro plugin を解決できず検証として完了できなかった。
+
+## Debugger 経由再実行 是正
+
+- `Feedman/Core/FeedRepository.swift` を current `develop` の #39 feed-specific repository boundary に合わせて復元し、`FeedItemFilter` / `FeedItemPaginationSnapshot` / `FeedItemRepositoryError`、`APIClientFeedRepository` の `/api/feeds/{id}/items` pagination session、`MockFeedRepository` の deterministic filter/pagination を戻した。
+- #42 の `updateSubscriptionSettings` / `resumeSubscription` / `unsubscribe` と、`Feed.subscriptionID` / `fetchIntervalMinutes` mapping は維持した。
+- `RootView` は legacy `items` state と startup の `crossFeedItems()` 直接呼び出しを除去し、`TimelineViewModel` + `TimelineView` の route content に戻した。購読設定 sheet、drawer settings affordance、成功時の local update / route fallback は維持した。
+- `CrossFeedRepositoryTests` に #39 の feed-specific repository tests/helper を復元し、`AppShellDrawerFeedStateTests` に startup regression test/helper を復元した。#42 の local update/removal/route fallback tests は維持した。
+- 検証:
+  - `git diff --check`: 成功。
+  - `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。
+  - `swiftc -typecheck Feedman/Core/APIModels.swift Feedman/Core/APIError.swift Feedman/Core/APIClient.swift Feedman/Core/Models.swift Feedman/Core/Pagination/CursorPaginationState.swift Feedman/Core/FeedRepository.swift`: 成功。
+  - `swiftc -typecheck Feedman/Core/APIModels.swift Feedman/Core/APIError.swift Feedman/Core/APIClient.swift Feedman/Core/Models.swift Feedman/Core/Pagination/CursorPaginationState.swift Feedman/Core/FeedRepository.swift Feedman/Features/AppShell/AppShellState.swift Feedman/Features/AppShell/AppShellDrawerFeedState.swift Feedman/Features/Subscriptions/SubscriptionSettingsViewModel.swift`: 成功。
+  - `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: 実行不可。active developer directory が `/Library/Developer/CommandLineTools` で、`xcodebuild` が Xcode 本体を要求したため。
+- 残課題: この環境では XCTest / Simulator 実行ができないため、Xcode 本体が有効な macOS 環境で test を再実行する必要がある。

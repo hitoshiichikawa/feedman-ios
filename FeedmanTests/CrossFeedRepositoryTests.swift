@@ -165,6 +165,227 @@ final class CrossFeedRepositoryTests: XCTestCase {
         }
     }
 
+    func testFeedItemsFirstPageRequestsFeedEndpointWithFilterAndLimit() async throws {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueue(response: feedItemPage(ids: ["item-1"], nextCursor: "cursor-2", hasMore: true))
+        let repository = makeFeedItemsRepository(transport: transport)
+
+        let snapshot = try await repository.loadFeedItemsFirstPage(
+            feedID: "feed-1",
+            filter: .all,
+            limit: nil
+        )
+
+        let request = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(request.url?.path, "/api/feeds/feed-1/items")
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
+        XCTAssertEqual(queryValue("filter", in: request), "all")
+        XCTAssertEqual(queryValue("limit", in: request), "50")
+        XCTAssertNil(queryValue("cursor", in: request))
+        XCTAssertEqual(snapshot.items.map(\.id), ["item-1"])
+        XCTAssertEqual(snapshot.feedID, "feed-1")
+        XCTAssertEqual(snapshot.filter, .all)
+        XCTAssertEqual(snapshot.nextCursor, "cursor-2")
+        XCTAssertTrue(snapshot.canLoadMore)
+    }
+
+    func testFeedItemFiltersSendTypedQueryValues() async throws {
+        for filter in FeedItemFilter.allCases {
+            let transport = RecordingFeedItemsTransport()
+            transport.enqueue(response: feedItemPage(ids: ["item-\(filter.rawValue)"], nextCursor: nil, hasMore: false))
+            let repository = makeFeedItemsRepository(transport: transport)
+
+            _ = try await repository.loadFeedItemsFirstPage(
+                feedID: "feed-1",
+                filter: filter,
+                limit: 20
+            )
+
+            XCTAssertEqual(queryValue("filter", in: try XCTUnwrap(transport.requests.first)), filter.rawValue)
+        }
+    }
+
+    func testFeedItemFilterChangeStartsNewFirstPageAndReplacesItems() async throws {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueue(response: feedItemPage(ids: ["all-1"], nextCursor: "cursor-all", hasMore: true))
+        transport.enqueue(response: feedItemPage(ids: ["unread-1"], nextCursor: nil, hasMore: false))
+        let repository = makeFeedItemsRepository(transport: transport)
+
+        _ = try await repository.loadFeedItemsFirstPage(feedID: "feed-1", filter: .all, limit: 25)
+        let snapshot = try await repository.loadFeedItemsFirstPage(feedID: "feed-1", filter: .unread, limit: 25)
+
+        let request = try XCTUnwrap(transport.requests.last)
+        XCTAssertEqual(queryValue("filter", in: request), "unread")
+        XCTAssertNil(queryValue("cursor", in: request))
+        XCTAssertEqual(snapshot.items.map(\.id), ["unread-1"])
+        XCTAssertEqual(snapshot.filter, .unread)
+        XCTAssertFalse(snapshot.canLoadMore)
+    }
+
+    func testFeedItemsNextPageSendsStoredCursorAndAppendsItems() async throws {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueue(response: feedItemPage(ids: ["item-1"], nextCursor: "cursor-2", hasMore: true))
+        transport.enqueue(response: feedItemPage(ids: ["item-2"], nextCursor: nil, hasMore: false))
+        let repository = makeFeedItemsRepository(transport: transport)
+
+        _ = try await repository.loadFeedItemsFirstPage(feedID: "feed-1", filter: .starred, limit: 25)
+        let snapshot = try await repository.loadFeedItemsNextPage()
+
+        let request = try XCTUnwrap(transport.requests.last)
+        XCTAssertEqual(request.url?.path, "/api/feeds/feed-1/items")
+        XCTAssertEqual(queryValue("filter", in: request), "starred")
+        XCTAssertEqual(queryValue("limit", in: request), "25")
+        XCTAssertEqual(queryValue("cursor", in: request), "cursor-2")
+        XCTAssertEqual(snapshot.items.map(\.id), ["item-1", "item-2"])
+        XCTAssertEqual(snapshot.feedID, "feed-1")
+        XCTAssertEqual(snapshot.filter, .starred)
+        XCTAssertFalse(snapshot.canLoadMore)
+    }
+
+    func testFeedItemLimitsAreNormalizedDeterministically() async throws {
+        let highLimitTransport = RecordingFeedItemsTransport()
+        highLimitTransport.enqueue(response: feedItemPage(ids: ["item-1"], nextCursor: "cursor-2", hasMore: true))
+        highLimitTransport.enqueue(response: feedItemPage(ids: ["item-2"], nextCursor: nil, hasMore: false))
+        let highLimitRepository = makeFeedItemsRepository(transport: highLimitTransport)
+
+        _ = try await highLimitRepository.loadFeedItemsFirstPage(feedID: "feed-1", filter: .all, limit: 500)
+        _ = try await highLimitRepository.loadFeedItemsNextPage()
+
+        XCTAssertEqual(queryValue("limit", in: try XCTUnwrap(highLimitTransport.requests.first)), "200")
+        XCTAssertEqual(queryValue("limit", in: try XCTUnwrap(highLimitTransport.requests.last)), "200")
+
+        let nonPositiveTransport = RecordingFeedItemsTransport()
+        nonPositiveTransport.enqueue(response: feedItemPage(ids: ["item-1"], nextCursor: nil, hasMore: false))
+        let nonPositiveRepository = makeFeedItemsRepository(transport: nonPositiveTransport)
+
+        _ = try await nonPositiveRepository.loadFeedItemsFirstPage(feedID: "feed-1", filter: .all, limit: 0)
+
+        XCTAssertEqual(queryValue("limit", in: try XCTUnwrap(nonPositiveTransport.requests.first)), "50")
+    }
+
+    func testTerminalFeedItemPageDoesNotRequestAnotherNextPage() async throws {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueue(response: feedItemPage(ids: ["item-1"], nextCursor: "ignored", hasMore: false))
+        let repository = makeFeedItemsRepository(transport: transport)
+
+        let firstSnapshot = try await repository.loadFeedItemsFirstPage(feedID: "feed-1", filter: .all, limit: nil)
+        let nextSnapshot = try await repository.loadFeedItemsNextPage()
+
+        XCTAssertEqual(transport.requests.count, 1)
+        XCTAssertEqual(nextSnapshot, firstSnapshot)
+        XCTAssertFalse(nextSnapshot.canLoadMore)
+    }
+
+    func testFeedItemsNextPageBeforeFirstPageFailsWithoutNetworkRequest() async {
+        let transport = RecordingFeedItemsTransport()
+        let repository = makeFeedItemsRepository(transport: transport)
+
+        do {
+            _ = try await repository.loadFeedItemsNextPage()
+            XCTFail("Expected nextPageRequestedBeforeFirstPage")
+        } catch FeedItemRepositoryError.nextPageRequestedBeforeFirstPage {
+            XCTAssertTrue(transport.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testFeedItemsNilAndEmptyNextCursorAreTerminal() async throws {
+        let nilCursorTransport = RecordingFeedItemsTransport()
+        nilCursorTransport.enqueue(response: feedItemPage(ids: ["item-1"], nextCursor: nil, hasMore: true))
+        let nilCursorRepository = makeFeedItemsRepository(transport: nilCursorTransport)
+
+        let nilCursorSnapshot = try await nilCursorRepository.loadFeedItemsFirstPage(
+            feedID: "feed-1",
+            filter: .all,
+            limit: nil
+        )
+
+        XCTAssertNil(nilCursorSnapshot.nextCursor)
+        XCTAssertFalse(nilCursorSnapshot.canLoadMore)
+
+        let emptyCursorTransport = RecordingFeedItemsTransport()
+        emptyCursorTransport.enqueue(response: feedItemPage(ids: ["item-1"], nextCursor: "", hasMore: true))
+        let emptyCursorRepository = makeFeedItemsRepository(transport: emptyCursorTransport)
+
+        let emptyCursorSnapshot = try await emptyCursorRepository.loadFeedItemsFirstPage(
+            feedID: "feed-1",
+            filter: .all,
+            limit: nil
+        )
+
+        XCTAssertNil(emptyCursorSnapshot.nextCursor)
+        XCTAssertFalse(emptyCursorSnapshot.canLoadMore)
+    }
+
+    func testFeedItemsNextPageTransportErrorPropagatesAndPreservesCursor() async throws {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueue(response: feedItemPage(ids: ["item-1"], nextCursor: "cursor-2", hasMore: true))
+        transport.enqueue(error: URLError(.notConnectedToInternet))
+        transport.enqueue(response: feedItemPage(ids: ["item-2"], nextCursor: nil, hasMore: false))
+        let repository = makeFeedItemsRepository(transport: transport)
+
+        _ = try await repository.loadFeedItemsFirstPage(feedID: "feed-1", filter: .all, limit: nil)
+        do {
+            _ = try await repository.loadFeedItemsNextPage()
+            XCTFail("Expected FeedmanAPIError.transportFailed")
+        } catch FeedmanAPIError.transportFailed(let underlyingError) {
+            XCTAssertEqual((underlyingError as? URLError)?.code, .notConnectedToInternet)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let recoveredSnapshot = try await repository.loadFeedItemsNextPage()
+
+        XCTAssertEqual(queryValue("cursor", in: try XCTUnwrap(transport.requests.last)), "cursor-2")
+        XCTAssertEqual(recoveredSnapshot.items.map(\.id), ["item-1", "item-2"])
+    }
+
+    func testFeedItemsAuthRequiredErrorPropagatesWithoutEmptyTerminalState() async {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueueErrorResponse(statusCode: 401, code: "ACCESS_TOKEN_EXPIRED")
+        let repository = makeFeedItemsRepository(transport: transport)
+
+        do {
+            _ = try await repository.loadFeedItemsFirstPage(feedID: "feed-1", filter: .all, limit: nil)
+            XCTFail("Expected FeedmanAPIError.authRequired")
+        } catch FeedmanAPIError.authRequired(let context) {
+            XCTAssertEqual(context.reason, .missingRefreshHook)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testMockFeedItemsFilterAndPaginateDeterministically() async throws {
+        let repository = MockFeedRepository()
+
+        let firstPage = try await repository.loadFeedItemsFirstPage(
+            feedID: "publickey",
+            filter: .all,
+            limit: 1
+        )
+        let nextPage = try await repository.loadFeedItemsNextPage()
+        let unreadPage = try await repository.loadFeedItemsFirstPage(
+            feedID: "publickey",
+            filter: .unread,
+            limit: nil
+        )
+        let starredPage = try await repository.loadFeedItemsFirstPage(
+            feedID: "publickey",
+            filter: .starred,
+            limit: nil
+        )
+
+        XCTAssertEqual(firstPage.items.map(\.id), ["publickey-item-1"])
+        XCTAssertTrue(firstPage.canLoadMore)
+        XCTAssertEqual(nextPage.items.map(\.id), ["publickey-item-1", "publickey-item-2"])
+        XCTAssertTrue(unreadPage.items.allSatisfy { !$0.isRead })
+        XCTAssertEqual(unreadPage.items.map(\.id), ["publickey-item-1", "publickey-item-3"])
+        XCTAssertTrue(starredPage.items.allSatisfy { $0.isStarred })
+        XCTAssertEqual(starredPage.items.map(\.id), ["publickey-item-2", "publickey-item-3"])
+    }
+
     func testSubscriptionsRequestsAuthenticatedEndpointAndMapsDrawerFeeds() async throws {
         let transport = RecordingSubscriptionTransport()
         transport.enqueue(
@@ -211,22 +432,28 @@ final class CrossFeedRepositoryTests: XCTestCase {
             [
                 Feed(
                     id: "feed-active",
+                    subscriptionID: "sub-active",
                     title: "Active Feed",
                     unreadCount: 3,
                     status: .active,
-                    faviconURL: "data:image/png;base64,iVBORw0KGgo="
+                    faviconURL: "data:image/png;base64,iVBORw0KGgo=",
+                    fetchIntervalMinutes: 60
                 ),
                 Feed(
                     id: "feed-stopped",
+                    subscriptionID: "sub-stopped",
                     title: "Stopped Feed",
                     unreadCount: 0,
-                    status: .stopped(message: "manually paused")
+                    status: .stopped(message: "manually paused"),
+                    fetchIntervalMinutes: 60
                 ),
                 Feed(
                     id: "feed-error",
+                    subscriptionID: "sub-error",
                     title: "Error Feed",
                     unreadCount: 12,
-                    status: .error(message: "404 Not Found")
+                    status: .error(message: "404 Not Found"),
+                    fetchIntervalMinutes: 60
                 )
             ]
         )
@@ -326,6 +553,15 @@ final class CrossFeedRepositoryTests: XCTestCase {
         )
     }
 
+    private func makeFeedItemsRepository(transport: RecordingFeedItemsTransport) -> APIClientFeedRepository {
+        APIClientFeedRepository(
+            apiClient: APIClient(baseURL: baseURL, transport: transport),
+            accessTokenProvider: {
+                "access-token"
+            }
+        )
+    }
+
     private func queryValue(_ name: String, in request: URLRequest) -> String? {
         guard
             let url = request.url,
@@ -368,6 +604,36 @@ final class CrossFeedRepositoryTests: XCTestCase {
         )
     }
 
+    private func feedItemPage(
+        ids: [String],
+        feedID: String = "feed-1",
+        nextCursor: String?,
+        hasMore: Bool
+    ) -> CursorPaginatedResponse<ItemSummary> {
+        CursorPaginatedResponse(
+            items: ids.map { id in
+                ItemSummary(
+                    id: id,
+                    feedID: feedID,
+                    feedTitle: "Feed \(feedID)",
+                    feedFaviconURL: nil,
+                    title: "Title \(id)",
+                    summary: "Summary \(id)",
+                    link: "https://example.com/\(id)",
+                    publishedAt: "2026-06-08T08:30:00Z",
+                    isDateEstimated: false,
+                    isRead: false,
+                    isStarred: false,
+                    hatebuCount: nil,
+                    hatebuFetchedAt: nil,
+                    author: nil
+                )
+            },
+            nextCursor: nextCursor,
+            hasMore: hasMore
+        )
+    }
+
     private func subscription(
         id: String,
         feedID: String,
@@ -404,6 +670,67 @@ private final class RecordingCrossFeedTransport: APITransport, @unchecked Sendab
     private let encoder = JSONEncoder()
 
     func enqueue(response: CrossFeedItemsResponse) {
+        results.append(.response(response))
+    }
+
+    func enqueueErrorResponse(statusCode: Int, code: String) {
+        results.append(.errorResponse(statusCode: statusCode, code: code))
+    }
+
+    func enqueue(error: Error) {
+        results.append(.error(error))
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        requests.append(request)
+
+        guard !results.isEmpty else {
+            throw URLError(.badServerResponse)
+        }
+
+        switch results.removeFirst() {
+        case .response(let response):
+            let data = try encoder.encode(response)
+            return (data, httpResponse(statusCode: 200, request: request))
+        case .errorResponse(let statusCode, let code):
+            let data = Data("""
+            {
+              "error": {
+                "code": "\(code)",
+                "message": "rejected",
+                "category": "auth",
+                "action": "reauthenticate"
+              }
+            }
+            """.utf8)
+            return (data, httpResponse(statusCode: statusCode, request: request))
+        case .error(let error):
+            throw error
+        }
+    }
+
+    private func httpResponse(statusCode: Int, request: URLRequest) -> HTTPURLResponse {
+        HTTPURLResponse(
+            url: request.url ?? URL(string: "https://api.example.com")!,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+    }
+}
+
+private final class RecordingFeedItemsTransport: APITransport, @unchecked Sendable {
+    private enum Result {
+        case response(CursorPaginatedResponse<ItemSummary>)
+        case errorResponse(statusCode: Int, code: String)
+        case error(Error)
+    }
+
+    private(set) var requests: [URLRequest] = []
+    private var results: [Result] = []
+    private let encoder = JSONEncoder()
+
+    func enqueue(response: CursorPaginatedResponse<ItemSummary>) {
         results.append(.response(response))
     }
 
