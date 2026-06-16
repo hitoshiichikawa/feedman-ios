@@ -70,6 +70,9 @@ struct RootView: View {
                     onShowFeedRegistration: {
                         shellState.presentFeedRegistration()
                     },
+                    onShowFeedSettings: { feed in
+                        shellState.presentSubscriptionSettings(feed: feed)
+                    },
                     onRetryFeeds: {
                         Task {
                             await drawerFeedViewModel.loadSubscriptions(repository: environment.feedRepository)
@@ -231,6 +234,28 @@ struct RootView: View {
                     completeFeedRegistration(registeredFeed)
                 }
             )
+        case let .subscriptionSettings(feed):
+            SubscriptionSettingsSheet(
+                feed: feed,
+                repository: environment.feedRepository,
+                onDismiss: {
+                    shellState.dismissPresentation()
+                },
+                onIntervalSaved: { subscriptionID, interval in
+                    drawerFeedViewModel.applySubscriptionSettings(
+                        subscriptionID: subscriptionID,
+                        fetchIntervalMinutes: interval
+                    )
+                    toastCenter.show("取得間隔を保存しました", style: .success)
+                },
+                onResumed: { subscriptionID in
+                    drawerFeedViewModel.applySubscriptionResume(subscriptionID: subscriptionID)
+                    toastCenter.show("購読を再開しました", style: .success)
+                },
+                onUnsubscribed: { subscriptionID in
+                    completeUnsubscribe(subscriptionID: subscriptionID)
+                }
+            )
         }
     }
 
@@ -274,6 +299,16 @@ struct RootView: View {
         toastCenter.show("\(registeredFeed.title) を登録しました", style: .success)
         shellState.dismissPresentation()
     }
+
+    private func completeUnsubscribe(subscriptionID: String) {
+        if let removedFeed = drawerFeedViewModel.removeSubscription(subscriptionID: subscriptionID) {
+            shellState.selectTimelineIfCurrentFeedWasRemoved(feedID: removedFeed.id)
+            toastCenter.show("\(removedFeed.title) の購読を解除しました", style: .success)
+        } else {
+            toastCenter.show("購読を解除しました", style: .success)
+        }
+        shellState.dismissPresentation()
+    }
 }
 
 private struct DrawerView: View {
@@ -284,6 +319,7 @@ private struct DrawerView: View {
     let onShowAccount: () -> Void
     let onToggleTheme: () -> Void
     let onShowFeedRegistration: () -> Void
+    let onShowFeedSettings: (Feed) -> Void
     let onRetryFeeds: () -> Void
     let onDismiss: () -> Void
 
@@ -349,6 +385,9 @@ private struct DrawerView: View {
                         isSelected: selectedItem == .feed(id: feed.id),
                         onTap: {
                             onSelectRoute(.feed(id: feed.id, title: feed.title))
+                        },
+                        onSettingsTap: {
+                            onShowFeedSettings(feed)
                         }
                     )
                 }
@@ -508,50 +547,64 @@ private struct DrawerFeedButton: View {
     let feed: Feed
     let isSelected: Bool
     let onTap: () -> Void
+    let onSettingsTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(alignment: .center, spacing: 12) {
-                feedIcon
+        HStack(alignment: .center, spacing: 8) {
+            Button(action: onTap) {
+                HStack(alignment: .center, spacing: 12) {
+                    feedIcon
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(feed.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(isSelected ? FeedmanTheme.accent : FeedmanTheme.foreground)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(feed.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(isSelected ? FeedmanTheme.accent : FeedmanTheme.foreground)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                    if let statusText {
-                        Text(statusText)
-                            .font(.caption)
-                            .foregroundStyle(FeedmanTheme.mutedForeground)
-                            .lineLimit(1)
+                        if let statusText {
+                            Text(statusText)
+                                .font(.caption)
+                                .foregroundStyle(FeedmanTheme.mutedForeground)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Spacer(minLength: 8)
+
+                    if feed.unreadCount > 0 {
+                        Text("\(feed.unreadCount)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(isSelected ? FeedmanTheme.accent : FeedmanTheme.mutedForeground)
+                            .monospacedDigit()
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(isSelected ? FeedmanTheme.background : FeedmanTheme.muted)
+                            .clipShape(Capsule())
+                            .accessibilityLabel("未読 \(feed.unreadCount) 件")
                     }
                 }
-
-                Spacer(minLength: 8)
-
-                if feed.unreadCount > 0 {
-                    Text("\(feed.unreadCount)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(isSelected ? FeedmanTheme.accent : FeedmanTheme.mutedForeground)
-                        .monospacedDigit()
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 4)
-                        .background(isSelected ? FeedmanTheme.background : FeedmanTheme.muted)
-                        .clipShape(Capsule())
-                        .accessibilityLabel("未読 \(feed.unreadCount) 件")
-                }
+                .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
-            .background(isSelected ? FeedmanTheme.accentSoft : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .buttonStyle(.plain)
+            .accessibilityLabel(feed.title)
+            .accessibilityValue(accessibilityValue)
+
+            Button(action: onSettingsTap) {
+                Image(systemName: "gearshape")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 34, height: 34)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(feed.subscriptionID == nil ? FeedmanTheme.mutedForeground.opacity(0.5) : FeedmanTheme.mutedForeground)
+            .disabled(feed.subscriptionID == nil)
+            .accessibilityLabel("\(feed.title) の購読設定")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(feed.title)
-        .accessibilityValue(accessibilityValue)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
+        .background(isSelected ? FeedmanTheme.accentSoft : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private var feedIcon: some View {
@@ -672,6 +725,8 @@ private extension AppShellPresentation {
             return "アカウント"
         case .feedRegistration:
             return "フィードを登録"
+        case .subscriptionSettings:
+            return "購読設定"
         }
     }
 
@@ -681,6 +736,8 @@ private extension AppShellPresentation {
             return "アカウント機能の入口"
         case .feedRegistration:
             return "サイト URL から購読を追加"
+        case .subscriptionSettings:
+            return "取得間隔と購読状態"
         }
     }
 
@@ -690,6 +747,8 @@ private extension AppShellPresentation {
             return "ログアウト、退会、ユーザー情報の表示は後続 Issue で実装します。この placeholder は実データや認証 API を使用しません。"
         case .feedRegistration:
             return "サイトの URL か RSS/Atom の URL を入力してフィードを登録します。"
+        case .subscriptionSettings:
+            return "購読フィードの取得間隔、再開、購読解除を操作します。"
         }
     }
 
@@ -699,6 +758,8 @@ private extension AppShellPresentation {
             return "person.crop.circle"
         case .feedRegistration:
             return "plus.circle"
+        case .subscriptionSettings:
+            return "gearshape"
         }
     }
 }

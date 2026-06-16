@@ -432,22 +432,28 @@ final class CrossFeedRepositoryTests: XCTestCase {
             [
                 Feed(
                     id: "feed-active",
+                    subscriptionID: "sub-active",
                     title: "Active Feed",
                     unreadCount: 3,
                     status: .active,
-                    faviconURL: "data:image/png;base64,iVBORw0KGgo="
+                    faviconURL: "data:image/png;base64,iVBORw0KGgo=",
+                    fetchIntervalMinutes: 60
                 ),
                 Feed(
                     id: "feed-stopped",
+                    subscriptionID: "sub-stopped",
                     title: "Stopped Feed",
                     unreadCount: 0,
-                    status: .stopped(message: "manually paused")
+                    status: .stopped(message: "manually paused"),
+                    fetchIntervalMinutes: 60
                 ),
                 Feed(
                     id: "feed-error",
+                    subscriptionID: "sub-error",
                     title: "Error Feed",
                     unreadCount: 12,
-                    status: .error(message: "404 Not Found")
+                    status: .error(message: "404 Not Found"),
+                    fetchIntervalMinutes: 60
                 )
             ]
         )
