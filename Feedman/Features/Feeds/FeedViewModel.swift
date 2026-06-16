@@ -208,14 +208,25 @@ final class FeedViewModel: ObservableObject {
 
         do {
             let snapshot = try await repository.loadFeedItemsNextPage()
-            if expectedSession == Session(feedID: snapshot.feedID, filter: snapshot.filter) {
+            if currentSession == expectedSession,
+               expectedSession == Session(feedID: snapshot.feedID, filter: snapshot.filter) {
                 apply(snapshot: snapshot)
             }
         } catch {
-            applyNextPageFailure()
+            if currentSession == expectedSession {
+                applyNextPageFailure()
+            }
         }
 
         isLoadingNextPage = false
+
+        if let pendingFirstPageSession {
+            self.pendingFirstPageSession = nil
+            await loadFirstPage(
+                feedID: pendingFirstPageSession.feedID,
+                filter: pendingFirstPageSession.filter
+            )
+        }
     }
 
     func retryNextPage() async {
@@ -275,13 +286,12 @@ final class FeedViewModel: ObservableObject {
                 return
             }
 
-            currentFeedID = feedID
-            self.filter = filter
-            items = []
-            canLoadMore = false
-            nextPageErrorMessage = nil
-            state = .loading
-            pendingFirstPageSession = session
+            preparePendingFirstPage(session)
+            return
+        }
+
+        if isLoadingNextPage {
+            preparePendingFirstPage(session)
             return
         }
 
@@ -340,6 +350,16 @@ final class FeedViewModel: ObservableObject {
         }
         canLoadMore = snapshot.canLoadMore
         state = items.isEmpty ? .empty : .loaded
+    }
+
+    private func preparePendingFirstPage(_ session: Session) {
+        currentFeedID = session.feedID
+        filter = session.filter
+        items = []
+        canLoadMore = false
+        nextPageErrorMessage = nil
+        state = .loading
+        pendingFirstPageSession = session
     }
 
     private func applyFirstPageFailure() {

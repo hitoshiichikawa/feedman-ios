@@ -185,6 +185,101 @@ final class FeedViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.nextPageErrorMessage)
     }
 
+    func testFilterChangeDuringNextPageQueuesFirstPageUntilNextPageCompletes() async {
+        let repository = PausedNextPageFeedItemsRepository(
+            firstPageResults: [
+                .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "first")], canLoadMore: true)),
+                .success(snapshot(feedID: "feed-1", filter: .unread, items: [item(id: "unread")], canLoadMore: false))
+            ]
+        )
+        let viewModel = FeedViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded(feedID: "feed-1")
+        let nextPageTask = Task { @MainActor in
+            await viewModel.loadNextPageIfNeeded(currentItemID: "first")
+        }
+        await repository.waitForNextPageStart()
+
+        let filterTask = Task { @MainActor in
+            await viewModel.selectFilter(.unread, feedID: "feed-1")
+        }
+        await filterTask.value
+
+        XCTAssertEqual(viewModel.state, .loading)
+        XCTAssertEqual(viewModel.filter, .unread)
+        XCTAssertEqual(viewModel.items, [])
+        let callsBeforeNextPageCompletes = await repository.calls()
+        XCTAssertEqual(
+            callsBeforeNextPageCompletes,
+            [
+                .firstPage(feedID: "feed-1", filter: .all, limit: nil),
+                .nextPage
+            ]
+        )
+
+        await repository.completeNextPage(
+            with: .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "first"), item(id: "old-next")], canLoadMore: false))
+        )
+        await nextPageTask.value
+
+        XCTAssertEqual(viewModel.state, .loaded)
+        XCTAssertEqual(viewModel.filter, .unread)
+        XCTAssertEqual(viewModel.items.map(\.id), ["unread"])
+        XCTAssertFalse(viewModel.canLoadMore)
+        let calls = await repository.calls()
+        XCTAssertEqual(
+            calls,
+            [
+                .firstPage(feedID: "feed-1", filter: .all, limit: nil),
+                .nextPage,
+                .firstPage(feedID: "feed-1", filter: .unread, limit: nil)
+            ]
+        )
+    }
+
+    func testFeedChangeDuringNextPageQueuesFirstPageUntilNextPageCompletes() async {
+        let repository = PausedNextPageFeedItemsRepository(
+            firstPageResults: [
+                .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "first")], canLoadMore: true)),
+                .success(snapshot(feedID: "feed-2", filter: .all, items: [item(id: "feed-2-item", feedID: "feed-2")], canLoadMore: false))
+            ]
+        )
+        let viewModel = FeedViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded(feedID: "feed-1")
+        let nextPageTask = Task { @MainActor in
+            await viewModel.loadNextPageIfNeeded(currentItemID: "first")
+        }
+        await repository.waitForNextPageStart()
+
+        let feedChangeTask = Task { @MainActor in
+            await viewModel.loadInitialIfNeeded(feedID: "feed-2")
+        }
+        await feedChangeTask.value
+
+        XCTAssertEqual(viewModel.state, .loading)
+        XCTAssertEqual(viewModel.currentFeedID, "feed-2")
+        XCTAssertEqual(viewModel.filter, .all)
+        XCTAssertEqual(viewModel.items, [])
+
+        await repository.completeNextPage(with: .failure(FeedViewModelTestError.transport))
+        await nextPageTask.value
+
+        XCTAssertEqual(viewModel.state, .loaded)
+        XCTAssertEqual(viewModel.currentFeedID, "feed-2")
+        XCTAssertEqual(viewModel.items.map(\.id), ["feed-2-item"])
+        XCTAssertNil(viewModel.nextPageErrorMessage)
+        let calls = await repository.calls()
+        XCTAssertEqual(
+            calls,
+            [
+                .firstPage(feedID: "feed-1", filter: .all, limit: nil),
+                .nextPage,
+                .firstPage(feedID: "feed-2", filter: .all, limit: nil)
+            ]
+        )
+    }
+
     func testTerminalStateDoesNotRequestNextPage() async {
         let repository = RecordingFeedItemsRepository(
             firstPageResults: [
@@ -332,6 +427,7 @@ final class FeedViewModelTests: XCTestCase {
 
     private func item(
         id: String,
+        feedID: String = "feed-1",
         summary: String? = "Summary",
         link: String? = nil,
         publishedAt: String = "2026-06-08T08:30:00Z",
@@ -343,7 +439,7 @@ final class FeedViewModelTests: XCTestCase {
     ) -> ItemSummary {
         ItemSummary(
             id: id,
-            feedID: "feed-1",
+            feedID: feedID,
             feedTitle: "Feed",
             feedFaviconURL: nil,
             title: "Title \(id)",
@@ -428,5 +524,86 @@ private actor RecordingFeedItemsRepository: FeedRepository {
         }
 
         return try results.removeFirst().get()
+    }
+}
+
+private actor PausedNextPageFeedItemsRepository: FeedRepository {
+    private var recordedCalls: [FeedItemsRepositoryCall] = []
+    private var firstPageResults: [Result<FeedItemPaginationSnapshot, Error>]
+    private var nextPageContinuation: CheckedContinuation<FeedItemPaginationSnapshot, Error>?
+    private var nextPageStartedContinuation: CheckedContinuation<Void, Never>?
+
+    init(firstPageResults: [Result<FeedItemPaginationSnapshot, Error>]) {
+        self.firstPageResults = firstPageResults
+    }
+
+    func calls() -> [FeedItemsRepositoryCall] {
+        recordedCalls
+    }
+
+    func waitForNextPageStart() async {
+        if recordedCalls.contains(.nextPage) {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            nextPageStartedContinuation = continuation
+        }
+    }
+
+    func completeNextPage(with result: Result<FeedItemPaginationSnapshot, Error>) {
+        guard let nextPageContinuation else {
+            return
+        }
+
+        self.nextPageContinuation = nil
+        nextPageContinuation.resume(with: result)
+    }
+
+    func subscriptions() async throws -> [Feed] {
+        []
+    }
+
+    func registerFeed(url: String) async throws -> RegisteredFeed {
+        throw FeedItemRepositoryError.paginationUnsupported
+    }
+
+    func crossFeedItems() async throws -> [FeedItem] {
+        []
+    }
+
+    func loadCrossFeedFirstPage(limit: Int?) async throws -> CrossFeedPaginationSnapshot {
+        throw CrossFeedRepositoryError.paginationUnsupported
+    }
+
+    func loadCrossFeedNextPage() async throws -> CrossFeedPaginationSnapshot {
+        throw CrossFeedRepositoryError.paginationUnsupported
+    }
+
+    func loadFeedItemsFirstPage(
+        feedID: String,
+        filter: FeedItemFilter,
+        limit: Int?
+    ) async throws -> FeedItemPaginationSnapshot {
+        recordedCalls.append(.firstPage(feedID: feedID, filter: filter, limit: limit))
+        return try nextFirstPageResult()
+    }
+
+    func loadFeedItemsNextPage() async throws -> FeedItemPaginationSnapshot {
+        recordedCalls.append(.nextPage)
+        nextPageStartedContinuation?.resume()
+        nextPageStartedContinuation = nil
+
+        return try await withCheckedThrowingContinuation { continuation in
+            nextPageContinuation = continuation
+        }
+    }
+
+    private func nextFirstPageResult() throws -> FeedItemPaginationSnapshot {
+        guard !firstPageResults.isEmpty else {
+            throw FeedViewModelTestError.transport
+        }
+
+        return try firstPageResults.removeFirst().get()
     }
 }
