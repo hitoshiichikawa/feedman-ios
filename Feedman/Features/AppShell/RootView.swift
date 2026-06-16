@@ -218,6 +218,10 @@ struct RootView: View {
                 accessToken: environment.currentAccessToken,
                 onDismiss: {
                     shellState.dismissPresentation()
+                },
+                onAccountDeleted: {
+                    environment.clearLocalAuthenticationAfterAccountDeletion()
+                    shellState.dismissPresentation()
                 }
             )
         case .feedRegistration:

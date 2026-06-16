@@ -343,6 +343,7 @@ private actor RecordingAppShellTimelineStartupRepository: FeedRepository {
 
     func crossFeedItems() async throws -> [FeedItem] {
         crossFeedItemsCalls += 1
+
         legacyCrossFeedItemsLoaded.fulfill()
         return []
     }

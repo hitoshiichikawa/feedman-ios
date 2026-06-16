@@ -93,6 +93,12 @@ final class AppEnvironment: ObservableObject {
         authenticationState = .authenticated(accessToken: credentials.accessToken)
     }
 
+    func clearLocalAuthenticationAfterAccountDeletion() {
+        try? authRepository.clearLocalCredentials()
+        accessTokenStore.update(accessToken: nil)
+        authenticationState = .unauthenticated
+    }
+
     /// 起動時に保存済み refresh token からセッションを復元する。
     /// `restoring` 状態のときだけ実行され、結果に応じて authenticated / unauthenticated へ遷移する。
     func restoreSessionAtLaunch() async {
