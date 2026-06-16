@@ -40,6 +40,28 @@ enum AccountViewState: Equatable {
     }
 }
 
+enum AccountDeletionState: Equatable {
+    case idle
+    case confirming
+    case deleting
+    case failed(AccountErrorViewState)
+    case succeeded
+
+    var isConfirming: Bool {
+        if case .confirming = self {
+            return true
+        }
+        return false
+    }
+
+    var isDeleting: Bool {
+        if case .deleting = self {
+            return true
+        }
+        return false
+    }
+}
+
 struct AccountErrorViewState: Equatable {
     let title: String
     let message: String
@@ -53,15 +75,24 @@ struct AccountActionNotice: Equatable, Identifiable {
 
 @MainActor
 final class AccountViewModel: ObservableObject {
+    typealias AccountDeletionCompletion = @MainActor () async -> Void
+
     @Published private(set) var state: AccountViewState = .idle
+    @Published private(set) var deletionState: AccountDeletionState = .idle
     @Published var actionNotice: AccountActionNotice?
 
     private let repository: any AccountRepository
     private let accessToken: String?
+    private let onAccountDeleted: AccountDeletionCompletion
 
-    init(repository: any AccountRepository, accessToken: String?) {
+    init(
+        repository: any AccountRepository,
+        accessToken: String?,
+        onAccountDeleted: @escaping AccountDeletionCompletion = {}
+    ) {
         self.repository = repository
         self.accessToken = accessToken
+        self.onAccountDeleted = onAccountDeleted
     }
 
     func loadCurrentUser() async {
@@ -100,11 +131,58 @@ final class AccountViewModel: ObservableObject {
         )
     }
 
-    func requestDeleteAccountPlaceholder() {
-        actionNotice = AccountActionNotice(
-            title: "退会",
-            message: "退会処理は後続 Issue で接続します。この画面ではアカウント削除や認証情報の削除は行いません。"
-        )
+    func requestDeleteAccountConfirmation() {
+        guard case .loaded = state else {
+            deletionState = .failed(
+                AccountErrorViewState(
+                    title: "認証が必要です",
+                    message: "ログイン状態を確認できませんでした。再ログインしてください。"
+                )
+            )
+            return
+        }
+
+        guard !deletionState.isDeleting else {
+            return
+        }
+
+        deletionState = .confirming
+    }
+
+    func cancelDeleteAccountConfirmation() {
+        guard deletionState.isConfirming else {
+            return
+        }
+
+        deletionState = .idle
+    }
+
+    func confirmDeleteAccount() async {
+        guard deletionState.isConfirming else {
+            return
+        }
+
+        guard let accessToken, !accessToken.isEmpty else {
+            deletionState = .failed(
+                AccountErrorViewState(
+                    title: "認証が必要です",
+                    message: "ログイン状態を確認できませんでした。再ログインしてください。"
+                )
+            )
+            return
+        }
+
+        deletionState = .deleting
+
+        do {
+            try await repository.deleteCurrentUser(accessToken: accessToken)
+            deletionState = .succeeded
+            await onAccountDeleted()
+        } catch is CancellationError {
+            deletionState = .idle
+        } catch {
+            deletionState = .failed(Self.deletionErrorViewState(from: error))
+        }
     }
 
     private static func errorViewState(from error: Error) -> AccountErrorViewState {
@@ -152,6 +230,56 @@ final class AccountViewModel: ObservableObject {
         case .malformedErrorResponse, .successDecodingFailed, .invalidRequestURL, .nonHTTPResponse:
             return AccountErrorViewState(
                 title: "ユーザー情報を読み込めません",
+                message: "応答を処理できませんでした。しばらくしてから再試行してください。"
+            )
+        }
+    }
+
+    private static func deletionErrorViewState(from error: Error) -> AccountErrorViewState {
+        if let repositoryError = error as? AccountRepositoryError,
+           repositoryError == .authenticatedSessionUnavailable {
+            return AccountErrorViewState(
+                title: "認証が必要です",
+                message: "ログイン状態を確認できませんでした。再ログインしてください。"
+            )
+        }
+
+        guard let apiError = error as? FeedmanAPIError else {
+            return AccountErrorViewState(
+                title: "退会できませんでした",
+                message: "通信状況を確認してから再試行してください。"
+            )
+        }
+
+        switch apiError {
+        case .authRequired:
+            return AccountErrorViewState(
+                title: "認証の有効期限が切れました",
+                message: "退会は完了していません。再ログイン後にもう一度お試しください。"
+            )
+        case let .feedmanError(context) where context.statusCode == 401 || context.category == "auth":
+            return AccountErrorViewState(
+                title: "認証が必要です",
+                message: "退会は完了していません。ログイン状態を確認してから再試行してください。"
+            )
+        case let .feedmanError(context) where context.statusCode == 429:
+            return AccountErrorViewState(
+                title: "しばらくしてから再試行してください",
+                message: "退会処理が一時的に制限されています。"
+            )
+        case .feedmanError:
+            return AccountErrorViewState(
+                title: "退会できませんでした",
+                message: "サーバーでエラーが発生しました。しばらくしてから再試行してください。"
+            )
+        case .transportFailed:
+            return AccountErrorViewState(
+                title: "通信できません",
+                message: "ネットワーク接続を確認してから再試行してください。"
+            )
+        case .malformedErrorResponse, .successDecodingFailed, .invalidRequestURL, .nonHTTPResponse:
+            return AccountErrorViewState(
+                title: "退会できませんでした",
                 message: "応答を処理できませんでした。しばらくしてから再試行してください。"
             )
         }

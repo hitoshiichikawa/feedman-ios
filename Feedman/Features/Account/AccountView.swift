@@ -4,21 +4,25 @@ struct AccountRouteView: View {
     let repository: any AccountRepository
     let accessToken: String?
     let onDismiss: () -> Void
+    let onAccountDeleted: AccountViewModel.AccountDeletionCompletion
 
     @StateObject private var viewModel: AccountViewModel
 
     init(
         repository: any AccountRepository,
         accessToken: String?,
-        onDismiss: @escaping () -> Void
+        onDismiss: @escaping () -> Void,
+        onAccountDeleted: @escaping AccountViewModel.AccountDeletionCompletion
     ) {
         self.repository = repository
         self.accessToken = accessToken
         self.onDismiss = onDismiss
+        self.onAccountDeleted = onAccountDeleted
         _viewModel = StateObject(
             wrappedValue: AccountViewModel(
                 repository: repository,
-                accessToken: accessToken
+                accessToken: accessToken,
+                onAccountDeleted: onAccountDeleted
             )
         )
     }
@@ -54,6 +58,30 @@ struct AccountView: View {
                 dismissButton: .default(Text("閉じる"))
             )
         }
+        .alert(
+            "退会しますか？",
+            isPresented: deletionConfirmationBinding,
+            actions: {
+                Button("キャンセル", role: .cancel) {
+                    viewModel.cancelDeleteAccountConfirmation()
+                }
+                Button("退会する", role: .destructive) {
+                    Task {
+                        await viewModel.confirmDeleteAccount()
+                    }
+                }
+            },
+            message: {
+                Text("アカウントと保存された購読情報を削除します。この操作は取り消せません。")
+            }
+        )
+    }
+
+    private var deletionConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.deletionState.isConfirming },
+            set: { _ in }
+        )
     }
 
     @ViewBuilder
@@ -88,7 +116,8 @@ struct AccountView: View {
         VStack(alignment: .leading, spacing: 16) {
             userCard(user)
             actionButtons
-            Text("ログアウトと退会の実行処理は後続 Issue で接続します。")
+            deletionStatus
+            Text("ログアウト処理は後続 Issue で接続します。")
                 .font(.caption)
                 .foregroundStyle(FeedmanTheme.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
@@ -148,13 +177,39 @@ struct AccountView: View {
             .accessibilityLabel("ログアウト")
 
             Button(role: .destructive) {
-                viewModel.requestDeleteAccountPlaceholder()
+                viewModel.requestDeleteAccountConfirmation()
             } label: {
                 Label("退会（アカウント削除）", systemImage: "trash")
                     .frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(AccountActionButtonStyle(foregroundColor: FeedmanTheme.danger))
+            .disabled(viewModel.deletionState.isDeleting)
             .accessibilityLabel("退会、アカウント削除")
+        }
+    }
+
+    @ViewBuilder
+    private var deletionStatus: some View {
+        switch viewModel.deletionState {
+        case .idle, .confirming, .succeeded:
+            EmptyView()
+        case .deleting:
+            FeedmanCompactLoadingRow(
+                "退会処理を実行しています",
+                accessibilityLabel: "退会処理を実行中"
+            )
+        case let .failed(errorState):
+            FeedmanRecoverableErrorView(
+                title: errorState.title,
+                message: errorState.message,
+                usesDangerEmphasis: true
+            ) {
+                Button {
+                    viewModel.requestDeleteAccountConfirmation()
+                } label: {
+                    Text("もう一度退会する")
+                }
+            }
         }
     }
 }
