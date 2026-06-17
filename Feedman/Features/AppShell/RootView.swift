@@ -6,6 +6,7 @@ struct RootView: View {
     @State private var shellState = AppShellState()
     @StateObject private var drawerFeedViewModel = AppShellDrawerFeedViewModel()
     @StateObject private var timelineViewModel = TimelineViewModel()
+    @StateObject private var feedViewModel = FeedViewModel()
     @StateObject private var toastCenter = FeedmanToastCenter()
 
     private let drawerWidth: CGFloat = 280
@@ -176,12 +177,19 @@ struct RootView: View {
     }
 
     @ViewBuilder
-    private func feedContent(feedID: String, routeTitle: String) -> some View {
-        if drawerFeedViewModel.sectionState.feeds.contains(where: { $0.id == feedID }) {
-            placeholderContent(
-                systemImage: "tray.full",
-                title: routeTitle.isEmpty ? "フィード別記事一覧" : routeTitle,
-                subtitle: "フィード別記事一覧は後続 Issue で追加します。"
+    private func feedContent(feedID: String, routeTitle _: String) -> some View {
+        if let feed = drawerFeedViewModel.sectionState.feeds.first(where: { $0.id == feedID }) {
+            FeedView(
+                viewModel: feedViewModel,
+                feed: feed,
+                repository: environment.feedRepository,
+                onSelectItem: { _ in },
+                onOpenLink: { url in
+                    openURL(url)
+                },
+                onRequestResume: { _ in
+                    toastCenter.show("再開操作は後続の購読設定で対応します。")
+                }
             )
         } else {
             placeholderContent(
