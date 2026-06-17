@@ -2,23 +2,21 @@ import SwiftUI
 
 struct ArticleDetailSheet: View {
     @StateObject private var viewModel: ArticleDetailViewModel
+    @State private var safariPresentation: ArticleDetailSafariPresentation?
 
     private let input: ArticleDetailSheetInput
     private let onDismiss: () -> Void
-    private let onOpenOriginal: (URL) -> Void
 
     init(
         input: ArticleDetailSheetInput,
         repository: any ItemRepository,
         accessToken: String?,
         onDismiss: @escaping () -> Void,
-        onOpenOriginal: @escaping (URL) -> Void,
         onAuthRequired: @escaping () -> Void = {},
         onItemStateChange: @escaping (ItemStateChange) -> Void = { _ in }
     ) {
         self.input = input
         self.onDismiss = onDismiss
-        self.onOpenOriginal = onOpenOriginal
         _viewModel = StateObject(
             wrappedValue: ArticleDetailViewModel(
                 itemID: input.id,
@@ -42,7 +40,13 @@ struct ArticleDetailSheet: View {
                     presentation: viewModel.loadedPresentation,
                     summary: input.summary,
                     isStarUpdateInFlight: viewModel.isStarUpdateInFlight,
-                    onOpenOriginal: onOpenOriginal,
+                    onOpenOriginal: {
+                        Task {
+                            if let request = await viewModel.openOriginal() {
+                                safariPresentation = ArticleDetailSafariPresentation(request: request)
+                            }
+                        }
+                    },
                     onToggleStar: {
                         Task {
                             await viewModel.toggleStar()
@@ -68,6 +72,10 @@ struct ArticleDetailSheet: View {
         .presentationDragIndicator(.visible)
         .task {
             await viewModel.open()
+        }
+        .sheet(item: $safariPresentation) { presentation in
+            ArticleDetailSafariView(url: presentation.url)
+                .ignoresSafeArea()
         }
     }
 
@@ -247,22 +255,21 @@ private struct ArticleDetailFooter: View {
     let presentation: ArticleDetailPresentation?
     let summary: ArticleDetailSummary?
     let isStarUpdateInFlight: Bool
-    let onOpenOriginal: (URL) -> Void
+    let onOpenOriginal: () -> Void
     let onToggleStar: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            Button {
-                if let linkURL {
-                    onOpenOriginal(linkURL)
-                }
-            } label: {
+            Button(action: onOpenOriginal) {
                 Label("元記事を開く", systemImage: "arrow.up.forward.square")
                     .frame(maxWidth: .infinity)
             }
-            .disabled(linkURL == nil)
             .accessibilityLabel("元記事を開く")
-            .accessibilityHint(linkURL == nil ? "リンクを開けません" : "後続 Issue で Safari 表示へ接続します")
+            .accessibilityHint(
+                linkURL == nil
+                    ? "リンクを確認できない場合はエラーを表示します"
+                    : "アプリ内Safariで元記事を開きます"
+            )
 
             ArticleStarControl(
                 isStarred: isStarred,
@@ -275,23 +282,15 @@ private struct ArticleDetailFooter: View {
     }
 
     private var linkURL: URL? {
-        if let linkURL = presentation?.linkURL {
-            return linkURL
+        if let presentation {
+            return presentation.linkURL
         }
 
         guard let link = summary?.link else {
             return nil
         }
 
-        guard let url = URL(string: link),
-              let scheme = url.scheme?.lowercased(),
-              ["http", "https"].contains(scheme),
-              url.host != nil
-        else {
-            return nil
-        }
-
-        return url
+        return ArticleDetailOriginalArticleRequest.validHTTPURL(from: link)
     }
 
     private var isStarred: Bool {
@@ -336,7 +335,6 @@ private struct ArticleDetailFooter: View {
             ]
         ),
         accessToken: "preview-access-token",
-        onDismiss: {},
-        onOpenOriginal: { _ in }
+        onDismiss: {}
     )
 }

@@ -256,9 +256,6 @@ struct RootView: View {
                 onDismiss: {
                     shellState.dismissPresentation()
                 },
-                onOpenOriginal: { url in
-                    openURL(url)
-                },
                 onAuthRequired: {
                     toastCenter.show("再ログインが必要です。", style: .warning)
                 },
