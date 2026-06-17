@@ -1,3 +1,5 @@
+import SwiftUI
+import UIKit
 import XCTest
 @testable import Feedman
 
@@ -6,9 +8,9 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
     func testMockFeedRepositoryReturnsDrawerFeedDisplayValues() async throws {
         let feeds = try await MockFeedRepository().subscriptions()
 
-        XCTAssertTrue(feeds.contains(Feed(id: "publickey", title: "Publickey", unreadCount: 12, status: .active)))
-        XCTAssertTrue(feeds.contains(Feed(id: "qiita", title: "Qiita 人気の記事", unreadCount: 14, status: .stopped(message: "手動で停止しました"))))
-        XCTAssertTrue(feeds.contains(Feed(id: "swift-blog", title: "Swift Blog", unreadCount: 0, status: .error(message: "前回の取得に失敗しました"))))
+        XCTAssertTrue(feeds.contains(Feed(id: "publickey", subscriptionID: "sub-publickey", title: "Publickey", unreadCount: 12, status: .active, fetchIntervalMinutes: 60)))
+        XCTAssertTrue(feeds.contains(Feed(id: "qiita", subscriptionID: "sub-qiita", title: "Qiita 人気の記事", unreadCount: 14, status: .stopped(message: "手動で停止しました"), fetchIntervalMinutes: 180)))
+        XCTAssertTrue(feeds.contains(Feed(id: "swift-blog", subscriptionID: "sub-swift-blog", title: "Swift Blog", unreadCount: 0, status: .error(message: "前回の取得に失敗しました"), fetchIntervalMinutes: 60)))
     }
 
     func testLoadSubscriptionsSuccessStoresRepositoryFeeds() async {
@@ -96,7 +98,7 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
     func testRefreshAfterFeedRegistrationReloadsSubscriptionsAndUsesRepositoryResult() async {
         let repositoryFeeds = [
             Feed(id: "feed-a", title: "Feed A", unreadCount: 1, status: .active),
-            Feed(id: "feed-registered", title: "Registered Feed", unreadCount: 5, status: .active),
+            Feed(id: "feed-registered", subscriptionID: "sub-registered", title: "Registered Feed", unreadCount: 5, status: .active, fetchIntervalMinutes: 60),
             Feed(id: "feed-c", title: "Feed C", unreadCount: 0, status: .stopped(message: "paused"))
         ]
         let repository = ScriptedFeedRepository(results: [.success(repositoryFeeds)])
@@ -132,7 +134,7 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
 
     func testRetryAfterPostRegistrationRefreshFailureReloadsSubscriptionsAgain() async {
         let repositoryFeeds = [
-            Feed(id: "feed-registered", title: "Registered Feed", unreadCount: 2, status: .active)
+            Feed(id: "feed-registered", subscriptionID: "sub-registered", title: "Registered Feed", unreadCount: 2, status: .active, fetchIntervalMinutes: 60)
         ]
         let repository = ScriptedFeedRepository(results: [
             .failure(StubError.failed),
@@ -182,7 +184,7 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
             unreadCount: 0
         )
         let latestFeeds = [
-            Feed(id: "feed-second", title: "Second Feed", unreadCount: 8, status: .active)
+            Feed(id: "feed-second", subscriptionID: "sub-second", title: "Second Feed", unreadCount: 8, status: .active, fetchIntervalMinutes: 60)
         ]
 
         let firstTask = Task {
@@ -202,7 +204,7 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
         repository.completeCall(
             at: 0,
             with: .success([
-                Feed(id: "feed-first", title: "First Feed", unreadCount: 1, status: .active)
+                Feed(id: "feed-first", subscriptionID: "sub-first", title: "First Feed", unreadCount: 1, status: .active, fetchIntervalMinutes: 60)
             ])
         )
         await firstTask.value
@@ -215,6 +217,56 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
         let feed = Feed(id: "stable-id", title: "Display Title", unreadCount: 1, status: .error(message: "failed"))
 
         XCTAssertEqual(viewModel.route(for: feed), .feed(id: "stable-id", title: "Display Title"))
+    }
+
+    func testApplySubscriptionSettingsUpdatesMatchingSubscriptionIDOnly() {
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: [
+            Feed(id: "feed-a", subscriptionID: "sub-a", title: "Feed A", unreadCount: 1, status: .active, fetchIntervalMinutes: 60),
+            Feed(id: "feed-b", subscriptionID: "sub-b", title: "Feed B", unreadCount: 2, status: .active, fetchIntervalMinutes: 30)
+        ]))
+
+        viewModel.applySubscriptionSettings(subscriptionID: "sub-b", fetchIntervalMinutes: 180)
+
+        XCTAssertEqual(viewModel.sectionState.feeds.map(\.fetchIntervalMinutes), [60, 180])
+    }
+
+    func testApplySubscriptionResumeUpdatesMatchingSubscriptionIDOnly() {
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: [
+            Feed(id: "feed-a", subscriptionID: "sub-a", title: "Feed A", unreadCount: 1, status: .error(message: "failed"), fetchIntervalMinutes: 60),
+            Feed(id: "feed-b", subscriptionID: "sub-b", title: "Feed B", unreadCount: 2, status: .stopped(message: "paused"), fetchIntervalMinutes: 30)
+        ]))
+
+        viewModel.applySubscriptionResume(subscriptionID: "sub-a")
+
+        XCTAssertEqual(viewModel.sectionState.feeds.map(\.status), [.active, .stopped(message: "paused")])
+    }
+
+    func testRemoveSubscriptionRemovesBySubscriptionIDAndSelectedRouteFallsBackToTimeline() {
+        var shellState = AppShellState(currentRoute: .feed(id: "feed-b", title: "Feed B"))
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: [
+            Feed(id: "feed-a", subscriptionID: "sub-a", title: "Same Title", unreadCount: 1, status: .active, fetchIntervalMinutes: 60),
+            Feed(id: "feed-b", subscriptionID: "sub-b", title: "Same Title", unreadCount: 2, status: .active, fetchIntervalMinutes: 30)
+        ]))
+
+        let removedFeed = viewModel.removeSubscription(subscriptionID: "sub-b")
+        shellState.selectTimelineIfCurrentFeedWasRemoved(feedID: removedFeed?.id ?? "")
+
+        XCTAssertEqual(removedFeed?.id, "feed-b")
+        XCTAssertEqual(viewModel.sectionState.feeds.map(\.id), ["feed-a"])
+        XCTAssertEqual(shellState.currentRoute, .timeline)
+    }
+
+    func testRemoveSubscriptionKeepsUnrelatedSelectedFeedRoute() {
+        var shellState = AppShellState(currentRoute: .feed(id: "feed-a", title: "Feed A"))
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: [
+            Feed(id: "feed-a", subscriptionID: "sub-a", title: "Feed A", unreadCount: 1, status: .active, fetchIntervalMinutes: 60),
+            Feed(id: "feed-b", subscriptionID: "sub-b", title: "Feed B", unreadCount: 2, status: .active, fetchIntervalMinutes: 30)
+        ]))
+
+        let removedFeed = viewModel.removeSubscription(subscriptionID: "sub-b")
+        shellState.selectTimelineIfCurrentFeedWasRemoved(feedID: removedFeed?.id ?? "")
+
+        XCTAssertEqual(shellState.currentRoute, .feed(id: "feed-a", title: "Feed A"))
     }
 
     func testProductionEnvironmentUsesRealFeedRepository() {
@@ -244,7 +296,7 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
 
         XCTAssertEqual(viewModel.sectionState, .loaded(feeds: [
             Feed(id: "feed-a", title: "Feed A", unreadCount: 1, status: .active),
-            Feed(id: "feed-b", title: "Feed B", unreadCount: 0, status: .active)
+            Feed(id: "feed-b", subscriptionID: "sub-b", title: "Feed B", unreadCount: 0, status: .active, fetchIntervalMinutes: 60)
         ]))
     }
 
@@ -268,8 +320,49 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
         )
 
         XCTAssertEqual(viewModel.sectionState, .loaded(feeds: [
-            Feed(id: "feed-a", title: "New Title", unreadCount: 0, status: .active)
+            Feed(id: "feed-a", subscriptionID: "sub-a", title: "New Title", unreadCount: 0, status: .active, fetchIntervalMinutes: 60)
         ]))
+    }
+
+    func testAuthenticatedTimelineStartupDoesNotUseLegacyCrossFeedItems() async {
+        let subscriptionsLoaded = expectation(description: "AppShell loads drawer subscriptions")
+        let firstPageLoaded = expectation(description: "Timeline loads first cross-feed page")
+        let legacyCrossFeedItemsLoaded = expectation(description: "AppShell must not load legacy cross-feed items")
+        legacyCrossFeedItemsLoaded.isInverted = true
+
+        let repository = RecordingAppShellTimelineStartupRepository(
+            subscriptionsLoaded: subscriptionsLoaded,
+            firstPageLoaded: firstPageLoaded,
+            legacyCrossFeedItemsLoaded: legacyCrossFeedItemsLoaded
+        )
+        let environment = AppEnvironment(
+            feedRepository: repository,
+            authRepository: UnavailableAuthRepository(),
+            accountRepository: UnavailableAccountRepository(),
+            authBaseURL: URL(string: "https://example.com")!,
+            authenticationState: .authenticated(accessToken: "test-access-token")
+        )
+        let window = UIWindow(frame: UIScreen.main.bounds)
+
+        window.rootViewController = UIHostingController(
+            rootView: RootView()
+                .environmentObject(environment)
+        )
+        window.makeKeyAndVisible()
+
+        await fulfillment(of: [subscriptionsLoaded, firstPageLoaded], timeout: 3)
+        await fulfillment(of: [legacyCrossFeedItemsLoaded], timeout: 0.3)
+
+        let subscriptionsCallCount = await repository.subscriptionsCallCount()
+        let crossFeedItemsCallCount = await repository.crossFeedItemsCallCount()
+        let firstPageLimitCalls = await repository.firstPageLimitCalls()
+
+        XCTAssertEqual(subscriptionsCallCount, 1)
+        XCTAssertEqual(crossFeedItemsCallCount, 0)
+        XCTAssertEqual(firstPageLimitCalls, [Optional<Int>.none])
+
+        window.isHidden = true
+        window.rootViewController = nil
     }
 
     private static let registeredFeed = RegisteredFeed(
@@ -354,6 +447,70 @@ private actor ScriptedFeedRepository: FeedRepository {
 
     func crossFeedItems() async throws -> [FeedItem] {
         []
+    }
+}
+
+private actor RecordingAppShellTimelineStartupRepository: FeedRepository {
+    private let subscriptionsLoaded: XCTestExpectation
+    private let firstPageLoaded: XCTestExpectation
+    private let legacyCrossFeedItemsLoaded: XCTestExpectation
+    private var subscriptionsCalls = 0
+    private var crossFeedItemsCalls = 0
+    private var firstPageLimits: [Int?] = []
+
+    init(
+        subscriptionsLoaded: XCTestExpectation,
+        firstPageLoaded: XCTestExpectation,
+        legacyCrossFeedItemsLoaded: XCTestExpectation
+    ) {
+        self.subscriptionsLoaded = subscriptionsLoaded
+        self.firstPageLoaded = firstPageLoaded
+        self.legacyCrossFeedItemsLoaded = legacyCrossFeedItemsLoaded
+    }
+
+    func subscriptionsCallCount() -> Int {
+        subscriptionsCalls
+    }
+
+    func crossFeedItemsCallCount() -> Int {
+        crossFeedItemsCalls
+    }
+
+    func firstPageLimitCalls() -> [Int?] {
+        firstPageLimits
+    }
+
+    func subscriptions() async throws -> [Feed] {
+        subscriptionsCalls += 1
+        if subscriptionsCalls == 1 {
+            subscriptionsLoaded.fulfill()
+        }
+
+        return [
+            Feed(id: "feed-a", title: "Feed A", unreadCount: 1, status: .active)
+        ]
+    }
+
+    func crossFeedItems() async throws -> [FeedItem] {
+        crossFeedItemsCalls += 1
+
+        legacyCrossFeedItemsLoaded.fulfill()
+        return []
+    }
+
+    func loadCrossFeedFirstPage(limit: Int?) async throws -> CrossFeedPaginationSnapshot {
+        firstPageLimits.append(limit)
+        if firstPageLimits.count == 1 {
+            firstPageLoaded.fulfill()
+        }
+
+        return CrossFeedPaginationSnapshot(
+            items: [],
+            nextCursor: nil,
+            canLoadMore: false,
+            sinceTime: nil,
+            limit: CrossFeedPageLimit.defaultValue
+        )
     }
 }
 

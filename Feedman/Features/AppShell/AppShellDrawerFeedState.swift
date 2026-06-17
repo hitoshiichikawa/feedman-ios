@@ -79,8 +79,42 @@ final class AppShellDrawerFeedViewModel: ObservableObject {
         sectionState = .loaded(feeds: feedsByUpsertingRegisteredFeed(registeredFeed, into: sectionState.feeds))
     }
 
+    func applySubscriptionSettings(subscriptionID: String, fetchIntervalMinutes: Int) {
+        replaceFeed(subscriptionID: subscriptionID) { feed in
+            feed.updating(fetchIntervalMinutes: fetchIntervalMinutes)
+        }
+    }
+
+    func applySubscriptionResume(subscriptionID: String) {
+        replaceFeed(subscriptionID: subscriptionID) { feed in
+            feed.updating(status: .active)
+        }
+    }
+
+    @discardableResult
+    func removeSubscription(subscriptionID: String) -> Feed? {
+        var feeds = sectionState.feeds
+        guard let index = feeds.firstIndex(where: { $0.subscriptionID == subscriptionID }) else {
+            return nil
+        }
+
+        let removedFeed = feeds.remove(at: index)
+        sectionState = feeds.isEmpty ? .empty : .loaded(feeds: feeds)
+        return removedFeed
+    }
+
     func route(for feed: Feed) -> AppShellRoute {
         .feed(id: feed.id, title: feed.title)
+    }
+
+    private func replaceFeed(subscriptionID: String, transform: (Feed) -> Feed) {
+        var feeds = sectionState.feeds
+        guard let index = feeds.firstIndex(where: { $0.subscriptionID == subscriptionID }) else {
+            return
+        }
+
+        feeds[index] = transform(feeds[index])
+        sectionState = .loaded(feeds: feeds)
     }
 
     private func feedsByUpsertingRegisteredFeed(_ registeredFeed: RegisteredFeed, into feeds: [Feed]) -> [Feed] {
@@ -94,5 +128,22 @@ final class AppShellDrawerFeedViewModel: ObservableObject {
         }
 
         return updatedFeeds
+    }
+}
+
+private extension Feed {
+    func updating(
+        status: FeedStatus? = nil,
+        fetchIntervalMinutes: Int? = nil
+    ) -> Feed {
+        Feed(
+            id: id,
+            subscriptionID: subscriptionID,
+            title: title,
+            unreadCount: unreadCount,
+            status: status ?? self.status,
+            faviconURL: faviconURL,
+            fetchIntervalMinutes: fetchIntervalMinutes ?? self.fetchIntervalMinutes
+        )
     }
 }

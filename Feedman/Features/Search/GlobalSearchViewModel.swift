@@ -65,19 +65,57 @@ struct SearchResultRowDescriptor: Equatable {
     }
 
     var linkURL: URL? {
-        URL(string: hit.link)
+        Self.validHTTPURL(from: hit.link)
     }
 
-    func select(_ action: (String) -> Void) {
-        action(hit.id)
+    var detailInput: ArticleDetailSheetInput? {
+        guard !hit.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        return ArticleDetailSheetInput(searchHit: hit)
     }
 
-    func openLink(_ action: (URL) -> Void) {
-        guard let linkURL else {
+    var openLinkRequest: SearchResultOpenLinkRequest? {
+        guard let linkURL,
+              !hit.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return nil
+        }
+
+        return SearchResultOpenLinkRequest(itemID: hit.id, url: linkURL)
+    }
+
+    func select(_ action: (ArticleDetailSheetInput) -> Void) {
+        guard let detailInput else {
             return
         }
-        action(linkURL)
+        action(detailInput)
     }
+
+    func openLink(_ action: (SearchResultOpenLinkRequest) -> Void) {
+        guard let openLinkRequest else {
+            return
+        }
+        action(openLinkRequest)
+    }
+
+    private static func validHTTPURL(from rawValue: String) -> URL? {
+        guard let url = URL(string: rawValue),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host != nil
+        else {
+            return nil
+        }
+
+        return url
+    }
+}
+
+struct SearchResultOpenLinkRequest: Equatable {
+    let itemID: String
+    let url: URL
 }
 
 @MainActor
@@ -169,6 +207,26 @@ final class GlobalSearchViewModel: ObservableObject {
         await submitSearch(activeQuery)
     }
 
+    func applyItemStateChange(_ change: ItemStateChange) {
+        guard case let .results(query, hits) = state else {
+            return
+        }
+
+        var didChange = false
+        let updatedHits = hits.map { hit in
+            guard hit.id == change.itemID else {
+                return hit
+            }
+
+            didChange = true
+            return hit.updating(isRead: change.isRead, isStarred: change.isStarred)
+        }
+
+        if didChange {
+            state = .results(query: query, hits: updatedHits)
+        }
+    }
+
     private func clearActiveSearch() {
         activeSearchTask?.cancel()
         activeSearchTask = nil
@@ -190,6 +248,26 @@ final class GlobalSearchViewModel: ObservableObject {
             query: query,
             message: "検索結果を読み込めませんでした。",
             isAuthRequired: false
+        )
+    }
+}
+
+private extension ItemSearchHit {
+    func updating(isRead: Bool?, isStarred: Bool?) -> ItemSearchHit {
+        ItemSearchHit(
+            id: id,
+            feedID: feedID,
+            feedTitle: feedTitle,
+            faviconURL: faviconURL,
+            title: title,
+            summary: summary,
+            link: link,
+            publishedAt: publishedAt,
+            isDateEstimated: isDateEstimated,
+            isRead: isRead ?? self.isRead,
+            isStarred: isStarred ?? self.isStarred,
+            hatebuCount: hatebuCount,
+            author: author
         )
     }
 }

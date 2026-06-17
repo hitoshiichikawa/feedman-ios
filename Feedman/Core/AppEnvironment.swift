@@ -50,6 +50,7 @@ final class AppEnvironment: ObservableObject {
     typealias SearchRepositoryFactory = (String) -> any SearchRepository
 
     let feedRepository: FeedRepository
+    let itemRepository: any ItemRepository
     let authRepository: any AuthRepository
     let accountRepository: any AccountRepository
     let authBaseURL: URL
@@ -61,6 +62,7 @@ final class AppEnvironment: ObservableObject {
 
     init(
         feedRepository: FeedRepository,
+        itemRepository: any ItemRepository = MockItemRepository(),
         authRepository: any AuthRepository,
         accountRepository: any AccountRepository,
         authBaseURL: URL,
@@ -69,6 +71,7 @@ final class AppEnvironment: ObservableObject {
         accessTokenStore: AppAccessTokenStore? = nil
     ) {
         self.feedRepository = feedRepository
+        self.itemRepository = itemRepository
         self.authRepository = authRepository
         self.accountRepository = accountRepository
         self.authBaseURL = authBaseURL
@@ -91,6 +94,12 @@ final class AppEnvironment: ObservableObject {
     func completeLogin(with credentials: TokenCredentials) {
         accessTokenStore.update(accessToken: credentials.accessToken)
         authenticationState = .authenticated(accessToken: credentials.accessToken)
+    }
+
+    func clearLocalAuthenticationAfterAccountDeletion() {
+        try? authRepository.clearLocalCredentials()
+        accessTokenStore.update(accessToken: nil)
+        authenticationState = .unauthenticated
     }
 
     /// 起動時に保存済み refresh token からセッションを復元する。
@@ -149,6 +158,7 @@ final class AppEnvironment: ObservableObject {
                     try accessTokenStore.currentAccessToken()
                 }
             ),
+            itemRepository: FeedmanItemRepository(apiClient: apiClient),
             authRepository: authRepository,
             accountRepository: FeedmanAccountRepository(apiClient: apiClient),
             authBaseURL: apiBaseURL,
@@ -167,6 +177,7 @@ final class AppEnvironment: ObservableObject {
 
     static let preview = AppEnvironment(
         feedRepository: MockFeedRepository(),
+        itemRepository: MockItemRepository(),
         authRepository: UnavailableAuthRepository(),
         accountRepository: UnavailableAccountRepository(),
         authBaseURL: URL(string: "https://example.com")!,

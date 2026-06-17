@@ -4,8 +4,9 @@ struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.openURL) private var openURL
     @State private var shellState = AppShellState()
-    @State private var items: [FeedItem] = []
     @StateObject private var drawerFeedViewModel = AppShellDrawerFeedViewModel()
+    @StateObject private var timelineViewModel = TimelineViewModel()
+    @StateObject private var feedViewModel = FeedViewModel()
     @StateObject private var toastCenter = FeedmanToastCenter()
 
     private let drawerWidth: CGFloat = 280
@@ -70,6 +71,9 @@ struct RootView: View {
                     onShowFeedRegistration: {
                         shellState.presentFeedRegistration()
                     },
+                    onShowFeedSettings: { feed in
+                        shellState.presentSubscriptionSettings(feed: feed)
+                    },
                     onRetryFeeds: {
                         Task {
                             await drawerFeedViewModel.loadSubscriptions(repository: environment.feedRepository)
@@ -118,7 +122,6 @@ struct RootView: View {
             }
             .task {
                 await drawerFeedViewModel.loadSubscriptions(repository: environment.feedRepository)
-                items = (try? await environment.feedRepository.crossFeedItems()) ?? []
             }
             .feedmanToastOverlay(toastCenter: toastCenter, edge: .top)
         }
@@ -140,25 +143,34 @@ struct RootView: View {
     private var routeContent: some View {
         switch shellState.currentRoute {
         case .timeline:
-            itemList(
-                items,
-                emptyTitle: "新着記事はありません",
-                emptySubtitle: "購読フィードの記事が取得できるとここに表示されます。"
+            TimelineView(
+                viewModel: timelineViewModel,
+                repository: environment.feedRepository,
+                onSelectItem: { _ in },
+                onOpenLink: { url in
+                    openURL(url)
+                }
             )
         case .starred:
-            itemList(
-                items.filter(\.isStarred),
-                emptyTitle: "お気に入りはありません",
-                emptySubtitle: "スターした記事がここに表示されます。"
+            placeholderContent(
+                systemImage: "star",
+                title: "お気に入り",
+                subtitle: "スター一覧は後続 Issue で追加します。"
             )
         case let .feed(id, title):
             feedContent(feedID: id, routeTitle: title)
         case .search:
             GlobalSearchView(
                 repository: environment.makeSearchRepository(),
-                onSelectItem: { _ in },
-                onOpenLink: { url in
-                    openURL(url)
+                itemStateChange: shellState.itemStateChange,
+                onSelectItem: { input in
+                    presentArticleDetail(input)
+                },
+                onOpenLink: { request in
+                    openSearchResultLink(request)
+                },
+                onAuthRequired: {
+                    toastCenter.show("再ログインが必要です。", style: .warning)
                 }
             )
         case .account:
@@ -171,12 +183,19 @@ struct RootView: View {
     }
 
     @ViewBuilder
-    private func feedContent(feedID: String, routeTitle: String) -> some View {
-        if drawerFeedViewModel.sectionState.feeds.contains(where: { $0.id == feedID }) {
-            itemList(
-                items.filter { $0.feedID == feedID },
-                emptyTitle: "\(routeTitle.isEmpty ? "フィード" : routeTitle) の記事はありません",
-                emptySubtitle: "フィード別一覧の本実装は後続 Issue で追加します。"
+    private func feedContent(feedID: String, routeTitle _: String) -> some View {
+        if let feed = drawerFeedViewModel.sectionState.feeds.first(where: { $0.id == feedID }) {
+            FeedView(
+                viewModel: feedViewModel,
+                feed: feed,
+                repository: environment.feedRepository,
+                onSelectItem: { _ in },
+                onOpenLink: { url in
+                    openURL(url)
+                },
+                onRequestResume: { _ in
+                    toastCenter.show("再開操作は後続の購読設定で対応します。")
+                }
             )
         } else {
             placeholderContent(
@@ -184,28 +203,6 @@ struct RootView: View {
                 title: "フィードを表示できません",
                 subtitle: "選択中のフィードは現在の placeholder 一覧にありません。"
             )
-        }
-    }
-
-    private func itemList(
-        _ visibleItems: [FeedItem],
-        emptyTitle: String,
-        emptySubtitle: String
-    ) -> some View {
-        Group {
-            if visibleItems.isEmpty {
-                placeholderContent(
-                    systemImage: "tray",
-                    title: emptyTitle,
-                    subtitle: emptySubtitle
-                )
-            } else {
-                List(visibleItems) { item in
-                    ItemSummaryRow(item: item)
-                }
-                .listStyle(.plain)
-                .background(FeedmanTheme.background)
-            }
         }
     }
 
@@ -235,6 +232,10 @@ struct RootView: View {
                 accessToken: environment.currentAccessToken,
                 onDismiss: {
                     shellState.dismissPresentation()
+                },
+                onAccountDeleted: {
+                    environment.clearLocalAuthenticationAfterAccountDeletion()
+                    shellState.dismissPresentation()
                 }
             )
         case .feedRegistration:
@@ -245,6 +246,46 @@ struct RootView: View {
                 },
                 onRegistered: { registeredFeed in
                     completeFeedRegistration(registeredFeed)
+                }
+            )
+        case let .articleDetail(input):
+            ArticleDetailSheet(
+                input: input,
+                repository: environment.itemRepository,
+                accessToken: environment.currentAccessToken,
+                onDismiss: {
+                    shellState.dismissPresentation()
+                },
+                onOpenOriginal: { url in
+                    openURL(url)
+                },
+                onAuthRequired: {
+                    toastCenter.show("再ログインが必要です。", style: .warning)
+                },
+                onItemStateChange: { change in
+                    shellState.applyItemStateChange(change)
+                }
+            )
+        case let .subscriptionSettings(feed):
+            SubscriptionSettingsSheet(
+                feed: feed,
+                repository: environment.feedRepository,
+                onDismiss: {
+                    shellState.dismissPresentation()
+                },
+                onIntervalSaved: { subscriptionID, interval in
+                    drawerFeedViewModel.applySubscriptionSettings(
+                        subscriptionID: subscriptionID,
+                        fetchIntervalMinutes: interval
+                    )
+                    toastCenter.show("取得間隔を保存しました", style: .success)
+                },
+                onResumed: { subscriptionID in
+                    drawerFeedViewModel.applySubscriptionResume(subscriptionID: subscriptionID)
+                    toastCenter.show("購読を再開しました", style: .success)
+                },
+                onUnsubscribed: { subscriptionID in
+                    completeUnsubscribe(subscriptionID: subscriptionID)
                 }
             )
         }
@@ -295,35 +336,41 @@ struct RootView: View {
             )
         }
     }
-}
 
-private struct ItemSummaryRow: View {
-    let item: FeedItem
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(item.feedTitle)
-                    .font(.caption)
-                    .foregroundStyle(FeedmanTheme.mutedForeground)
-                    .lineLimit(1)
-                Spacer()
-                if item.isStarred {
-                    Image(systemName: "star.fill")
-                        .foregroundStyle(FeedmanTheme.star)
-                        .accessibilityLabel("スター済み")
-                }
-            }
-            Text(item.title)
-                .font(.headline)
-                .foregroundStyle(item.isRead ? FeedmanTheme.mutedForeground : FeedmanTheme.foreground)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(item.summary)
-                .font(.subheadline)
-                .foregroundStyle(FeedmanTheme.mutedForeground)
-                .lineLimit(2)
+    private func presentArticleDetail(_ input: ArticleDetailSheetInput) {
+        guard shellState.presentArticleDetail(input) else {
+            toastCenter.show("記事詳細を開けませんでした。", style: .warning)
+            return
         }
-        .padding(.vertical, 6)
+    }
+
+    private func openSearchResultLink(_ request: SearchResultOpenLinkRequest) {
+        Task {
+            await AppShellSearchResultOpenLinkCoordinator(
+                itemRepository: environment.itemRepository,
+                accessToken: environment.currentAccessToken,
+                openURL: { url in
+                    openURL(url)
+                },
+                onItemStateChange: { change in
+                    shellState.applyItemStateChange(change)
+                },
+                onFailure: { failure in
+                    toastCenter.show(failure.message, style: .warning)
+                }
+            )
+            .open(request)
+        }
+    }
+
+    private func completeUnsubscribe(subscriptionID: String) {
+        if let removedFeed = drawerFeedViewModel.removeSubscription(subscriptionID: subscriptionID) {
+            shellState.selectTimelineIfCurrentFeedWasRemoved(feedID: removedFeed.id)
+            toastCenter.show("\(removedFeed.title) の購読を解除しました", style: .success)
+        } else {
+            toastCenter.show("購読を解除しました", style: .success)
+        }
+        shellState.dismissPresentation()
     }
 }
 
@@ -335,6 +382,7 @@ private struct DrawerView: View {
     let onShowAccount: () -> Void
     let onToggleTheme: () -> Void
     let onShowFeedRegistration: () -> Void
+    let onShowFeedSettings: (Feed) -> Void
     let onRetryFeeds: () -> Void
     let onDismiss: () -> Void
 
@@ -400,6 +448,9 @@ private struct DrawerView: View {
                         isSelected: selectedItem == .feed(id: feed.id),
                         onTap: {
                             onSelectRoute(.feed(id: feed.id, title: feed.title))
+                        },
+                        onSettingsTap: {
+                            onShowFeedSettings(feed)
                         }
                     )
                 }
@@ -517,7 +568,6 @@ private struct DrawerView: View {
         }
     }
 }
-
 private struct DrawerRouteButton: View {
     let title: String
     let systemImage: String
@@ -559,50 +609,64 @@ private struct DrawerFeedButton: View {
     let feed: Feed
     let isSelected: Bool
     let onTap: () -> Void
+    let onSettingsTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(alignment: .center, spacing: 12) {
-                feedIcon
+        HStack(alignment: .center, spacing: 8) {
+            Button(action: onTap) {
+                HStack(alignment: .center, spacing: 12) {
+                    feedIcon
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(feed.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(isSelected ? FeedmanTheme.accent : FeedmanTheme.foreground)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(feed.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(isSelected ? FeedmanTheme.accent : FeedmanTheme.foreground)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                    if let statusText {
-                        Text(statusText)
-                            .font(.caption)
-                            .foregroundStyle(FeedmanTheme.mutedForeground)
-                            .lineLimit(1)
+                        if let statusText {
+                            Text(statusText)
+                                .font(.caption)
+                                .foregroundStyle(FeedmanTheme.mutedForeground)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Spacer(minLength: 8)
+
+                    if feed.unreadCount > 0 {
+                        Text("\(feed.unreadCount)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(isSelected ? FeedmanTheme.accent : FeedmanTheme.mutedForeground)
+                            .monospacedDigit()
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(isSelected ? FeedmanTheme.background : FeedmanTheme.muted)
+                            .clipShape(Capsule())
+                            .accessibilityLabel("未読 \(feed.unreadCount) 件")
                     }
                 }
-
-                Spacer(minLength: 8)
-
-                if feed.unreadCount > 0 {
-                    Text("\(feed.unreadCount)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(isSelected ? FeedmanTheme.accent : FeedmanTheme.mutedForeground)
-                        .monospacedDigit()
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 4)
-                        .background(isSelected ? FeedmanTheme.background : FeedmanTheme.muted)
-                        .clipShape(Capsule())
-                        .accessibilityLabel("未読 \(feed.unreadCount) 件")
-                }
+                .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
-            .background(isSelected ? FeedmanTheme.accentSoft : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .buttonStyle(.plain)
+            .accessibilityLabel(feed.title)
+            .accessibilityValue(accessibilityValue)
+
+            Button(action: onSettingsTap) {
+                Image(systemName: "gearshape")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 34, height: 34)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(feed.subscriptionID == nil ? FeedmanTheme.mutedForeground.opacity(0.5) : FeedmanTheme.mutedForeground)
+            .disabled(feed.subscriptionID == nil)
+            .accessibilityLabel("\(feed.title) の購読設定")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(feed.title)
-        .accessibilityValue(accessibilityValue)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
+        .background(isSelected ? FeedmanTheme.accentSoft : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private var feedIcon: some View {
@@ -723,6 +787,10 @@ private extension AppShellPresentation {
             return "アカウント"
         case .feedRegistration:
             return "フィードを登録"
+        case .articleDetail:
+            return "記事詳細"
+        case .subscriptionSettings:
+            return "購読設定"
         }
     }
 
@@ -732,6 +800,10 @@ private extension AppShellPresentation {
             return "アカウント機能の入口"
         case .feedRegistration:
             return "サイト URL から購読を追加"
+        case .articleDetail:
+            return "記事詳細"
+        case .subscriptionSettings:
+            return "取得間隔と購読状態"
         }
     }
 
@@ -741,6 +813,10 @@ private extension AppShellPresentation {
             return "ログアウト、退会、ユーザー情報の表示は後続 Issue で実装します。この placeholder は実データや認証 API を使用しません。"
         case .feedRegistration:
             return "サイトの URL か RSS/Atom の URL を入力してフィードを登録します。"
+        case .articleDetail:
+            return "記事本文の詳細を表示します。"
+        case .subscriptionSettings:
+            return "購読フィードの取得間隔、再開、購読解除を操作します。"
         }
     }
 
@@ -750,6 +826,10 @@ private extension AppShellPresentation {
             return "person.crop.circle"
         case .feedRegistration:
             return "plus.circle"
+        case .articleDetail:
+            return "doc.text"
+        case .subscriptionSettings:
+            return "gearshape"
         }
     }
 }

@@ -55,6 +55,34 @@ final class AccountRepositoryTests: XCTestCase {
         )
     }
 
+    func testDeleteCurrentUserRequestsUsersMeWithBearerToken() async throws {
+        let transport = AccountRecordingTransport()
+        transport.enqueue(data: Data(), statusCode: 204)
+        let repository = FeedmanAccountRepository(
+            apiClient: APIClient(baseURL: baseURL, transport: transport)
+        )
+
+        try await repository.deleteCurrentUser(accessToken: "access-1")
+
+        let request = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(request.url?.path, "/api/users/me")
+        XCTAssertEqual(request.httpMethod, "DELETE")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-1")
+        XCTAssertNil(request.httpBody)
+    }
+
+    func testDeleteCurrentUserTreatsAnyTwoHundredResponseAsSuccess() async throws {
+        let transport = AccountRecordingTransport()
+        transport.enqueue(data: Data(#"{"ok":true}"#.utf8), statusCode: 200)
+        let repository = FeedmanAccountRepository(
+            apiClient: APIClient(baseURL: baseURL, transport: transport)
+        )
+
+        try await repository.deleteCurrentUser(accessToken: "access-1")
+
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
     func testUserResponseDecodesAuthMeContractFields() throws {
         let data = currentUserData(name: nil, email: nil, avatarURL: "https://example.com/avatar.png")
 

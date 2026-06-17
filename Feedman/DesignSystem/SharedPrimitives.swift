@@ -507,7 +507,9 @@ struct FeedmanSheetShell<Content: View, PrimaryAction: View>: View {
             ScrollView {
                 content
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, scrollContentBottomPadding)
             }
 
             if let primaryAction {
@@ -524,6 +526,10 @@ struct FeedmanSheetShell<Content: View, PrimaryAction: View>: View {
         }
         .background(FeedmanTheme.background)
         .accessibilityElement(children: .contain)
+    }
+
+    private var scrollContentBottomPadding: CGFloat {
+        primaryAction == nil ? 16 : 28
     }
 
     private var header: some View {

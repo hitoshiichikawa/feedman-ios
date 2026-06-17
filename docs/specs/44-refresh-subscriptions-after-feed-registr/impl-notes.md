@@ -23,7 +23,7 @@
 - `plutil -lint Feedman.xcodeproj/project.pbxproj`
   - 結果: 成功。
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/AppShellDrawerFeedStateTests -only-testing:FeedmanTests/RegisterFeedViewModelTests test`
-  - 結果: 成功。22 tests、0 failures。
+  - 結果: 成功。27 tests、0 failures。
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`
   - 結果: 中断。build は進んだが、既存 `AccountViewModelTests.testDuplicateLoadWhileLoadingDoesNotStartSecondRequest` の実行中に出力が止まり、同 test class 単独実行でも同じ箇所で停止したため、ハングした検証プロセスを終了した。
 
@@ -32,3 +32,10 @@
 - 登録成功後に新規 feed route へ自動遷移する挙動は追加していない。
 - `POST /api/feeds` と `GET /api/subscriptions` の API 契約、`design/SPEC-iOS.md`、`design/SERVER.md` は変更していない。
 - full test suite は今回変更範囲外の `AccountViewModelTests` で停止するため、Reviewer stage では必要に応じて既存テストの状態を別途確認する。
+
+## 是正内容
+
+- Reviewer round=1 の指摘を受け、#44 の責務外だった ArticleDetail / Feeds / Subscriptions / Timeline、Account / Search / Core repository、既存 tests、他 Issue の `docs/specs/*` の削除・後退を `develop` 相当の内容へ戻した。
+- #44 の実装差分は `AppShellDrawerFeedViewModel` の登録成功後 subscriptions reload、`RootView.completeFeedRegistration(_:)` からの reload 起動、対応する ViewModel tests に限定した。
+- 登録後 reload 失敗時の drawer guidance は登録成功 feedback と分離し、retry は既存 `loadSubscriptions(repository:)` 経由で再実行する形を維持した。
+- `docs/specs/44-refresh-subscriptions-after-feed-registr/requirements.md` は変更していない。
