@@ -9,9 +9,9 @@ final class ArticleDetailViewModelTests: XCTestCase {
             stateUpdateResults: [.success(())]
         )
         var stateChanges: [ItemStateChange] = []
-        let viewModel = makeViewModel(repository: repository) { change in
+        let viewModel = makeViewModel(repository: repository, onItemStateChange: { change in
             stateChanges.append(change)
-        }
+        })
 
         await viewModel.open()
 
@@ -87,9 +87,9 @@ final class ArticleDetailViewModelTests: XCTestCase {
             stateUpdateResults: [.success(()), .success(())]
         )
         var stateChanges: [ItemStateChange] = []
-        let viewModel = makeViewModel(repository: repository) { change in
+        let viewModel = makeViewModel(repository: repository, onItemStateChange: { change in
             stateChanges.append(change)
-        }
+        })
 
         await viewModel.open()
         await viewModel.toggleStar()
@@ -181,12 +181,14 @@ final class ArticleDetailViewModelTests: XCTestCase {
         var stateChanges: [ItemStateChange] = []
         let viewModel = makeViewModel(
             summaryLink: "http://example.com/articles/123",
-            repository: repository
-        ) { change in
-            stateChanges.append(change)
-        }
+            repository: repository,
+            onItemStateChange: { change in
+                stateChanges.append(change)
+            }
+        )
 
-        let request = try XCTUnwrap(await viewModel.openOriginal())
+        let openRequest = await viewModel.openOriginal()
+        let request = try XCTUnwrap(openRequest)
 
         XCTAssertEqual(request.itemID, "item-123")
         XCTAssertEqual(request.url.absoluteString, "http://example.com/articles/123")
@@ -216,7 +218,8 @@ final class ArticleDetailViewModelTests: XCTestCase {
             repository: repository
         )
 
-        let request = try XCTUnwrap(await viewModel.openOriginal())
+        let openRequest = await viewModel.openOriginal()
+        let request = try XCTUnwrap(openRequest)
 
         XCTAssertEqual(request.url.absoluteString, "https://example.com/articles/123")
     }
@@ -238,10 +241,12 @@ final class ArticleDetailViewModelTests: XCTestCase {
         )
 
         await viewModel.open()
-        let request = try XCTUnwrap(await viewModel.openOriginal())
+        let openRequest = await viewModel.openOriginal()
+        let request = try XCTUnwrap(openRequest)
 
         XCTAssertEqual(request.url.absoluteString, "https://example.com/detail")
-        XCTAssertEqual((await repository.stateUpdateCalls()).count, 1)
+        let stateUpdateCalls = await repository.stateUpdateCalls()
+        XCTAssertEqual(stateUpdateCalls.count, 1)
     }
 
     func testOpenOriginalWithInvalidURLReturnsNilAndDoesNotMarkRead() async {
@@ -275,12 +280,14 @@ final class ArticleDetailViewModelTests: XCTestCase {
         )
         let viewModel = makeViewModel(repository: repository)
 
-        let request = try XCTUnwrap(await viewModel.openOriginal())
+        let openRequest = await viewModel.openOriginal()
+        let request = try XCTUnwrap(openRequest)
 
         XCTAssertEqual(request.url.absoluteString, "https://example.com/summary")
         XCTAssertEqual(viewModel.mutationMessage?.kind, .read)
         XCTAssertEqual(viewModel.mutationMessage?.message, "既読状態を保存できませんでした。")
-        XCTAssertEqual((await repository.stateUpdateCalls()).count, 1)
+        let stateUpdateCalls = await repository.stateUpdateCalls()
+        XCTAssertEqual(stateUpdateCalls.count, 1)
     }
 
     func testOpenOriginalMissingAccessTokenRoutesAuthBoundary() async throws {
@@ -297,7 +304,8 @@ final class ArticleDetailViewModelTests: XCTestCase {
             }
         )
 
-        let request = try XCTUnwrap(await viewModel.openOriginal())
+        let openRequest = await viewModel.openOriginal()
+        let request = try XCTUnwrap(openRequest)
 
         XCTAssertEqual(request.url.absoluteString, "https://example.com/summary")
         XCTAssertEqual(authRequiredCount, 1)
@@ -325,7 +333,8 @@ final class ArticleDetailViewModelTests: XCTestCase {
             }
         )
 
-        let request = try XCTUnwrap(await viewModel.openOriginal())
+        let openRequest = await viewModel.openOriginal()
+        let request = try XCTUnwrap(openRequest)
 
         XCTAssertEqual(request.url.absoluteString, "https://example.com/summary")
         XCTAssertEqual(authRequiredCount, 1)
@@ -334,7 +343,8 @@ final class ArticleDetailViewModelTests: XCTestCase {
             viewModel.mutationMessage?.message,
             "認証の有効期限が切れました。もう一度ログインしてください。"
         )
-        XCTAssertEqual((await repository.stateUpdateCalls()).count, 1)
+        let stateUpdateCalls = await repository.stateUpdateCalls()
+        XCTAssertEqual(stateUpdateCalls.count, 1)
     }
 
     func testPublishedDateFormatterFormatsSummaryPreviewDate() {
