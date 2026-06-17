@@ -38,12 +38,15 @@ struct FeedRefreshFeedbackDescriptor: Equatable {
 struct FeedItemCardDescriptor: Equatable {
     let item: ItemSummary
     let relativeDate: String
+    let isStarMutationPending: Bool
 
     init(
         item: ItemSummary,
+        isStarMutationPending: Bool = false,
         now: Date = Date()
     ) {
         self.item = item
+        self.isStarMutationPending = isStarMutationPending
         relativeDate = TimelineRelativeDateFormatter.string(
             from: item.publishedAt,
             isEstimated: item.isDateEstimated,
@@ -77,6 +80,10 @@ struct FeedItemCardDescriptor: Equatable {
 
     var isStarred: Bool {
         item.isStarred
+    }
+
+    var isStarControlEnabled: Bool {
+        !isStarMutationPending
     }
 
     var hatebuState: ArticleHatebuCountState {
@@ -133,6 +140,7 @@ final class FeedViewModel: ObservableObject {
     @Published private(set) var filter: FeedItemFilter
     @Published private(set) var isRefreshing: Bool
     @Published private(set) var refreshFeedback: FeedRefreshFeedbackDescriptor?
+    @Published private(set) var starMutationErrorMessage: String?
 
     private struct Session: Equatable {
         let feedID: String
@@ -140,13 +148,19 @@ final class FeedViewModel: ObservableObject {
     }
 
     private var repository: (any FeedRepository)?
+    private var itemRepository: (any ItemRepository)?
+    private var accessToken: String?
+    private let itemStateCoordinator: ItemStateCoordinator
     private var isLoadingFirstPage = false
     private var loadingFirstPageSession: Session?
     private var pendingFirstPageSession: Session?
-    private var localStarOverrides: [String: Bool] = [:]
+    private var cancellables: Set<AnyCancellable> = []
 
     init(
         repository: (any FeedRepository)? = nil,
+        itemRepository: (any ItemRepository)? = nil,
+        accessToken: String? = nil,
+        itemStateCoordinator: ItemStateCoordinator = ItemStateCoordinator(),
         state: FeedViewState = .idle,
         items: [ItemSummary] = [],
         canLoadMore: Bool = false,
@@ -154,6 +168,9 @@ final class FeedViewModel: ObservableObject {
         filter: FeedItemFilter = .all
     ) {
         self.repository = repository
+        self.itemRepository = itemRepository
+        self.accessToken = accessToken
+        self.itemStateCoordinator = itemStateCoordinator
         self.state = state
         self.items = items
         self.canLoadMore = canLoadMore
@@ -165,12 +182,22 @@ final class FeedViewModel: ObservableObject {
         requestedResumeFeedID = nil
         isRefreshing = false
         refreshFeedback = nil
+        starMutationErrorMessage = nil
+        observeItemStateCoordinator()
     }
 
-    func configure(repository: any FeedRepository) {
+    func configure(
+        repository: any FeedRepository,
+        itemRepository: (any ItemRepository)? = nil,
+        accessToken: String? = nil
+    ) {
         if self.repository == nil {
             self.repository = repository
         }
+        if let itemRepository {
+            self.itemRepository = itemRepository
+        }
+        self.accessToken = accessToken
     }
 
     func loadInitialIfNeeded(feedID: String) async {
@@ -246,15 +273,59 @@ final class FeedViewModel: ObservableObject {
         selectedItemID = id
     }
 
-    func toggleStar(id: String) {
-        guard let index = items.firstIndex(where: { $0.id == id }) else {
+    func detailInput(for id: String) -> ArticleDetailSheetInput {
+        guard let item = items.first(where: { $0.id == id }) else {
+            return ArticleDetailSheetInput(id: id)
+        }
+
+        let effectiveItem = itemStateCoordinator.effectiveSummary(item)
+        return ArticleDetailSheetInput(
+            id: id,
+            summary: ArticleDetailSummary(item: effectiveItem)
+        )
+    }
+
+    func toggleStar(id: String) async {
+        guard let item = items.first(where: { $0.id == id }) else {
             return
         }
 
-        let item = items[index]
-        let isStarred = !item.isStarred
-        localStarOverrides[id] = isStarred
-        items[index] = item.updatingStarredState(isStarred)
+        let snapshot = itemStateCoordinator.effectiveState(
+            itemID: item.id,
+            baseRead: item.isRead,
+            baseStarred: item.isStarred
+        )
+        let targetValue = !snapshot.isStarred
+        guard let token = itemStateCoordinator.beginMutation(
+            itemID: item.id,
+            baseRead: item.isRead,
+            baseStarred: item.isStarred,
+            isStarred: targetValue
+        ) else {
+            return
+        }
+
+        starMutationErrorMessage = nil
+
+        guard let itemRepository,
+              let accessToken = validatedAccessToken()
+        else {
+            itemStateCoordinator.rollbackMutation(token)
+            starMutationErrorMessage = "スターを更新できませんでした。"
+            return
+        }
+
+        do {
+            try await itemRepository.updateItemState(
+                id: item.id,
+                request: ItemStateUpdateRequest(isRead: nil, isStarred: targetValue),
+                accessToken: accessToken
+            )
+            itemStateCoordinator.commitMutation(token)
+        } catch {
+            itemStateCoordinator.rollbackMutation(token)
+            starMutationErrorMessage = "スターを更新できませんでした。"
+        }
     }
 
     func requestResume(feedID: String) {
@@ -332,7 +403,11 @@ final class FeedViewModel: ObservableObject {
     }
 
     func descriptor(for item: ItemSummary, now: Date = Date()) -> FeedItemCardDescriptor {
-        FeedItemCardDescriptor(item: item, now: now)
+        FeedItemCardDescriptor(
+            item: itemStateCoordinator.effectiveSummary(item),
+            isStarMutationPending: itemStateCoordinator.isPending(itemID: item.id, field: .starred),
+            now: now
+        )
     }
 
     func visibleState(for feedID: String) -> FeedViewState {
@@ -426,14 +501,28 @@ final class FeedViewModel: ObservableObject {
     private func apply(snapshot: FeedItemPaginationSnapshot) {
         currentFeedID = snapshot.feedID
         filter = snapshot.filter
-        items = snapshot.items.map { item in
-            guard let isStarred = localStarOverrides[item.id] else {
-                return item
-            }
-            return item.updatingStarredState(isStarred)
-        }
+        items = snapshot.items
         canLoadMore = snapshot.canLoadMore
         state = items.isEmpty ? .empty : .loaded
+    }
+
+    private func observeItemStateCoordinator() {
+        itemStateCoordinator.objectWillChange
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.objectWillChange.send()
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func validatedAccessToken() -> String? {
+        guard let accessToken = accessToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !accessToken.isEmpty
+        else {
+            return nil
+        }
+        return accessToken
     }
 
     private func preparePendingFirstPage(_ session: Session) {
@@ -507,27 +596,6 @@ private enum FeedViewModelError: Error {
 private extension FeedmanErrorContext {
     var presentationRetryAfterSeconds: Int? {
         retryAfterSeconds ?? retryAfter.flatMap(Int.init)
-    }
-}
-
-private extension ItemSummary {
-    func updatingStarredState(_ isStarred: Bool) -> ItemSummary {
-        ItemSummary(
-            id: id,
-            feedID: feedID,
-            feedTitle: feedTitle,
-            feedFaviconURL: feedFaviconURL,
-            title: title,
-            summary: summary,
-            link: link,
-            publishedAt: publishedAt,
-            isDateEstimated: isDateEstimated,
-            isRead: isRead,
-            isStarred: isStarred,
-            hatebuCount: hatebuCount,
-            hatebuFetchedAt: hatebuFetchedAt,
-            author: author
-        )
     }
 }
 

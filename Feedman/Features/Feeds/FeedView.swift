@@ -5,7 +5,9 @@ struct FeedView: View {
 
     let feed: Feed
     private let repository: any FeedRepository
-    private let onSelectItem: (String) -> Void
+    private let itemRepository: any ItemRepository
+    private let accessToken: String?
+    private let onSelectItem: (ArticleDetailSheetInput) -> Void
     private let onOpenLink: (URL) -> Void
     private let onRequestResume: (String) -> Void
 
@@ -13,13 +15,17 @@ struct FeedView: View {
         viewModel: FeedViewModel,
         feed: Feed,
         repository: any FeedRepository,
-        onSelectItem: @escaping (String) -> Void,
+        itemRepository: any ItemRepository,
+        accessToken: String?,
+        onSelectItem: @escaping (ArticleDetailSheetInput) -> Void,
         onOpenLink: @escaping (URL) -> Void,
         onRequestResume: @escaping (String) -> Void
     ) {
         self.viewModel = viewModel
         self.feed = feed
         self.repository = repository
+        self.itemRepository = itemRepository
+        self.accessToken = accessToken
         self.onSelectItem = onSelectItem
         self.onOpenLink = onOpenLink
         self.onRequestResume = onRequestResume
@@ -38,7 +44,11 @@ struct FeedView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(FeedmanTheme.background)
         .task(id: feed.id) {
-            viewModel.configure(repository: repository)
+            viewModel.configure(
+                repository: repository,
+                itemRepository: itemRepository,
+                accessToken: accessToken
+            )
             await viewModel.loadInitialIfNeeded(feedID: feed.id)
         }
         .refreshable {
@@ -71,6 +81,11 @@ struct FeedView: View {
             FeedmanBannerView(
                 message: feedback.message,
                 style: feedback.style
+            )
+        } else if let starMutationErrorMessage = viewModel.starMutationErrorMessage {
+            FeedmanBannerView(
+                message: starMutationErrorMessage,
+                style: .warning
             )
         }
     }
@@ -142,10 +157,12 @@ struct FeedView: View {
                     descriptor: viewModel.descriptor(for: item),
                     onSelectItem: { id in
                         viewModel.selectItem(id: id)
-                        onSelectItem(id)
+                        onSelectItem(viewModel.detailInput(for: id))
                     },
                     onToggleStar: { id in
-                        viewModel.toggleStar(id: id)
+                        Task {
+                            await viewModel.toggleStar(id: id)
+                        }
                     },
                     onOpenLink: onOpenLink
                 )
@@ -231,11 +248,13 @@ private struct FeedItemCard: View {
 
                 ArticleStarControl(
                     isStarred: descriptor.isStarred,
+                    isEnabled: descriptor.isStarControlEnabled,
                     size: .standard,
                     onToggle: {
                         descriptor.toggleStar(onToggleStar)
                     }
                 )
+                .accessibilityHint(descriptor.isStarMutationPending ? "スターを保存中です" : "")
 
                 ArticleOpenLinkControl(
                     value: descriptor.linkURL,
@@ -271,6 +290,8 @@ private struct FeedItemCard: View {
             status: .stopped(message: "前回の取得でエラーが続いたため停止しています")
         ),
         repository: MockFeedRepository(),
+        itemRepository: MockItemRepository(),
+        accessToken: "preview-access-token",
         onSelectItem: { _ in },
         onOpenLink: { _ in },
         onRequestResume: { _ in }

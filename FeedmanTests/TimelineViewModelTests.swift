@@ -177,18 +177,32 @@ final class TimelineViewModelTests: XCTestCase {
                 ))
             ]
         )
-        let viewModel = TimelineViewModel(repository: repository)
+        let itemRepository = MockItemRepository()
+        let viewModel = TimelineViewModel(
+            repository: repository,
+            itemRepository: itemRepository,
+            accessToken: "test-access-token"
+        )
 
         await viewModel.loadInitialIfNeeded()
-        viewModel.toggleStar(id: "target")
+        await viewModel.toggleStar(id: "target")
         await viewModel.refresh()
 
         let refreshedItem = try XCTUnwrap(viewModel.items.first { $0.id == "target" })
-        XCTAssertTrue(refreshedItem.isStarred)
+        XCTAssertTrue(viewModel.descriptor(for: refreshedItem).isStarred)
         XCTAssertEqual(refreshedItem.summary, "Refreshed Summary")
         XCTAssertFalse(viewModel.canLoadMore)
         let calls = await repository.calls()
         XCTAssertEqual(calls, [.firstPage(limit: nil), .firstPage(limit: nil)])
+        XCTAssertEqual(
+            itemRepository.stateUpdates,
+            [
+                MockItemStateUpdate(
+                    itemID: "target",
+                    request: ItemStateUpdateRequest(isRead: nil, isStarred: true)
+                )
+            ]
+        )
     }
 
     func testNextPageSuccessAppendsItemsInRepositoryOrder() async {
@@ -350,24 +364,59 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertEqual(calls, [.firstPage(limit: nil)])
     }
 
-    func testLocalStarToggleDoesNotCallRepositoryMutation() async throws {
+    func testStarToggleCallsRepositoryMutationAndUpdatesEffectiveState() async throws {
         let repository = RecordingTimelineFeedRepository(
             firstPageResults: [
                 .success(snapshot(items: [item(id: "target", isStarred: false)], canLoadMore: false))
             ]
         )
-        let viewModel = TimelineViewModel(repository: repository)
+        let itemRepository = MockItemRepository()
+        let viewModel = TimelineViewModel(
+            repository: repository,
+            itemRepository: itemRepository,
+            accessToken: "test-access-token"
+        )
 
         await viewModel.loadInitialIfNeeded()
-        viewModel.toggleStar(id: "target")
+        await viewModel.toggleStar(id: "target")
 
         let firstItem = try XCTUnwrap(viewModel.items.first)
-        XCTAssertTrue(firstItem.isStarred)
+        XCTAssertTrue(viewModel.descriptor(for: firstItem).isStarred)
         let calls = await repository.calls()
         XCTAssertEqual(calls, [.firstPage(limit: nil)])
+        XCTAssertEqual(
+            itemRepository.stateUpdates,
+            [
+                MockItemStateUpdate(
+                    itemID: "target",
+                    request: ItemStateUpdateRequest(isRead: nil, isStarred: true)
+                )
+            ]
+        )
     }
 
-    func testLocalStarToggleSurvivesPaginationSnapshotReplacement() async throws {
+    func testStarToggleFailureRollsBackEffectiveStateAndShowsError() async throws {
+        let repository = RecordingTimelineFeedRepository(
+            firstPageResults: [
+                .success(snapshot(items: [item(id: "target", isStarred: false)], canLoadMore: false))
+            ]
+        )
+        let itemRepository = MockItemRepository(stateUpdateFailure: TimelineViewModelTestError.transport)
+        let viewModel = TimelineViewModel(
+            repository: repository,
+            itemRepository: itemRepository,
+            accessToken: "test-access-token"
+        )
+
+        await viewModel.loadInitialIfNeeded()
+        await viewModel.toggleStar(id: "target")
+
+        let firstItem = try XCTUnwrap(viewModel.items.first)
+        XCTAssertFalse(viewModel.descriptor(for: firstItem).isStarred)
+        XCTAssertEqual(viewModel.starMutationErrorMessage, "スターを更新できませんでした。")
+    }
+
+    func testStarToggleSurvivesPaginationSnapshotReplacement() async throws {
         let repository = RecordingTimelineFeedRepository(
             firstPageResults: [
                 .success(snapshot(items: [item(id: "target", isStarred: false)], canLoadMore: true))
@@ -382,13 +431,18 @@ final class TimelineViewModelTests: XCTestCase {
                 ))
             ]
         )
-        let viewModel = TimelineViewModel(repository: repository)
+        let viewModel = TimelineViewModel(
+            repository: repository,
+            itemRepository: MockItemRepository(),
+            accessToken: "test-access-token"
+        )
 
         await viewModel.loadInitialIfNeeded()
-        viewModel.toggleStar(id: "target")
+        await viewModel.toggleStar(id: "target")
         await viewModel.loadNextPageIfNeeded(currentItemID: "target")
 
-        XCTAssertTrue(try XCTUnwrap(viewModel.items.first { $0.id == "target" }).isStarred)
+        let target = try XCTUnwrap(viewModel.items.first { $0.id == "target" })
+        XCTAssertTrue(viewModel.descriptor(for: target).isStarred)
         XCTAssertEqual(viewModel.items.map(\.id), ["target", "next"])
     }
 

@@ -4,17 +4,23 @@ struct TimelineView: View {
     @ObservedObject var viewModel: TimelineViewModel
 
     private let repository: any FeedRepository
-    private let onSelectItem: (String) -> Void
+    private let itemRepository: any ItemRepository
+    private let accessToken: String?
+    private let onSelectItem: (ArticleDetailSheetInput) -> Void
     private let onOpenLink: (URL) -> Void
 
     init(
         viewModel: TimelineViewModel,
         repository: any FeedRepository,
-        onSelectItem: @escaping (String) -> Void,
+        itemRepository: any ItemRepository,
+        accessToken: String?,
+        onSelectItem: @escaping (ArticleDetailSheetInput) -> Void,
         onOpenLink: @escaping (URL) -> Void
     ) {
         self.viewModel = viewModel
         self.repository = repository
+        self.itemRepository = itemRepository
+        self.accessToken = accessToken
         self.onSelectItem = onSelectItem
         self.onOpenLink = onOpenLink
     }
@@ -24,11 +30,19 @@ struct TimelineView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(FeedmanTheme.background)
             .task {
-                viewModel.configure(repository: repository)
+                viewModel.configure(
+                    repository: repository,
+                    itemRepository: itemRepository,
+                    accessToken: accessToken
+                )
                 await viewModel.loadInitialIfNeeded()
             }
             .refreshable {
-                viewModel.configure(repository: repository)
+                viewModel.configure(
+                    repository: repository,
+                    itemRepository: itemRepository,
+                    accessToken: accessToken
+                )
                 await viewModel.refresh()
             }
     }
@@ -96,15 +110,24 @@ struct TimelineView: View {
                     }
                 }
 
+                if let starMutationErrorMessage = viewModel.starMutationErrorMessage {
+                    FeedmanBannerView(
+                        message: starMutationErrorMessage,
+                        style: .warning
+                    )
+                }
+
                 ForEach(viewModel.items, id: \.id) { item in
                     TimelineCard(
                         descriptor: viewModel.descriptor(for: item),
                         onSelectItem: { id in
                             viewModel.selectItem(id: id)
-                            onSelectItem(id)
+                            onSelectItem(viewModel.detailInput(for: id))
                         },
                         onToggleStar: { id in
-                            viewModel.toggleStar(id: id)
+                            Task {
+                                await viewModel.toggleStar(id: id)
+                            }
                         },
                         onOpenLink: onOpenLink
                     )
@@ -192,11 +215,13 @@ private struct TimelineCard: View {
 
                 ArticleStarControl(
                     isStarred: descriptor.isStarred,
+                    isEnabled: descriptor.isStarControlEnabled,
                     size: .timeline,
                     onToggle: {
                         descriptor.toggleStar(onToggleStar)
                     }
                 )
+                .accessibilityHint(descriptor.isStarMutationPending ? "スターを保存中です" : "")
 
                 ArticleOpenLinkControl(
                     value: descriptor.linkURL,
@@ -224,6 +249,8 @@ private struct TimelineCard: View {
     TimelineView(
         viewModel: TimelineViewModel(repository: MockFeedRepository()),
         repository: MockFeedRepository(),
+        itemRepository: MockItemRepository(),
+        accessToken: "preview-access-token",
         onSelectItem: { _ in },
         onOpenLink: { _ in }
     )

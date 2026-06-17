@@ -211,7 +211,9 @@ final class GlobalSearchViewModelTests: XCTestCase {
         XCTAssertEqual(openRequests, [
             SearchResultOpenLinkRequest(
                 itemID: "action",
-                url: try XCTUnwrap(URL(string: "https://example.com/action"))
+                url: try XCTUnwrap(URL(string: "https://example.com/action")),
+                isRead: false,
+                isStarred: false
             )
         ])
     }

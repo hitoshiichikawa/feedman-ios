@@ -12,12 +12,15 @@ enum TimelineViewState: Equatable {
 struct TimelineCardDescriptor: Equatable {
     let item: ItemSummary
     let relativeDate: String
+    let isStarMutationPending: Bool
 
     init(
         item: ItemSummary,
+        isStarMutationPending: Bool = false,
         now: Date = Date()
     ) {
         self.item = item
+        self.isStarMutationPending = isStarMutationPending
         relativeDate = TimelineRelativeDateFormatter.string(
             from: item.publishedAt,
             isEstimated: item.isDateEstimated,
@@ -51,6 +54,10 @@ struct TimelineCardDescriptor: Equatable {
 
     var isStarred: Bool {
         item.isStarred
+    }
+
+    var isStarControlEnabled: Bool {
+        !isStarMutationPending
     }
 
     var hatebuState: ArticleHatebuCountState {
@@ -102,32 +109,52 @@ final class TimelineViewModel: ObservableObject {
     @Published private(set) var isLoadingNextPage: Bool
     @Published private(set) var nextPageErrorMessage: String?
     @Published private(set) var refreshErrorMessage: String?
+    @Published private(set) var starMutationErrorMessage: String?
     @Published private(set) var selectedItemID: String?
 
     private var repository: (any FeedRepository)?
+    private var itemRepository: (any ItemRepository)?
+    private var accessToken: String?
+    private let itemStateCoordinator: ItemStateCoordinator
     private var isLoadingFirstPage = false
-    private var localStarOverrides: [String: Bool] = [:]
+    private var cancellables: Set<AnyCancellable> = []
 
     init(
         repository: (any FeedRepository)? = nil,
+        itemRepository: (any ItemRepository)? = nil,
+        accessToken: String? = nil,
+        itemStateCoordinator: ItemStateCoordinator = ItemStateCoordinator(),
         state: TimelineViewState = .idle,
         items: [ItemSummary] = [],
         canLoadMore: Bool = false
     ) {
         self.repository = repository
+        self.itemRepository = itemRepository
+        self.accessToken = accessToken
+        self.itemStateCoordinator = itemStateCoordinator
         self.state = state
         self.items = items
         self.canLoadMore = canLoadMore
         isLoadingNextPage = false
         nextPageErrorMessage = nil
         refreshErrorMessage = nil
+        starMutationErrorMessage = nil
         selectedItemID = nil
+        observeItemStateCoordinator()
     }
 
-    func configure(repository: any FeedRepository) {
+    func configure(
+        repository: any FeedRepository,
+        itemRepository: (any ItemRepository)? = nil,
+        accessToken: String? = nil
+    ) {
         if self.repository == nil {
             self.repository = repository
         }
+        if let itemRepository {
+            self.itemRepository = itemRepository
+        }
+        self.accessToken = accessToken
     }
 
     func loadInitialIfNeeded() async {
@@ -181,19 +208,68 @@ final class TimelineViewModel: ObservableObject {
         selectedItemID = id
     }
 
-    func toggleStar(id: String) {
-        guard let index = items.firstIndex(where: { $0.id == id }) else {
+    func detailInput(for id: String) -> ArticleDetailSheetInput {
+        guard let item = items.first(where: { $0.id == id }) else {
+            return ArticleDetailSheetInput(id: id)
+        }
+
+        let effectiveItem = itemStateCoordinator.effectiveSummary(item)
+        return ArticleDetailSheetInput(
+            id: id,
+            summary: ArticleDetailSummary(item: effectiveItem)
+        )
+    }
+
+    func toggleStar(id: String) async {
+        guard let item = items.first(where: { $0.id == id }) else {
             return
         }
 
-        let item = items[index]
-        let isStarred = !item.isStarred
-        localStarOverrides[id] = isStarred
-        items[index] = item.updatingStarredState(isStarred)
+        let snapshot = itemStateCoordinator.effectiveState(
+            itemID: item.id,
+            baseRead: item.isRead,
+            baseStarred: item.isStarred
+        )
+        let targetValue = !snapshot.isStarred
+        guard let token = itemStateCoordinator.beginMutation(
+            itemID: item.id,
+            baseRead: item.isRead,
+            baseStarred: item.isStarred,
+            isStarred: targetValue
+        ) else {
+            return
+        }
+
+        starMutationErrorMessage = nil
+
+        guard let itemRepository,
+              let accessToken = validatedAccessToken()
+        else {
+            itemStateCoordinator.rollbackMutation(token)
+            starMutationErrorMessage = "スターを更新できませんでした。"
+            return
+        }
+
+        do {
+            try await itemRepository.updateItemState(
+                id: item.id,
+                request: ItemStateUpdateRequest(isRead: nil, isStarred: targetValue),
+                accessToken: accessToken
+            )
+            itemStateCoordinator.commitMutation(token)
+        } catch {
+            itemStateCoordinator.rollbackMutation(token)
+            starMutationErrorMessage = "スターを更新できませんでした。"
+        }
     }
 
     func descriptor(for item: ItemSummary, now: Date = Date()) -> TimelineCardDescriptor {
-        TimelineCardDescriptor(item: item, now: now)
+        let effectiveItem = itemStateCoordinator.effectiveSummary(item)
+        return TimelineCardDescriptor(
+            item: effectiveItem,
+            isStarMutationPending: itemStateCoordinator.isPending(itemID: item.id, field: .starred),
+            now: now
+        )
     }
 
     private func loadFirstPage(preservingExistingItems: Bool) async {
@@ -224,14 +300,28 @@ final class TimelineViewModel: ObservableObject {
     }
 
     private func apply(snapshot: CrossFeedPaginationSnapshot) {
-        items = snapshot.items.map { item in
-            guard let isStarred = localStarOverrides[item.id] else {
-                return item
-            }
-            return item.updatingStarredState(isStarred)
-        }
+        items = snapshot.items
         canLoadMore = snapshot.canLoadMore
         state = items.isEmpty ? .empty : .loaded
+    }
+
+    private func observeItemStateCoordinator() {
+        itemStateCoordinator.objectWillChange
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.objectWillChange.send()
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func validatedAccessToken() -> String? {
+        guard let accessToken = accessToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !accessToken.isEmpty
+        else {
+            return nil
+        }
+        return accessToken
     }
 
     private func applyFirstPageFailure(preservingExistingItems: Bool) {
@@ -251,27 +341,6 @@ final class TimelineViewModel: ObservableObject {
 
     private func isPaginationTriggerItem(id: String) -> Bool {
         items.last?.id == id
-    }
-}
-
-private extension ItemSummary {
-    func updatingStarredState(_ isStarred: Bool) -> ItemSummary {
-        ItemSummary(
-            id: id,
-            feedID: feedID,
-            feedTitle: feedTitle,
-            feedFaviconURL: feedFaviconURL,
-            title: title,
-            summary: summary,
-            link: link,
-            publishedAt: publishedAt,
-            isDateEstimated: isDateEstimated,
-            isRead: isRead,
-            isStarred: isStarred,
-            hatebuCount: hatebuCount,
-            hatebuFetchedAt: hatebuFetchedAt,
-            author: author
-        )
     }
 }
 

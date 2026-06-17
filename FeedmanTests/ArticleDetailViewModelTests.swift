@@ -78,7 +78,7 @@ final class ArticleDetailViewModelTests: XCTestCase {
         let presentation = try XCTUnwrap(viewModel.loadedPresentation)
         XCTAssertEqual(presentation.title, "Article Title")
         XCTAssertEqual(viewModel.mutationMessage?.kind, .read)
-        XCTAssertEqual(viewModel.mutationMessage?.message, "既読状態を保存できませんでした。")
+        XCTAssertEqual(viewModel.mutationMessage?.message, "既読状態を更新できませんでした。")
     }
 
     func testStarToggleSendsPartialStarRequestAndUpdatesSheetLocalState() async throws {
@@ -118,7 +118,103 @@ final class ArticleDetailViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.loadedPresentation?.isStarred, false)
         XCTAssertEqual(viewModel.mutationMessage?.kind, .star)
-        XCTAssertEqual(viewModel.mutationMessage?.message, "スター状態を保存できませんでした。")
+        XCTAssertEqual(viewModel.mutationMessage?.message, "スターを更新できませんでした。")
+    }
+
+    func testDetailStarSuccessUpdatesSharedCoordinatorForVisibleListCopy() async throws {
+        let coordinator = ItemStateCoordinator()
+        let repository = ArticleDetailRecordingRepository(
+            detailResults: [.success(makeDetail(isRead: true, isStarred: false))],
+            stateUpdateResults: [.success(())]
+        )
+        let viewModel = makeViewModel(
+            repository: repository,
+            summaryIsRead: true,
+            itemStateCoordinator: coordinator
+        )
+
+        await viewModel.open()
+        await viewModel.toggleStar()
+
+        let listItem = makeSummaryItem(isRead: true, isStarred: false)
+        let effectiveListItem = coordinator.effectiveSummary(listItem)
+        XCTAssertTrue(effectiveListItem.isStarred)
+        XCTAssertEqual(viewModel.loadedPresentation?.isStarred, true)
+        let updates = await repository.stateUpdateCalls()
+        XCTAssertEqual(updates.map(\.request), [
+            ItemStateUpdateRequest(isRead: nil, isStarred: true)
+        ])
+    }
+
+    func testCoordinatorStarChangeFromVisibleListUpdatesLoadedDetailPresentation() async throws {
+        let coordinator = ItemStateCoordinator()
+        let repository = ArticleDetailRecordingRepository(
+            detailResults: [.success(makeDetail(isRead: true, isStarred: false))],
+            stateUpdateResults: []
+        )
+        let viewModel = makeViewModel(
+            repository: repository,
+            summaryIsRead: true,
+            itemStateCoordinator: coordinator
+        )
+
+        await viewModel.open()
+        let token = try XCTUnwrap(coordinator.beginMutation(
+            itemID: "item-123",
+            baseRead: true,
+            baseStarred: false,
+            isStarred: true
+        ))
+        await Task.yield()
+
+        XCTAssertEqual(viewModel.loadedPresentation?.isStarred, true)
+
+        coordinator.commitMutation(token)
+        await Task.yield()
+
+        XCTAssertEqual(viewModel.loadedPresentation?.isStarred, true)
+    }
+
+    func testDetailStarFailureRollsBackSharedCoordinatorForVisibleListCopy() async throws {
+        let coordinator = ItemStateCoordinator()
+        let repository = ArticleDetailRecordingRepository(
+            detailResults: [.success(makeDetail(isRead: true, isStarred: false))],
+            stateUpdateResults: [.failure(ArticleDetailTestError.transport)]
+        )
+        let viewModel = makeViewModel(
+            repository: repository,
+            summaryIsRead: true,
+            itemStateCoordinator: coordinator
+        )
+
+        await viewModel.open()
+        await viewModel.toggleStar()
+
+        let listItem = makeSummaryItem(isRead: true, isStarred: false)
+        let effectiveListItem = coordinator.effectiveSummary(listItem)
+        XCTAssertFalse(effectiveListItem.isStarred)
+        XCTAssertEqual(viewModel.loadedPresentation?.isStarred, false)
+        XCTAssertEqual(viewModel.mutationMessage?.kind, .star)
+    }
+
+    func testReadMarkingFailureRollsBackSharedCoordinatorForVisibleListCopy() async throws {
+        let coordinator = ItemStateCoordinator()
+        let repository = ArticleDetailRecordingRepository(
+            detailResults: [.success(makeDetail(isRead: false, isStarred: false))],
+            stateUpdateResults: [.failure(ArticleDetailTestError.transport)]
+        )
+        let viewModel = makeViewModel(
+            repository: repository,
+            itemStateCoordinator: coordinator
+        )
+
+        await viewModel.open()
+
+        let listItem = makeSummaryItem(isRead: false, isStarred: false)
+        let effectiveListItem = coordinator.effectiveSummary(listItem)
+        XCTAssertFalse(effectiveListItem.isRead)
+        XCTAssertEqual(viewModel.loadedPresentation?.isRead, false)
+        XCTAssertEqual(viewModel.mutationMessage?.kind, .read)
     }
 
     func testContentPreviewUsesReadableHTMLText() {
@@ -285,7 +381,7 @@ final class ArticleDetailViewModelTests: XCTestCase {
 
         XCTAssertEqual(request.url.absoluteString, "https://example.com/summary")
         XCTAssertEqual(viewModel.mutationMessage?.kind, .read)
-        XCTAssertEqual(viewModel.mutationMessage?.message, "既読状態を保存できませんでした。")
+        XCTAssertEqual(viewModel.mutationMessage?.message, "既読状態を更新できませんでした。")
         let stateUpdateCalls = await repository.stateUpdateCalls()
         XCTAssertEqual(stateUpdateCalls.count, 1)
     }
@@ -385,6 +481,7 @@ final class ArticleDetailViewModelTests: XCTestCase {
         XCTAssertEqual(input.summary?.link, "https://example.com/search-hit")
         XCTAssertNil(input.summary?.publishedAt)
         XCTAssertNil(input.summary?.isDateEstimated)
+        XCTAssertNil(input.summary?.isRead)
         XCTAssertNil(input.summary?.isStarred)
         XCTAssertNil(input.summary?.hatebuCount)
         XCTAssertNil(input.summary?.hatebuFetchedAt)
@@ -395,6 +492,8 @@ final class ArticleDetailViewModelTests: XCTestCase {
         summaryLink: String = "https://example.com/summary",
         repository: any ItemRepository,
         accessToken: String? = "test-access-token",
+        summaryIsRead: Bool = false,
+        itemStateCoordinator: ItemStateCoordinator = ItemStateCoordinator(),
         onAuthRequired: @escaping () -> Void = {},
         onItemStateChange: @escaping (ItemStateChange) -> Void = { _ in }
     ) -> ArticleDetailViewModel {
@@ -407,13 +506,34 @@ final class ArticleDetailViewModelTests: XCTestCase {
                 summary: "Summary text",
                 link: summaryLink,
                 publishedAt: "2026-06-08T08:30:00Z",
+                isRead: summaryIsRead,
                 isStarred: false,
                 hatebuCount: 1
             ),
             repository: repository,
             accessToken: accessToken,
+            itemStateCoordinator: itemStateCoordinator,
             onAuthRequired: onAuthRequired,
             onItemStateChange: onItemStateChange
+        )
+    }
+
+    private func makeSummaryItem(isRead: Bool, isStarred: Bool) -> ItemSummary {
+        ItemSummary(
+            id: "item-123",
+            feedID: "feed-123",
+            feedTitle: "Feed Title",
+            feedFaviconURL: nil,
+            title: "Article Title",
+            summary: "Summary",
+            link: "https://example.com/articles/123",
+            publishedAt: "2026-06-08T08:30:00Z",
+            isDateEstimated: false,
+            isRead: isRead,
+            isStarred: isStarred,
+            hatebuCount: nil,
+            hatebuFetchedAt: nil,
+            author: nil
         )
     }
 
