@@ -29,6 +29,7 @@ struct FeedView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 topStatusContent
+                refreshFeedbackContent
                 filterControl
                 stateContent
             }
@@ -39,6 +40,12 @@ struct FeedView: View {
         .task(id: feed.id) {
             viewModel.configure(repository: repository)
             await viewModel.loadInitialIfNeeded(feedID: feed.id)
+        }
+        .refreshable {
+            await viewModel.refreshFeed(
+                feedID: feed.id,
+                subscriptionID: feed.subscriptionID
+            )
         }
     }
 
@@ -55,6 +62,16 @@ struct FeedView: View {
                 }
                 .accessibilityLabel(banner.actionLabel)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var refreshFeedbackContent: some View {
+        if let feedback = viewModel.refreshFeedback {
+            FeedmanBannerView(
+                message: feedback.message,
+                style: feedback.style
+            )
         }
     }
 
@@ -248,6 +265,7 @@ private struct FeedItemCard: View {
         viewModel: FeedViewModel(repository: MockFeedRepository()),
         feed: Feed(
             id: "feed-swift",
+            subscriptionID: "sub-feed-swift",
             title: "Swift News",
             unreadCount: 3,
             status: .stopped(message: "前回の取得でエラーが続いたため停止しています")

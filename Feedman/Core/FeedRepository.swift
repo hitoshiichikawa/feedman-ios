@@ -7,6 +7,7 @@ protocol FeedRepository {
         subscriptionID: String,
         request: SubscriptionSettingsRequest
     ) async throws
+    func manualFetchSubscription(subscriptionID: String) async throws
     func resumeSubscription(subscriptionID: String) async throws
     func unsubscribe(subscriptionID: String) async throws
     func crossFeedItems() async throws -> [FeedItem]
@@ -144,6 +145,10 @@ extension FeedRepository {
         subscriptionID: String,
         request: SubscriptionSettingsRequest
     ) async throws {
+        throw CrossFeedRepositoryError.paginationUnsupported
+    }
+
+    func manualFetchSubscription(subscriptionID: String) async throws {
         throw CrossFeedRepositoryError.paginationUnsupported
     }
 
@@ -330,6 +335,14 @@ actor APIClientFeedRepository: FeedRepository {
             method: .put,
             path: "/api/subscriptions/\(subscriptionID)/settings",
             body: request,
+            accessToken: try await accessTokenProvider()
+        )
+    }
+
+    func manualFetchSubscription(subscriptionID: String) async throws {
+        try await apiClient.sendNoContent(
+            method: .post,
+            path: "/api/subscriptions/\(subscriptionID)/fetch",
             accessToken: try await accessTokenProvider()
         )
     }
@@ -622,10 +635,12 @@ actor MockFeedRepository: FeedRepository {
     private let pages: [CrossFeedItemsResponse]
     private var subscriptionFeeds: [Feed]
     private(set) var settingsUpdates: [MockSubscriptionSettingsUpdate] = []
+    private(set) var manualFetchSubscriptionIDs: [String] = []
     private(set) var resumedSubscriptionIDs: [String] = []
     private(set) var unsubscribedSubscriptionIDs: [String] = []
     var registrationResult: Result<RegisteredFeed, Error>
     var settingsUpdateResult: Result<Void, Error>
+    var manualFetchResult: Result<Void, Error>
     var resumeResult: Result<Void, Error>
     var unsubscribeResult: Result<Void, Error>
     private(set) var registeredURLs: [String] = []
@@ -635,6 +650,7 @@ actor MockFeedRepository: FeedRepository {
         subscriptionFeeds: [Feed]? = nil,
         registrationResult: Result<RegisteredFeed, Error>? = nil,
         settingsUpdateResult: Result<Void, Error> = .success(()),
+        manualFetchResult: Result<Void, Error> = .success(()),
         resumeResult: Result<Void, Error> = .success(()),
         unsubscribeResult: Result<Void, Error> = .success(())
     ) {
@@ -642,6 +658,7 @@ actor MockFeedRepository: FeedRepository {
         self.subscriptionFeeds = subscriptionFeeds ?? Self.defaultSubscriptionFeeds
         self.registrationResult = registrationResult ?? .success(Self.defaultRegisteredFeed)
         self.settingsUpdateResult = settingsUpdateResult
+        self.manualFetchResult = manualFetchResult
         self.resumeResult = resumeResult
         self.unsubscribeResult = unsubscribeResult
     }
@@ -677,6 +694,11 @@ actor MockFeedRepository: FeedRepository {
 
         let feed = subscriptionFeeds[index]
         subscriptionFeeds[index] = feed.updating(fetchIntervalMinutes: fetchIntervalMinutes)
+    }
+
+    func manualFetchSubscription(subscriptionID: String) async throws {
+        manualFetchSubscriptionIDs.append(subscriptionID)
+        try manualFetchResult.get()
     }
 
     func resumeSubscription(subscriptionID: String) async throws {

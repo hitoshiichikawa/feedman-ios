@@ -30,6 +30,11 @@ struct FeedStatusBannerDescriptor: Equatable {
     }
 }
 
+struct FeedRefreshFeedbackDescriptor: Equatable {
+    let message: String
+    let style: FeedmanToast.Style
+}
+
 struct FeedItemCardDescriptor: Equatable {
     let item: ItemSummary
     let relativeDate: String
@@ -126,6 +131,8 @@ final class FeedViewModel: ObservableObject {
     @Published private(set) var requestedResumeFeedID: String?
     @Published private(set) var currentFeedID: String?
     @Published private(set) var filter: FeedItemFilter
+    @Published private(set) var isRefreshing: Bool
+    @Published private(set) var refreshFeedback: FeedRefreshFeedbackDescriptor?
 
     private struct Session: Equatable {
         let feedID: String
@@ -156,6 +163,8 @@ final class FeedViewModel: ObservableObject {
         nextPageErrorMessage = nil
         selectedItemID = nil
         requestedResumeFeedID = nil
+        isRefreshing = false
+        refreshFeedback = nil
     }
 
     func configure(repository: any FeedRepository) {
@@ -189,7 +198,7 @@ final class FeedViewModel: ObservableObject {
     }
 
     func loadNextPageIfNeeded(currentItemID: String? = nil) async {
-        guard canLoadMore, !isLoadingFirstPage, !isLoadingNextPage else {
+        guard canLoadMore, !isLoadingFirstPage, !isLoadingNextPage, !isRefreshing else {
             return
         }
 
@@ -256,6 +265,72 @@ final class FeedViewModel: ObservableObject {
         FeedStatusBannerDescriptor(status: status)
     }
 
+    func refreshFeed(feedID: String, subscriptionID: String?) async {
+        guard !isRefreshing else {
+            return
+        }
+
+        guard !isLoadingFirstPage, !isLoadingNextPage else {
+            refreshFeedback = FeedRefreshFeedbackDescriptor(
+                message: "記事の読み込みが終わってからもう一度お試しください。",
+                style: .warning
+            )
+            return
+        }
+
+        guard let repository else {
+            refreshFeedback = Self.refreshFailureFeedback(for: FeedViewModelError.repositoryUnavailable)
+            return
+        }
+
+        guard let manualFetchSubscriptionID = subscriptionID?.nilIfBlank else {
+            refreshFeedback = FeedRefreshFeedbackDescriptor(
+                message: "このフィードは手動更新に必要な購読情報がありません。",
+                style: .warning
+            )
+            return
+        }
+
+        let expectedSession = Session(feedID: feedID, filter: filter)
+        isRefreshing = true
+        refreshFeedback = nil
+        defer {
+            isRefreshing = false
+        }
+
+        do {
+            try await repository.manualFetchSubscription(subscriptionID: manualFetchSubscriptionID)
+        } catch {
+            if currentSession == expectedSession || currentSession == nil {
+                refreshFeedback = Self.refreshFailureFeedback(for: error)
+            }
+            return
+        }
+
+        guard currentSession == expectedSession || currentSession == nil else {
+            return
+        }
+
+        do {
+            let snapshot = try await repository.loadFeedItemsFirstPage(
+                feedID: expectedSession.feedID,
+                filter: expectedSession.filter,
+                limit: nil
+            )
+            if currentSession == expectedSession || currentSession == nil {
+                refreshFeedback = nil
+                apply(snapshot: snapshot)
+            }
+        } catch {
+            if currentSession == expectedSession || currentSession == nil {
+                refreshFeedback = FeedRefreshFeedbackDescriptor(
+                    message: "手動取得は完了しましたが、記事一覧を再読み込みできませんでした。もう一度お試しください。",
+                    style: .warning
+                )
+            }
+        }
+    }
+
     func descriptor(for item: ItemSummary, now: Date = Date()) -> FeedItemCardDescriptor {
         FeedItemCardDescriptor(item: item, now: now)
     }
@@ -318,6 +393,7 @@ final class FeedViewModel: ObservableObject {
         items = []
         canLoadMore = false
         nextPageErrorMessage = nil
+        refreshFeedback = nil
         state = .loading
 
         do {
@@ -380,9 +456,57 @@ final class FeedViewModel: ObservableObject {
         nextPageErrorMessage = "続きを読み込めませんでした。"
     }
 
+    private static func refreshFailureFeedback(for error: Error) -> FeedRefreshFeedbackDescriptor {
+        if case let FeedmanAPIError.feedmanError(context) = error,
+           context.statusCode == 429,
+           context.code == "FEED_COOLDOWN" {
+            return FeedRefreshFeedbackDescriptor(
+                message: cooldownMessage(retryAfterSeconds: context.presentationRetryAfterSeconds),
+                style: .warning
+            )
+        }
+
+        if case FeedmanAPIError.authRequired = error {
+            return FeedRefreshFeedbackDescriptor(
+                message: "ログイン状態を確認してからもう一度お試しください。",
+                style: .warning
+            )
+        }
+
+        if case FeedmanAPIError.transportFailed = error {
+            return FeedRefreshFeedbackDescriptor(
+                message: "通信できませんでした。ネットワーク接続を確認してからもう一度お試しください。",
+                style: .warning
+            )
+        }
+
+        return FeedRefreshFeedbackDescriptor(
+            message: "フィードを更新できませんでした。しばらく待ってからもう一度お試しください。",
+            style: .warning
+        )
+    }
+
+    private static func cooldownMessage(retryAfterSeconds: Int?) -> String {
+        guard let retryAfterSeconds else {
+            return "このフィードは取得間隔の制限中です。しばらく待ってからもう一度お試しください。"
+        }
+
+        return "このフィードは取得間隔の制限中です。約 \(retryAfterSeconds) 秒後にもう一度お試しください。"
+    }
+
     private func isPaginationTriggerItem(id: String) -> Bool {
         let triggerIDs = items.suffix(5).map(\.id)
         return triggerIDs.contains(id)
+    }
+}
+
+private enum FeedViewModelError: Error {
+    case repositoryUnavailable
+}
+
+private extension FeedmanErrorContext {
+    var presentationRetryAfterSeconds: Int? {
+        retryAfterSeconds ?? retryAfter.flatMap(Int.init)
     }
 }
 
