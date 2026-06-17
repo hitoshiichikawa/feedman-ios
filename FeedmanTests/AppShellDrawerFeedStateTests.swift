@@ -95,6 +95,206 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
         XCTAssertEqual(loadCallCount, 3)
     }
 
+    func testRefreshAfterFeedRegistrationReloadsSubscriptionsAndUsesRepositoryResult() async {
+        let repositoryFeeds = [
+            Feed(id: "feed-a", title: "Feed A", unreadCount: 1, status: .active),
+            Feed(id: "feed-registered", subscriptionID: "sub-registered", title: "Registered Feed", unreadCount: 5, status: .active, fetchIntervalMinutes: 60),
+            Feed(id: "feed-c", title: "Feed C", unreadCount: 0, status: .stopped(message: "paused"))
+        ]
+        let repository = ScriptedFeedRepository(results: [.success(repositoryFeeds)])
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: [
+            Feed(id: "feed-a", title: "Feed A", unreadCount: 1, status: .active)
+        ]))
+
+        await viewModel.refreshSubscriptionsAfterFeedRegistration(Self.registeredFeed, repository: repository)
+
+        XCTAssertEqual(viewModel.sectionState, .loaded(feeds: repositoryFeeds))
+        XCTAssertEqual(viewModel.route(for: repositoryFeeds[1]), .feed(id: "feed-registered", title: "Registered Feed"))
+        let loadCallCount = await repository.callCount
+        XCTAssertEqual(loadCallCount, 1)
+    }
+
+    func testRegistrationSuccessEventDeliveryStartsPostRegistrationReloadBeforeCompletionButton() async {
+        let repositoryFeeds = [
+            Feed(id: "feed-registered", subscriptionID: "sub-registered", title: "Registered Feed", unreadCount: 5, status: .active, fetchIntervalMinutes: 60)
+        ]
+        let subscriptionsLoaded = expectation(description: "Registration success event starts subscriptions reload")
+        let repository = RecordingRegistrationRefreshRepository(
+            subscriptionsLoaded: subscriptionsLoaded,
+            subscriptionsResult: .success(repositoryFeeds)
+        )
+        let viewModel = AppShellDrawerFeedViewModel()
+        var dispatcher = RegisterFeedSuccessEventDispatcher()
+        let event = RegisterFeedSuccessEvent(registeredFeed: Self.registeredFeed)
+        var refreshTask: Task<Void, Never>?
+        var dismissCallCount = 0
+
+        dispatcher.deliver(event) { registeredFeed in
+            refreshTask = Task {
+                await viewModel.refreshSubscriptionsAfterFeedRegistration(registeredFeed, repository: repository)
+            }
+        }
+
+        await fulfillment(of: [subscriptionsLoaded], timeout: 1)
+        await refreshTask?.value
+
+        XCTAssertEqual(viewModel.sectionState, .loaded(feeds: repositoryFeeds))
+        let loadCallCount = await repository.callCount
+        XCTAssertEqual(loadCallCount, 1)
+
+        dispatcher.deliver(event) { registeredFeed in
+            refreshTask = Task {
+                await viewModel.refreshSubscriptionsAfterFeedRegistration(registeredFeed, repository: repository)
+            }
+        }
+        dismissCallCount += 1
+
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(dismissCallCount, 1)
+        let finalLoadCallCount = await repository.callCount
+        XCTAssertEqual(finalLoadCallCount, 1)
+    }
+
+    func testRegistrationDismissWithoutSuccessEventDoesNotStartPostRegistrationReload() async {
+        let subscriptionsLoaded = expectation(description: "No subscriptions reload before registration success")
+        subscriptionsLoaded.isInverted = true
+        let repository = RecordingRegistrationRefreshRepository(
+            subscriptionsLoaded: subscriptionsLoaded,
+            subscriptionsResult: .success([])
+        )
+        let viewModel = AppShellDrawerFeedViewModel()
+        var dispatcher = RegisterFeedSuccessEventDispatcher()
+        var dismissCallCount = 0
+
+        dispatcher.deliver(nil) { registeredFeed in
+            Task {
+                await viewModel.refreshSubscriptionsAfterFeedRegistration(registeredFeed, repository: repository)
+            }
+        }
+        dismissCallCount += 1
+
+        await fulfillment(of: [subscriptionsLoaded], timeout: 0.2)
+        XCTAssertEqual(dismissCallCount, 1)
+        let loadCallCount = await repository.callCount
+        XCTAssertEqual(loadCallCount, 0)
+    }
+
+    func testRegistrationSuccessEventDispatcherDeliversEachEventOnce() {
+        let event = RegisterFeedSuccessEvent(registeredFeed: Self.registeredFeed)
+        var dispatcher = RegisterFeedSuccessEventDispatcher()
+        var deliveredFeeds: [RegisteredFeed] = []
+
+        dispatcher.deliver(nil) { registeredFeed in
+            deliveredFeeds.append(registeredFeed)
+        }
+        dispatcher.deliver(event) { registeredFeed in
+            deliveredFeeds.append(registeredFeed)
+        }
+        dispatcher.deliver(event) { registeredFeed in
+            deliveredFeeds.append(registeredFeed)
+        }
+
+        XCTAssertEqual(deliveredFeeds, [Self.registeredFeed])
+    }
+
+    func testRefreshAfterFeedRegistrationFailureKeepsRegisteredFeedWithGuidance() async {
+        let existingFeeds = [
+            Feed(id: "feed-a", title: "Feed A", unreadCount: 1, status: .active)
+        ]
+        let repository = ScriptedFeedRepository(results: [.failure(StubError.failed)])
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: existingFeeds))
+
+        await viewModel.refreshSubscriptionsAfterFeedRegistration(Self.registeredFeed, repository: repository)
+
+        XCTAssertEqual(
+            viewModel.sectionState,
+            .failed(
+                message: "フィードは登録されましたが、一覧を更新できませんでした",
+                feeds: existingFeeds + [Self.registeredFeed.drawerFeed]
+            )
+        )
+    }
+
+    func testRetryAfterPostRegistrationRefreshFailureReloadsSubscriptionsAgain() async {
+        let repositoryFeeds = [
+            Feed(id: "feed-registered", subscriptionID: "sub-registered", title: "Registered Feed", unreadCount: 2, status: .active, fetchIntervalMinutes: 60)
+        ]
+        let repository = ScriptedFeedRepository(results: [
+            .failure(StubError.failed),
+            .success(repositoryFeeds)
+        ])
+        let viewModel = AppShellDrawerFeedViewModel()
+
+        await viewModel.refreshSubscriptionsAfterFeedRegistration(Self.registeredFeed, repository: repository)
+        XCTAssertEqual(
+            viewModel.sectionState,
+            .failed(
+                message: "フィードは登録されましたが、一覧を更新できませんでした",
+                feeds: [Self.registeredFeed.drawerFeed]
+            )
+        )
+
+        await viewModel.loadSubscriptions(repository: repository)
+
+        XCTAssertEqual(viewModel.sectionState, .loaded(feeds: repositoryFeeds))
+        let loadCallCount = await repository.callCount
+        XCTAssertEqual(loadCallCount, 2)
+    }
+
+    func testLatestSubscriptionReloadWinsWhenRegistrationRefreshesOverlap() async throws {
+        let repository = ControlledSubscriptionsRepository()
+        let viewModel = AppShellDrawerFeedViewModel()
+        let firstRegisteredFeed = RegisteredFeed(
+            subscriptionID: "sub-first",
+            feedID: "feed-first",
+            title: "First Feed",
+            feedURL: "https://example.com/first.xml",
+            siteURL: nil,
+            faviconURL: nil,
+            fetchIntervalMinutes: 60,
+            status: .active,
+            unreadCount: 0
+        )
+        let secondRegisteredFeed = RegisteredFeed(
+            subscriptionID: "sub-second",
+            feedID: "feed-second",
+            title: "Second Feed",
+            feedURL: "https://example.com/second.xml",
+            siteURL: nil,
+            faviconURL: nil,
+            fetchIntervalMinutes: 60,
+            status: .active,
+            unreadCount: 0
+        )
+        let latestFeeds = [
+            Feed(id: "feed-second", subscriptionID: "sub-second", title: "Second Feed", unreadCount: 8, status: .active, fetchIntervalMinutes: 60)
+        ]
+
+        let firstTask = Task {
+            await viewModel.refreshSubscriptionsAfterFeedRegistration(firstRegisteredFeed, repository: repository)
+        }
+        try await waitUntil { repository.pendingCallCount == 1 }
+
+        let secondTask = Task {
+            await viewModel.refreshSubscriptionsAfterFeedRegistration(secondRegisteredFeed, repository: repository)
+        }
+        try await waitUntil { repository.pendingCallCount == 2 }
+
+        repository.completeCall(at: 1, with: .success(latestFeeds))
+        await secondTask.value
+        XCTAssertEqual(viewModel.sectionState, .loaded(feeds: latestFeeds))
+
+        repository.completeCall(
+            at: 0,
+            with: .success([
+                Feed(id: "feed-first", subscriptionID: "sub-first", title: "First Feed", unreadCount: 1, status: .active, fetchIntervalMinutes: 60)
+            ])
+        )
+        await firstTask.value
+
+        XCTAssertEqual(viewModel.sectionState, .loaded(feeds: latestFeeds))
+    }
+
     func testRouteForFeedUsesStableIdentifierAndTitle() {
         let viewModel = AppShellDrawerFeedViewModel()
         let feed = Feed(id: "stable-id", title: "Display Title", unreadCount: 1, status: .error(message: "failed"))
@@ -247,6 +447,39 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
         window.isHidden = true
         window.rootViewController = nil
     }
+
+    private static let registeredFeed = RegisteredFeed(
+        subscriptionID: "sub-registered",
+        feedID: "feed-registered",
+        title: "Registered Feed",
+        feedURL: "https://example.com/feed.xml",
+        siteURL: "https://example.com",
+        faviconURL: nil,
+        fetchIntervalMinutes: 60,
+        status: .active,
+        unreadCount: 0
+    )
+
+    private func waitUntil(
+        timeoutNanoseconds: UInt64 = 1_000_000_000,
+        condition: @escaping () -> Bool
+    ) async throws {
+        let start = DispatchTime.now().uptimeNanoseconds
+
+        while DispatchTime.now().uptimeNanoseconds - start < timeoutNanoseconds {
+            if condition() {
+                return
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        XCTFail("Timed out waiting for condition")
+        throw WaitError.timedOut
+    }
+}
+
+private enum WaitError: Error {
+    case timedOut
 }
 
 private enum StubError: Error {
@@ -293,6 +526,30 @@ private actor ScriptedFeedRepository: FeedRepository {
             return []
         }
         return try results.removeFirst().get()
+    }
+
+    func crossFeedItems() async throws -> [FeedItem] {
+        []
+    }
+}
+
+private actor RecordingRegistrationRefreshRepository: FeedRepository {
+    private let subscriptionsLoaded: XCTestExpectation
+    private let subscriptionsResult: Result<[Feed], Error>
+    private(set) var callCount = 0
+
+    init(
+        subscriptionsLoaded: XCTestExpectation,
+        subscriptionsResult: Result<[Feed], Error>
+    ) {
+        self.subscriptionsLoaded = subscriptionsLoaded
+        self.subscriptionsResult = subscriptionsResult
+    }
+
+    func subscriptions() async throws -> [Feed] {
+        callCount += 1
+        subscriptionsLoaded.fulfill()
+        return try subscriptionsResult.get()
     }
 
     func crossFeedItems() async throws -> [FeedItem] {
@@ -361,5 +618,51 @@ private actor RecordingAppShellTimelineStartupRepository: FeedRepository {
             sinceTime: nil,
             limit: CrossFeedPageLimit.defaultValue
         )
+    }
+}
+
+private final class ControlledSubscriptionsRepository: FeedRepository {
+    private let lock = NSLock()
+    private var nextCallIndex = 0
+    private var continuations: [Int: CheckedContinuation<[Feed], Error>] = [:]
+
+    var pendingCallCount: Int {
+        withLock {
+            continuations.count
+        }
+    }
+
+    func subscriptions() async throws -> [Feed] {
+        let callIndex: Int = withLock {
+            let index = nextCallIndex
+            nextCallIndex += 1
+            return index
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            withLock {
+                continuations[callIndex] = continuation
+            }
+        }
+    }
+
+    func completeCall(at index: Int, with result: Result<[Feed], Error>) {
+        let continuation = withLock {
+            continuations.removeValue(forKey: index)
+        }
+
+        continuation?.resume(with: result)
+    }
+
+    func crossFeedItems() async throws -> [FeedItem] {
+        []
+    }
+
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer {
+            lock.unlock()
+        }
+        return body()
     }
 }

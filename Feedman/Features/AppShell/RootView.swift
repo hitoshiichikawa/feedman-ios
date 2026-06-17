@@ -327,9 +327,13 @@ struct RootView: View {
     }
 
     private func completeFeedRegistration(_ registeredFeed: RegisteredFeed) {
-        drawerFeedViewModel.applyRegisteredFeed(registeredFeed)
         toastCenter.show("\(registeredFeed.title) を登録しました", style: .success)
-        shellState.dismissPresentation()
+        Task {
+            await drawerFeedViewModel.refreshSubscriptionsAfterFeedRegistration(
+                registeredFeed,
+                repository: environment.feedRepository
+            )
+        }
     }
 
     private func presentArticleDetail(_ input: ArticleDetailSheetInput) {

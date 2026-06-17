@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RegisterFeedSheet: View {
     @StateObject private var viewModel: RegisterFeedViewModel
+    @State private var successEventDispatcher = RegisterFeedSuccessEventDispatcher()
 
     private let onDismiss: () -> Void
     private let onRegistered: (RegisteredFeed) -> Void
@@ -37,14 +38,17 @@ struct RegisterFeedSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .onChange(of: viewModel.successEvent) { event in
+            successEventDispatcher.deliver(event, onRegistered: onRegistered)
+        }
     }
 
     @ViewBuilder
     private var primaryAction: some View {
         switch viewModel.submissionState {
-        case let .success(registeredFeed):
+        case .success:
             Button {
-                onRegistered(registeredFeed)
+                onDismiss()
             } label: {
                 Text("完了")
                     .frame(maxWidth: .infinity)
@@ -172,6 +176,23 @@ struct RegisterFeedSheet: View {
         case .emptyInput, .invalidURL, .authRequired, .network, .generic:
             return .error
         }
+    }
+}
+
+@MainActor
+struct RegisterFeedSuccessEventDispatcher {
+    private var deliveredEventID: UUID?
+
+    mutating func deliver(
+        _ event: RegisterFeedSuccessEvent?,
+        onRegistered: (RegisteredFeed) -> Void
+    ) {
+        guard let event, deliveredEventID != event.id else {
+            return
+        }
+
+        deliveredEventID = event.id
+        onRegistered(event.registeredFeed)
     }
 }
 
