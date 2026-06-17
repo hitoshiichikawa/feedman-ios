@@ -21,3 +21,8 @@
 ## 確認事項
 
 なし
+
+## Reviewer reject Finding 1 是正
+
+- AC 7.8 の refresh-specific path として、local star toggle 後に `refresh()` が成功した場合も同一 item の star 表示は local override を優先して保持する挙動を `TimelineViewModelTests.testRefreshSuccessPreservesLocalStarOverrideForSameItem` で固定した。
+- 同テストでは refresh snapshot の `summary` / `canLoadMore` は置き換わることも確認し、refresh 成功時の snapshot 反映と local star override の優先順位を deterministic にした。

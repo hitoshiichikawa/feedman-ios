@@ -164,6 +164,32 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.canLoadMore)
     }
 
+    func testRefreshSuccessPreservesLocalStarOverrideForSameItem() async throws {
+        let repository = RecordingTimelineFeedRepository(
+            firstPageResults: [
+                .success(snapshot(
+                    items: [item(id: "target", summary: "Original Summary", isStarred: false)],
+                    canLoadMore: true
+                )),
+                .success(snapshot(
+                    items: [item(id: "target", summary: "Refreshed Summary", isStarred: false)],
+                    canLoadMore: false
+                ))
+            ]
+        )
+        let viewModel = TimelineViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded()
+        viewModel.toggleStar(id: "target")
+        await viewModel.refresh()
+
+        let refreshedItem = try XCTUnwrap(viewModel.items.first { $0.id == "target" })
+        XCTAssertTrue(refreshedItem.isStarred)
+        XCTAssertEqual(refreshedItem.summary, "Refreshed Summary")
+        XCTAssertFalse(viewModel.canLoadMore)
+        XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil), .firstPage(limit: nil)])
+    }
+
     func testNextPageSuccessAppendsItemsInRepositoryOrder() async {
         let repository = RecordingTimelineFeedRepository(
             firstPageResults: [
