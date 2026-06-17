@@ -72,9 +72,16 @@
 		100000000000000000000163 /* TimelineViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000266 /* TimelineViewModel.swift */; };
 		100000000000000000000164 /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000267 /* TimelineView.swift */; };
 		100000000000000000000165 /* TimelineViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000268 /* TimelineViewModelTests.swift */; };
-		100000000000000000000166 /* ArticleDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000269 /* ArticleDetailViewModel.swift */; };
-		100000000000000000000167 /* ArticleDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000270 /* ArticleDetailSheet.swift */; };
-		100000000000000000000168 /* ArticleDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000271 /* ArticleDetailViewModelTests.swift */; };
+		100000000000000000000166 /* FeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000269 /* FeedViewModel.swift */; };
+		100000000000000000000167 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000270 /* FeedView.swift */; };
+		100000000000000000000168 /* FeedViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000271 /* FeedViewModelTests.swift */; };
+		100000000000000000000169 /* ArticleDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000272 /* ArticleDetailViewModel.swift */; };
+		100000000000000000000170 /* ArticleDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000273 /* ArticleDetailSheet.swift */; };
+		100000000000000000000171 /* ArticleDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000274 /* ArticleDetailViewModelTests.swift */; };
+		100000000000000000000172 /* SubscriptionSettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000275 /* SubscriptionSettingsViewModel.swift */; };
+		100000000000000000000173 /* SubscriptionSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000276 /* SubscriptionSettingsSheet.swift */; };
+		100000000000000000000174 /* SubscriptionActionRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000277 /* SubscriptionActionRepositoryTests.swift */; };
+		100000000000000000000175 /* SubscriptionSettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000278 /* SubscriptionSettingsViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -156,9 +163,16 @@
 		100000000000000000000266 /* TimelineViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModel.swift; sourceTree = "<group>"; };
 		100000000000000000000267 /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineView.swift; sourceTree = "<group>"; };
 		100000000000000000000268 /* TimelineViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModelTests.swift; sourceTree = "<group>"; };
-		100000000000000000000269 /* ArticleDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleDetailViewModel.swift; sourceTree = "<group>"; };
-		100000000000000000000270 /* ArticleDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleDetailSheet.swift; sourceTree = "<group>"; };
-		100000000000000000000271 /* ArticleDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleDetailViewModelTests.swift; sourceTree = "<group>"; };
+		100000000000000000000269 /* FeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModel.swift; sourceTree = "<group>"; };
+		100000000000000000000270 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
+		100000000000000000000271 /* FeedViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModelTests.swift; sourceTree = "<group>"; };
+		100000000000000000000272 /* ArticleDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleDetailViewModel.swift; sourceTree = "<group>"; };
+		100000000000000000000273 /* ArticleDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleDetailSheet.swift; sourceTree = "<group>"; };
+		100000000000000000000274 /* ArticleDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleDetailViewModelTests.swift; sourceTree = "<group>"; };
+		100000000000000000000275 /* SubscriptionSettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionSettingsViewModel.swift; sourceTree = "<group>"; };
+		100000000000000000000276 /* SubscriptionSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionSettingsSheet.swift; sourceTree = "<group>"; };
+		100000000000000000000277 /* SubscriptionActionRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionActionRepositoryTests.swift; sourceTree = "<group>"; };
+		100000000000000000000278 /* SubscriptionSettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionSettingsViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -223,7 +237,10 @@
 				100000000000000000000264 /* FeedRegistrationRepositoryTests.swift */,
 				100000000000000000000265 /* RegisterFeedViewModelTests.swift */,
 				100000000000000000000268 /* TimelineViewModelTests.swift */,
-				100000000000000000000271 /* ArticleDetailViewModelTests.swift */,
+				100000000000000000000271 /* FeedViewModelTests.swift */,
+				100000000000000000000274 /* ArticleDetailViewModelTests.swift */,
+				100000000000000000000277 /* SubscriptionActionRepositoryTests.swift */,
+				100000000000000000000278 /* SubscriptionSettingsViewModelTests.swift */,
 				100000000000000000000232 /* CursorPaginationStateTests.swift */,
 				100000000000000000000234 /* FeedmanFaviconViewTests.swift */,
 				100000000000000000000237 /* ArticleMetadataControlsTests.swift */,
@@ -281,7 +298,9 @@
 				100000000000000000000615 /* Search */,
 				100000000000000000000616 /* RegisterFeed */,
 				100000000000000000000617 /* Timeline */,
-				100000000000000000000618 /* ArticleDetail */,
+				100000000000000000000618 /* Feeds */,
+				100000000000000000000619 /* ArticleDetail */,
+				100000000000000000000620 /* Subscriptions */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -383,13 +402,31 @@
 			path = Timeline;
 			sourceTree = "<group>";
 		};
-		100000000000000000000618 /* ArticleDetail */ = {
+		100000000000000000000618 /* Feeds */ = {
 			isa = PBXGroup;
 			children = (
-				100000000000000000000269 /* ArticleDetailViewModel.swift */,
-				100000000000000000000270 /* ArticleDetailSheet.swift */,
+				100000000000000000000269 /* FeedViewModel.swift */,
+				100000000000000000000270 /* FeedView.swift */,
+			);
+			path = Feeds;
+			sourceTree = "<group>";
+		};
+		100000000000000000000619 /* ArticleDetail */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000272 /* ArticleDetailViewModel.swift */,
+				100000000000000000000273 /* ArticleDetailSheet.swift */,
 			);
 			path = ArticleDetail;
+			sourceTree = "<group>";
+		};
+		100000000000000000000620 /* Subscriptions */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000275 /* SubscriptionSettingsViewModel.swift */,
+				100000000000000000000276 /* SubscriptionSettingsSheet.swift */,
+			);
+			path = Subscriptions;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -532,8 +569,12 @@
 				100000000000000000000160 /* RegisterFeedSheet.swift in Sources */,
 				100000000000000000000163 /* TimelineViewModel.swift in Sources */,
 				100000000000000000000164 /* TimelineView.swift in Sources */,
-				100000000000000000000166 /* ArticleDetailViewModel.swift in Sources */,
-				100000000000000000000167 /* ArticleDetailSheet.swift in Sources */,
+				100000000000000000000166 /* FeedViewModel.swift in Sources */,
+				100000000000000000000167 /* FeedView.swift in Sources */,
+				100000000000000000000169 /* ArticleDetailViewModel.swift in Sources */,
+				100000000000000000000170 /* ArticleDetailSheet.swift in Sources */,
+				100000000000000000000172 /* SubscriptionSettingsViewModel.swift in Sources */,
+				100000000000000000000173 /* SubscriptionSettingsSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -565,7 +606,10 @@
 				100000000000000000000161 /* FeedRegistrationRepositoryTests.swift in Sources */,
 				100000000000000000000162 /* RegisterFeedViewModelTests.swift in Sources */,
 				100000000000000000000165 /* TimelineViewModelTests.swift in Sources */,
-				100000000000000000000168 /* ArticleDetailViewModelTests.swift in Sources */,
+				100000000000000000000168 /* FeedViewModelTests.swift in Sources */,
+				100000000000000000000171 /* ArticleDetailViewModelTests.swift in Sources */,
+				100000000000000000000174 /* SubscriptionActionRepositoryTests.swift in Sources */,
+				100000000000000000000175 /* SubscriptionSettingsViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

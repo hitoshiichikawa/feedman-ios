@@ -92,6 +92,7 @@ struct APIClient {
         try responseDecoder.validateNoContent(from: data, response: httpResponse)
     }
 
+    /// 204 No Content のような body を持たない成功応答を期待する request を送信する。
     func sendNoContent<Body: Encodable>(
         method: HTTPMethod,
         path: String,

@@ -133,6 +133,31 @@ final class AppShellStateTests: XCTestCase {
         XCTAssertNil(state.activePresentation)
     }
 
+    func testPresentingSubscriptionSettingsClosesDrawerAndCarriesFeed() {
+        var state = AppShellState(isDrawerOpen: true)
+        let feed = Feed(
+            id: "feed-a",
+            subscriptionID: "sub-a",
+            title: "Feed A",
+            unreadCount: 1,
+            status: .active,
+            fetchIntervalMinutes: 60
+        )
+
+        state.presentSubscriptionSettings(feed: feed)
+
+        XCTAssertEqual(state.activePresentation, .subscriptionSettings(feed))
+        XCTAssertFalse(state.isDrawerOpen)
+    }
+
+    func testSelectedFeedRouteFallsBackToTimelineWhenRemoved() {
+        var state = AppShellState(currentRoute: .feed(id: "feed-a", title: "Feed A"))
+
+        state.selectTimelineIfCurrentFeedWasRemoved(feedID: "feed-a")
+
+        XCTAssertEqual(state.currentRoute, .timeline)
+    }
+
     func testDismissPresentationClearsActivePresentationOnly() {
         var state = AppShellState(currentRoute: .starred, activePresentation: .feedRegistration)
 
@@ -202,8 +227,9 @@ final class AppShellStateTests: XCTestCase {
 
         XCTAssertTrue(selectedInputs.isEmpty)
         XCTAssertEqual(openedURLs, [try XCTUnwrap(URL(string: "https://example.com/item-47"))])
+        let stateUpdateCalls = await repository.stateUpdateCalls()
         XCTAssertEqual(
-            await repository.stateUpdateCalls(),
+            stateUpdateCalls,
             [
                 AppShellSearchResultStateUpdateCall(
                     itemID: "item-47",
@@ -257,8 +283,9 @@ final class AppShellStateTests: XCTestCase {
         .open(request)
 
         XCTAssertEqual(openedURLs, [request.url])
+        let stateUpdateCalls = await repository.stateUpdateCalls()
         XCTAssertEqual(
-            await repository.stateUpdateCalls(),
+            stateUpdateCalls,
             [
                 AppShellSearchResultStateUpdateCall(
                     itemID: "item-47",

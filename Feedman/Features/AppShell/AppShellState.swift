@@ -50,6 +50,7 @@ enum AppShellPresentation: Equatable, Identifiable {
     case account
     case feedRegistration
     case articleDetail(ArticleDetailSheetInput)
+    case subscriptionSettings(Feed)
 
     var id: String {
         switch self {
@@ -59,6 +60,8 @@ enum AppShellPresentation: Equatable, Identifiable {
             return "feedRegistration"
         case let .articleDetail(input):
             return "articleDetail-\(input.id)"
+        case let .subscriptionSettings(feed):
+            return "subscriptionSettings-\(feed.subscriptionID ?? feed.id)"
         }
     }
 }
@@ -213,12 +216,25 @@ struct AppShellState: Equatable {
         return true
     }
 
+    mutating func presentSubscriptionSettings(feed: Feed) {
+        activePresentation = .subscriptionSettings(feed)
+        isDrawerOpen = false
+    }
+
     mutating func dismissPresentation() {
         activePresentation = nil
     }
 
     mutating func applyItemStateChange(_ change: ItemStateChange) {
         itemStateChange = change
+    }
+
+    mutating func selectTimelineIfCurrentFeedWasRemoved(feedID: String) {
+        guard case let .feed(id, _) = currentRoute, id == feedID else {
+            return
+        }
+
+        currentRoute = .timeline
     }
 
     mutating func toggleThemeOverride() {
