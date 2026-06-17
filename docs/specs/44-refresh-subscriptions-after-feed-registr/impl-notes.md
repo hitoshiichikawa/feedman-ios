@@ -39,3 +39,24 @@
 - #44 の実装差分は `AppShellDrawerFeedViewModel` の登録成功後 subscriptions reload、`RootView.completeFeedRegistration(_:)` からの reload 起動、対応する ViewModel tests に限定した。
 - 登録後 reload 失敗時の drawer guidance は登録成功 feedback と分離し、retry は既存 `loadSubscriptions(repository:)` 経由で再実行する形を維持した。
 - `docs/specs/44-refresh-subscriptions-after-feed-registr/requirements.md` は変更していない。
+
+## Debugger Fix Plan 対応
+
+- `RegisterFeedSheet` が `RegisterFeedViewModel.successEvent` を `.onChange` で観測し、成功イベント発行時点で AppShell の `onRegistered` callback を一度だけ呼ぶようにした。
+- 同じ `RegisterFeedSuccessEvent.id` の二重配送を防ぐ `RegisterFeedSuccessEventDispatcher` を追加した。
+- success state の `完了` button は sheet dismissal のみを行うようにし、subscriptions reload の起動点から外した。
+- `RootView.completeFeedRegistration(_:)` は登録成功 toast と `AppShellDrawerFeedViewModel.refreshSubscriptionsAfterFeedRegistration(_:repository:)` の `Task` 起動を担当し、sheet dismissal は `完了` / dismiss 操作に任せる形へ変更した。
+- `AppShellDrawerFeedStateTests` に、登録成功イベント配送時に `subscriptions()` が呼ばれて drawer state が repository result で更新されること、および同一イベントが二重配送されないことを検証する test を追加した。
+
+## Debugger Fix Plan 検証
+
+- `git diff --check develop..HEAD`
+  - 結果: 成功。
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/AppShellDrawerFeedStateTests -only-testing:FeedmanTests/RegisterFeedViewModelTests test`
+  - 結果: 成功。30 tests、0 failures。
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`
+  - 結果: 成功。298 tests、0 failures。
+
+## Debugger Fix Plan 残課題
+
+- 追加の確認事項はない。

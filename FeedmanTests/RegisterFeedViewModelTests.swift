@@ -52,6 +52,10 @@ final class RegisterFeedViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.urlText, "https://example.com")
         XCTAssertNil(viewModel.successEvent)
+        var dispatcher = RegisterFeedSuccessEventDispatcher()
+        dispatcher.deliver(viewModel.successEvent) { _ in
+            XCTFail("Registration failure must not deliver a success event")
+        }
         XCTAssertEqual(repository.subscriptionCallCount, 0)
         XCTAssertEqual(
             viewModel.submissionState,

@@ -114,6 +114,89 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
         XCTAssertEqual(loadCallCount, 1)
     }
 
+    func testRegistrationSuccessEventDeliveryStartsPostRegistrationReloadBeforeCompletionButton() async {
+        let repositoryFeeds = [
+            Feed(id: "feed-registered", subscriptionID: "sub-registered", title: "Registered Feed", unreadCount: 5, status: .active, fetchIntervalMinutes: 60)
+        ]
+        let subscriptionsLoaded = expectation(description: "Registration success event starts subscriptions reload")
+        let repository = RecordingRegistrationRefreshRepository(
+            subscriptionsLoaded: subscriptionsLoaded,
+            subscriptionsResult: .success(repositoryFeeds)
+        )
+        let viewModel = AppShellDrawerFeedViewModel()
+        var dispatcher = RegisterFeedSuccessEventDispatcher()
+        let event = RegisterFeedSuccessEvent(registeredFeed: Self.registeredFeed)
+        var refreshTask: Task<Void, Never>?
+        var dismissCallCount = 0
+
+        dispatcher.deliver(event) { registeredFeed in
+            refreshTask = Task {
+                await viewModel.refreshSubscriptionsAfterFeedRegistration(registeredFeed, repository: repository)
+            }
+        }
+
+        await fulfillment(of: [subscriptionsLoaded], timeout: 1)
+        await refreshTask?.value
+
+        XCTAssertEqual(viewModel.sectionState, .loaded(feeds: repositoryFeeds))
+        let loadCallCount = await repository.callCount
+        XCTAssertEqual(loadCallCount, 1)
+
+        dispatcher.deliver(event) { registeredFeed in
+            refreshTask = Task {
+                await viewModel.refreshSubscriptionsAfterFeedRegistration(registeredFeed, repository: repository)
+            }
+        }
+        dismissCallCount += 1
+
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(dismissCallCount, 1)
+        let finalLoadCallCount = await repository.callCount
+        XCTAssertEqual(finalLoadCallCount, 1)
+    }
+
+    func testRegistrationDismissWithoutSuccessEventDoesNotStartPostRegistrationReload() async {
+        let subscriptionsLoaded = expectation(description: "No subscriptions reload before registration success")
+        subscriptionsLoaded.isInverted = true
+        let repository = RecordingRegistrationRefreshRepository(
+            subscriptionsLoaded: subscriptionsLoaded,
+            subscriptionsResult: .success([])
+        )
+        let viewModel = AppShellDrawerFeedViewModel()
+        var dispatcher = RegisterFeedSuccessEventDispatcher()
+        var dismissCallCount = 0
+
+        dispatcher.deliver(nil) { registeredFeed in
+            Task {
+                await viewModel.refreshSubscriptionsAfterFeedRegistration(registeredFeed, repository: repository)
+            }
+        }
+        dismissCallCount += 1
+
+        await fulfillment(of: [subscriptionsLoaded], timeout: 0.2)
+        XCTAssertEqual(dismissCallCount, 1)
+        let loadCallCount = await repository.callCount
+        XCTAssertEqual(loadCallCount, 0)
+    }
+
+    func testRegistrationSuccessEventDispatcherDeliversEachEventOnce() {
+        let event = RegisterFeedSuccessEvent(registeredFeed: Self.registeredFeed)
+        var dispatcher = RegisterFeedSuccessEventDispatcher()
+        var deliveredFeeds: [RegisteredFeed] = []
+
+        dispatcher.deliver(nil) { registeredFeed in
+            deliveredFeeds.append(registeredFeed)
+        }
+        dispatcher.deliver(event) { registeredFeed in
+            deliveredFeeds.append(registeredFeed)
+        }
+        dispatcher.deliver(event) { registeredFeed in
+            deliveredFeeds.append(registeredFeed)
+        }
+
+        XCTAssertEqual(deliveredFeeds, [Self.registeredFeed])
+    }
+
     func testRefreshAfterFeedRegistrationFailureKeepsRegisteredFeedWithGuidance() async {
         let existingFeeds = [
             Feed(id: "feed-a", title: "Feed A", unreadCount: 1, status: .active)
@@ -443,6 +526,30 @@ private actor ScriptedFeedRepository: FeedRepository {
             return []
         }
         return try results.removeFirst().get()
+    }
+
+    func crossFeedItems() async throws -> [FeedItem] {
+        []
+    }
+}
+
+private actor RecordingRegistrationRefreshRepository: FeedRepository {
+    private let subscriptionsLoaded: XCTestExpectation
+    private let subscriptionsResult: Result<[Feed], Error>
+    private(set) var callCount = 0
+
+    init(
+        subscriptionsLoaded: XCTestExpectation,
+        subscriptionsResult: Result<[Feed], Error>
+    ) {
+        self.subscriptionsLoaded = subscriptionsLoaded
+        self.subscriptionsResult = subscriptionsResult
+    }
+
+    func subscriptions() async throws -> [Feed] {
+        callCount += 1
+        subscriptionsLoaded.fulfill()
+        return try subscriptionsResult.get()
     }
 
     func crossFeedItems() async throws -> [FeedItem] {
