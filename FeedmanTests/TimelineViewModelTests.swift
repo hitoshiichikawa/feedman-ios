@@ -187,7 +187,8 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertTrue(refreshedItem.isStarred)
         XCTAssertEqual(refreshedItem.summary, "Refreshed Summary")
         XCTAssertFalse(viewModel.canLoadMore)
-        XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil), .firstPage(limit: nil)])
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil), .firstPage(limit: nil)])
     }
 
     func testNextPageSuccessAppendsItemsInRepositoryOrder() async {
@@ -300,7 +301,8 @@ final class TimelineViewModelTests: XCTestCase {
 
         await viewModel.loadNextPageIfNeeded(currentItemID: "existing")
 
-        XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil)])
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil)])
 
         await repository.resumeFirstPage()
         await refreshTask.value
@@ -322,7 +324,8 @@ final class TimelineViewModelTests: XCTestCase {
 
         await viewModel.loadNextPageIfNeeded(currentItemID: "first")
 
-        XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil), .nextPage])
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil), .nextPage])
 
         await repository.resumeNextPage()
         await nextPageTask.value
