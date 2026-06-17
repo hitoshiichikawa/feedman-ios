@@ -162,9 +162,15 @@ struct RootView: View {
         case .search:
             GlobalSearchView(
                 repository: environment.makeSearchRepository(),
-                onSelectItem: { _ in },
-                onOpenLink: { url in
-                    openURL(url)
+                itemStateChange: shellState.itemStateChange,
+                onSelectItem: { input in
+                    presentArticleDetail(input)
+                },
+                onOpenLink: { request in
+                    openSearchResultLink(request)
+                },
+                onAuthRequired: {
+                    toastCenter.show("再ログインが必要です。", style: .warning)
                 }
             )
         case .account:
@@ -242,6 +248,24 @@ struct RootView: View {
                     completeFeedRegistration(registeredFeed)
                 }
             )
+        case let .articleDetail(input):
+            ArticleDetailSheet(
+                input: input,
+                repository: environment.itemRepository,
+                accessToken: environment.currentAccessToken,
+                onDismiss: {
+                    shellState.dismissPresentation()
+                },
+                onOpenOriginal: { url in
+                    openURL(url)
+                },
+                onAuthRequired: {
+                    toastCenter.show("再ログインが必要です。", style: .warning)
+                },
+                onItemStateChange: { change in
+                    shellState.applyItemStateChange(change)
+                }
+            )
         case let .subscriptionSettings(feed):
             SubscriptionSettingsSheet(
                 feed: feed,
@@ -306,6 +330,32 @@ struct RootView: View {
         drawerFeedViewModel.applyRegisteredFeed(registeredFeed)
         toastCenter.show("\(registeredFeed.title) を登録しました", style: .success)
         shellState.dismissPresentation()
+    }
+
+    private func presentArticleDetail(_ input: ArticleDetailSheetInput) {
+        guard shellState.presentArticleDetail(input) else {
+            toastCenter.show("記事詳細を開けませんでした。", style: .warning)
+            return
+        }
+    }
+
+    private func openSearchResultLink(_ request: SearchResultOpenLinkRequest) {
+        Task {
+            await AppShellSearchResultOpenLinkCoordinator(
+                itemRepository: environment.itemRepository,
+                accessToken: environment.currentAccessToken,
+                openURL: { url in
+                    openURL(url)
+                },
+                onItemStateChange: { change in
+                    shellState.applyItemStateChange(change)
+                },
+                onFailure: { failure in
+                    toastCenter.show(failure.message, style: .warning)
+                }
+            )
+            .open(request)
+        }
     }
 
     private func completeUnsubscribe(subscriptionID: String) {
@@ -513,7 +563,6 @@ private struct DrawerView: View {
         }
     }
 }
-
 private struct DrawerRouteButton: View {
     let title: String
     let systemImage: String
@@ -733,6 +782,8 @@ private extension AppShellPresentation {
             return "アカウント"
         case .feedRegistration:
             return "フィードを登録"
+        case .articleDetail:
+            return "記事詳細"
         case .subscriptionSettings:
             return "購読設定"
         }
@@ -744,6 +795,8 @@ private extension AppShellPresentation {
             return "アカウント機能の入口"
         case .feedRegistration:
             return "サイト URL から購読を追加"
+        case .articleDetail:
+            return "記事詳細"
         case .subscriptionSettings:
             return "取得間隔と購読状態"
         }
@@ -755,6 +808,8 @@ private extension AppShellPresentation {
             return "ログアウト、退会、ユーザー情報の表示は後続 Issue で実装します。この placeholder は実データや認証 API を使用しません。"
         case .feedRegistration:
             return "サイトの URL か RSS/Atom の URL を入力してフィードを登録します。"
+        case .articleDetail:
+            return "記事本文の詳細を表示します。"
         case .subscriptionSettings:
             return "購読フィードの取得間隔、再開、購読解除を操作します。"
         }
@@ -766,6 +821,8 @@ private extension AppShellPresentation {
             return "person.crop.circle"
         case .feedRegistration:
             return "plus.circle"
+        case .articleDetail:
+            return "doc.text"
         case .subscriptionSettings:
             return "gearshape"
         }

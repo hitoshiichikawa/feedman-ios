@@ -166,20 +166,97 @@ final class GlobalSearchViewModelTests: XCTestCase {
         XCTAssertFalse(descriptor.isStarMutationEnabled)
     }
 
+    func testResultDescriptorBuildsSafeDetailInputFromNullableHit() throws {
+        let descriptor = SearchResultRowDescriptor(
+            hit: hit(
+                id: "nullable",
+                faviconURL: nil,
+                publishedAt: nil,
+                isDateEstimated: nil,
+                isRead: nil,
+                isStarred: nil,
+                hatebuCount: nil,
+                author: nil
+            )
+        )
+
+        let input = try XCTUnwrap(descriptor.detailInput)
+        XCTAssertEqual(input.id, "nullable")
+        XCTAssertEqual(input.summary?.feedTitle, "Feed nullable")
+        XCTAssertNil(input.summary?.feedFaviconURL)
+        XCTAssertEqual(input.summary?.title, "Title nullable")
+        XCTAssertEqual(input.summary?.summary, "Summary nullable")
+        XCTAssertEqual(input.summary?.link, "https://example.com/nullable")
+        XCTAssertNil(input.summary?.publishedAt)
+        XCTAssertNil(input.summary?.isDateEstimated)
+        XCTAssertNil(input.summary?.isStarred)
+        XCTAssertNil(input.summary?.hatebuCount)
+        XCTAssertNil(input.summary?.hatebuFetchedAt)
+        XCTAssertNil(input.summary?.author)
+    }
+
     func testResultDescriptorSeparatesCardAndOpenLinkActions() throws {
         let descriptor = SearchResultRowDescriptor(hit: hit(id: "action"))
-        var selectedIDs: [String] = []
-        var openedURLs: [URL] = []
+        var selectedInputs: [ArticleDetailSheetInput] = []
+        var openRequests: [SearchResultOpenLinkRequest] = []
 
-        descriptor.openLink { url in
-            openedURLs.append(url)
+        descriptor.openLink { request in
+            openRequests.append(request)
         }
-        descriptor.select { id in
-            selectedIDs.append(id)
+        descriptor.select { input in
+            selectedInputs.append(input)
         }
 
-        XCTAssertEqual(selectedIDs, ["action"])
-        XCTAssertEqual(openedURLs, [try XCTUnwrap(URL(string: "https://example.com/action"))])
+        XCTAssertEqual(selectedInputs.map(\.id), ["action"])
+        XCTAssertEqual(openRequests, [
+            SearchResultOpenLinkRequest(
+                itemID: "action",
+                url: try XCTUnwrap(URL(string: "https://example.com/action"))
+            )
+        ])
+    }
+
+    func testInvalidResultLinkDoesNotCreateOpenRequest() {
+        let descriptor = SearchResultRowDescriptor(
+            hit: hit(id: "invalid-link", link: "feedman://invalid-link")
+        )
+        var openRequestCount = 0
+
+        descriptor.openLink { _ in
+            openRequestCount += 1
+        }
+
+        XCTAssertNil(descriptor.linkURL)
+        XCTAssertNil(descriptor.openLinkRequest)
+        XCTAssertEqual(openRequestCount, 0)
+    }
+
+    func testApplyingItemStateChangeUpdatesVisibleSearchHitOnly() async {
+        let viewModel = makeViewModel(
+            repository: RecordingSearchRepository(result: .success([
+                hit(id: "target", isRead: false, isStarred: false),
+                hit(id: "other", isRead: false, isStarred: false)
+            ]))
+        )
+
+        await viewModel.submitSearch("Swift")
+        viewModel.applyItemStateChange(
+            ItemStateChange(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000047")!,
+                itemID: "target",
+                isRead: true,
+                isStarred: true
+            )
+        )
+
+        guard case let .results(_, hits) = viewModel.state else {
+            return XCTFail("Expected results state")
+        }
+
+        XCTAssertEqual(hits.first(where: { $0.id == "target" })?.isRead, true)
+        XCTAssertEqual(hits.first(where: { $0.id == "target" })?.isStarred, true)
+        XCTAssertEqual(hits.first(where: { $0.id == "other" })?.isRead, false)
+        XCTAssertEqual(hits.first(where: { $0.id == "other" })?.isStarred, false)
     }
 
     private func makeViewModel(
@@ -211,7 +288,12 @@ final class GlobalSearchViewModelTests: XCTestCase {
         id: String,
         faviconURL: String? = nil,
         publishedAt: String? = "2026-06-08T08:30:00Z",
-        hatebuCount: Int? = nil
+        isDateEstimated: Bool? = false,
+        isRead: Bool? = false,
+        isStarred: Bool? = false,
+        hatebuCount: Int? = nil,
+        author: String? = nil,
+        link: String? = nil
     ) -> ItemSearchHit {
         ItemSearchHit(
             id: id,
@@ -220,13 +302,13 @@ final class GlobalSearchViewModelTests: XCTestCase {
             faviconURL: faviconURL,
             title: "Title \(id)",
             summary: "Summary \(id)",
-            link: "https://example.com/\(id)",
+            link: link ?? "https://example.com/\(id)",
             publishedAt: publishedAt,
-            isDateEstimated: false,
-            isRead: false,
-            isStarred: false,
+            isDateEstimated: isDateEstimated,
+            isRead: isRead,
+            isStarred: isStarred,
             hatebuCount: hatebuCount,
-            author: nil
+            author: author
         )
     }
 }

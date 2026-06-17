@@ -4,13 +4,15 @@ struct GlobalSearchView: View {
     @StateObject private var viewModel: GlobalSearchViewModel
     @FocusState private var isSearchFieldFocused: Bool
 
-    private let onSelectItem: (String) -> Void
-    private let onOpenLink: (URL) -> Void
+    private let itemStateChange: ItemStateChange?
+    private let onSelectItem: (ArticleDetailSheetInput) -> Void
+    private let onOpenLink: (SearchResultOpenLinkRequest) -> Void
 
     init(
         repository: any SearchRepository,
-        onSelectItem: @escaping (String) -> Void,
-        onOpenLink: @escaping (URL) -> Void,
+        itemStateChange: ItemStateChange? = nil,
+        onSelectItem: @escaping (ArticleDetailSheetInput) -> Void,
+        onOpenLink: @escaping (SearchResultOpenLinkRequest) -> Void,
         onAuthRequired: @escaping () -> Void = {}
     ) {
         _viewModel = StateObject(
@@ -19,6 +21,7 @@ struct GlobalSearchView: View {
                 onAuthRequired: onAuthRequired
             )
         )
+        self.itemStateChange = itemStateChange
         self.onSelectItem = onSelectItem
         self.onOpenLink = onOpenLink
     }
@@ -36,6 +39,12 @@ struct GlobalSearchView: View {
         .background(FeedmanTheme.background)
         .task {
             isSearchFieldFocused = true
+        }
+        .onChange(of: itemStateChange) { change in
+            guard let change else {
+                return
+            }
+            viewModel.applyItemStateChange(change)
         }
     }
 
@@ -206,10 +215,30 @@ private struct FlowSuggestionChips: View {
 
 private struct SearchResultCard: View {
     let descriptor: SearchResultRowDescriptor
-    let onSelectItem: (String) -> Void
-    let onOpenLink: (URL) -> Void
+    let onSelectItem: (ArticleDetailSheetInput) -> Void
+    let onOpenLink: (SearchResultOpenLinkRequest) -> Void
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            detailTapArea
+
+            actionRow
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FeedmanTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(FeedmanTheme.border, lineWidth: 1)
+        }
+        .accessibilityAction(named: "記事詳細を開く") {
+            descriptor.select(onSelectItem)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var detailTapArea: some View {
         VStack(alignment: .leading, spacing: 10) {
             ArticleSourceRow(
                 metadata: descriptor.sourceMetadata,
@@ -228,42 +257,38 @@ private struct SearchResultCard: View {
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
-
-            HStack(spacing: 4) {
-                ArticleHatebuCountControl(
-                    state: descriptor.hatebuState,
-                    size: .compact
-                )
-
-                Spacer(minLength: 8)
-
-                ArticleStarControl(
-                    isStarred: descriptor.isStarred,
-                    isEnabled: descriptor.isStarMutationEnabled,
-                    size: .compact,
-                    onToggle: {}
-                )
-
-                ArticleOpenLinkControl(
-                    value: descriptor.linkURL,
-                    size: .compact,
-                    onOpen: onOpenLink
-                )
-            }
         }
-        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(FeedmanTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(FeedmanTheme.border, lineWidth: 1)
-        }
         .contentShape(Rectangle())
         .onTapGesture {
             descriptor.select(onSelectItem)
         }
-        .accessibilityElement(children: .contain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("記事詳細を開く")
+    }
+
+    private var actionRow: some View {
+        HStack(spacing: 4) {
+            ArticleHatebuCountControl(
+                state: descriptor.hatebuState,
+                size: .compact
+            )
+
+            Spacer(minLength: 8)
+
+            ArticleStarControl(
+                isStarred: descriptor.isStarred,
+                isEnabled: descriptor.isStarMutationEnabled,
+                size: .compact,
+                onToggle: {}
+            )
+
+            ArticleOpenLinkControl(
+                value: descriptor.openLinkRequest,
+                size: .compact,
+                onOpen: onOpenLink
+            )
+        }
     }
 }
 
