@@ -24,7 +24,7 @@ final class AccountViewModelTests: XCTestCase {
                 )
             )
         )
-        XCTAssertEqual(repository.accessTokens, ["access-1"])
+        XCTAssertEqual(repository.recordedAccessTokens(), ["access-1"])
     }
 
     func testMissingAccessTokenShowsAuthErrorWithoutRequest() async {
@@ -93,7 +93,7 @@ final class AccountViewModelTests: XCTestCase {
 
         await viewModel.loadCurrentUser()
 
-        XCTAssertEqual(repository.accessTokens, ["access-1"])
+        XCTAssertEqual(repository.recordedAccessTokens(), ["access-1"])
         repository.succeed(with: userResponse(name: "You", email: "you@example.com"))
         await task.value
     }
@@ -235,10 +235,10 @@ final class AccountViewModelTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) async {
-        for _ in 0..<10 where repository.accessTokens.isEmpty {
-            await Task.yield()
+        for _ in 0..<50 where !repository.hasPendingRequest {
+            try? await Task.sleep(nanoseconds: 1_000_000)
         }
-        XCTAssertFalse(repository.accessTokens.isEmpty, file: file, line: line)
+        XCTAssertTrue(repository.hasPendingRequest, file: file, line: line)
     }
 
     private func waitForDeletingState(
@@ -288,6 +288,10 @@ private final class PendingAccountRepository: AccountRepository {
     private(set) var accessTokens: [String] = []
     private var continuation: CheckedContinuation<UserResponse, Error>?
 
+    var hasPendingRequest: Bool {
+        continuation != nil
+    }
+
     func currentUser(accessToken: String) async throws -> UserResponse {
         accessTokens.append(accessToken)
         return try await withCheckedThrowingContinuation { continuation in
@@ -302,6 +306,10 @@ private final class PendingAccountRepository: AccountRepository {
     func succeed(with response: UserResponse) {
         continuation?.resume(returning: response)
         continuation = nil
+    }
+
+    func recordedAccessTokens() -> [String] {
+        accessTokens
     }
 }
 
