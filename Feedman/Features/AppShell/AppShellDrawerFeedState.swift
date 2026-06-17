@@ -23,36 +23,76 @@ enum AppShellDrawerFeedSectionState: Equatable {
 final class AppShellDrawerFeedViewModel: ObservableObject {
     @Published private(set) var sectionState: AppShellDrawerFeedSectionState
 
+    private var loadGeneration = 0
+
     init(sectionState: AppShellDrawerFeedSectionState = .loading(feeds: [])) {
         self.sectionState = sectionState
     }
 
     func loadSubscriptions(repository: FeedRepository) async {
+        loadGeneration += 1
+        let generation = loadGeneration
         let currentFeeds = sectionState.feeds
         sectionState = .loading(feeds: currentFeeds)
 
         do {
             let feeds = try await repository.subscriptions()
+            guard generation == loadGeneration else {
+                return
+            }
             sectionState = feeds.isEmpty ? .empty : .loaded(feeds: feeds)
         } catch {
+            guard generation == loadGeneration else {
+                return
+            }
             sectionState = .failed(message: "フィードを読み込めませんでした", feeds: currentFeeds)
         }
     }
 
-    func applyRegisteredFeed(_ registeredFeed: RegisteredFeed) {
-        var feeds = sectionState.feeds
-        let drawerFeed = registeredFeed.drawerFeed
+    func refreshSubscriptionsAfterFeedRegistration(
+        _ registeredFeed: RegisteredFeed,
+        repository: FeedRepository
+    ) async {
+        loadGeneration += 1
+        let generation = loadGeneration
+        let optimisticFeeds = feedsByUpsertingRegisteredFeed(registeredFeed, into: sectionState.feeds)
+        sectionState = .loading(feeds: optimisticFeeds)
 
-        if let index = feeds.firstIndex(where: { $0.id == drawerFeed.id }) {
-            feeds[index] = drawerFeed
-        } else {
-            feeds.append(drawerFeed)
+        do {
+            let feeds = try await repository.subscriptions()
+            guard generation == loadGeneration else {
+                return
+            }
+            sectionState = feeds.isEmpty ? .empty : .loaded(feeds: feeds)
+        } catch {
+            guard generation == loadGeneration else {
+                return
+            }
+            sectionState = .failed(
+                message: "フィードは登録されましたが、一覧を更新できませんでした",
+                feeds: optimisticFeeds
+            )
         }
+    }
 
-        sectionState = .loaded(feeds: feeds)
+    func applyRegisteredFeed(_ registeredFeed: RegisteredFeed) {
+        sectionState = .loaded(feeds: feedsByUpsertingRegisteredFeed(registeredFeed, into: sectionState.feeds))
     }
 
     func route(for feed: Feed) -> AppShellRoute {
         .feed(id: feed.id, title: feed.title)
+    }
+
+    private func feedsByUpsertingRegisteredFeed(_ registeredFeed: RegisteredFeed, into feeds: [Feed]) -> [Feed] {
+        var updatedFeeds = feeds
+        let drawerFeed = registeredFeed.drawerFeed
+
+        if let index = updatedFeeds.firstIndex(where: { $0.id == drawerFeed.id }) {
+            updatedFeeds[index] = drawerFeed
+        } else {
+            updatedFeeds.append(drawerFeed)
+        }
+
+        return updatedFeeds
     }
 }

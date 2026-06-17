@@ -51,6 +51,8 @@ final class RegisterFeedViewModelTests: XCTestCase {
         await viewModel.submit()
 
         XCTAssertEqual(viewModel.urlText, "https://example.com")
+        XCTAssertNil(viewModel.successEvent)
+        XCTAssertEqual(repository.subscriptionCallCount, 0)
         XCTAssertEqual(
             viewModel.submissionState,
             .failure(
@@ -185,6 +187,7 @@ final class RegisterFeedViewModelTests: XCTestCase {
 
 private final class StubRegisterFeedRepository: FeedRepository {
     private(set) var registeredURLs: [String] = []
+    private(set) var subscriptionCallCount = 0
     var result: Result<RegisteredFeed, Error>
 
     init(result: Result<RegisteredFeed, Error>) {
@@ -192,7 +195,8 @@ private final class StubRegisterFeedRepository: FeedRepository {
     }
 
     func subscriptions() async throws -> [Feed] {
-        []
+        subscriptionCallCount += 1
+        return []
     }
 
     func registerFeed(url: String) async throws -> RegisteredFeed {
