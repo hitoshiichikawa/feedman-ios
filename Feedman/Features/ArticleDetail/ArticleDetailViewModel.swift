@@ -143,7 +143,17 @@ struct ArticleDetailPresentation: Equatable {
     }
 
     private static func validHTTPURL(from rawValue: String) -> URL? {
-        guard let url = URL(string: rawValue),
+        ArticleDetailOriginalArticleRequest.validHTTPURL(from: rawValue)
+    }
+}
+
+struct ArticleDetailOriginalArticleRequest: Equatable {
+    let itemID: String
+    let url: URL
+
+    static func validHTTPURL(from rawValue: String?) -> URL? {
+        guard let rawValue = rawValue.nilIfBlank,
+              let url = URL(string: rawValue),
               let scheme = url.scheme?.lowercased(),
               ["http", "https"].contains(scheme),
               url.host != nil
@@ -238,6 +248,7 @@ struct ArticleDetailMutationMessage: Equatable, Identifiable {
     enum Kind: Equatable {
         case read
         case star
+        case openOriginal
     }
 
     let id = UUID()
@@ -252,6 +263,11 @@ struct ArticleDetailMutationMessage: Equatable, Identifiable {
     static let starFailure = ArticleDetailMutationMessage(
         kind: .star,
         message: "スター状態を保存できませんでした。"
+    )
+
+    static let openOriginalInvalidURL = ArticleDetailMutationMessage(
+        kind: .openOriginal,
+        message: "元記事のURLを開けませんでした。"
     )
 }
 
@@ -339,8 +355,29 @@ final class ArticleDetailViewModel: ObservableObject {
         }
     }
 
+    func openOriginal() async -> ArticleDetailOriginalArticleRequest? {
+        guard let url = originalArticleURL else {
+            mutationMessage = .openOriginalInvalidURL
+            return nil
+        }
+
+        if !didMarkReadOnOpen {
+            await markReadOnOpen()
+        }
+
+        return ArticleDetailOriginalArticleRequest(itemID: itemID, url: url)
+    }
+
     func dismissMutationMessage() {
         mutationMessage = nil
+    }
+
+    private var originalArticleURL: URL? {
+        if let detail {
+            return ArticleDetailOriginalArticleRequest.validHTTPURL(from: detail.link)
+        }
+
+        return ArticleDetailOriginalArticleRequest.validHTTPURL(from: summary?.link)
     }
 
     private func loadDetail() async {

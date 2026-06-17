@@ -173,6 +173,170 @@ final class ArticleDetailViewModelTests: XCTestCase {
         XCTAssertNil(presentation.linkURL)
     }
 
+    func testOpenOriginalWithValidHTTPURLReturnsRequestAndMarksRead() async throws {
+        let repository = ArticleDetailRecordingRepository(
+            detailResults: [],
+            stateUpdateResults: [.success(())]
+        )
+        var stateChanges: [ItemStateChange] = []
+        let viewModel = makeViewModel(
+            summaryLink: "http://example.com/articles/123",
+            repository: repository
+        ) { change in
+            stateChanges.append(change)
+        }
+
+        let request = try XCTUnwrap(await viewModel.openOriginal())
+
+        XCTAssertEqual(request.itemID, "item-123")
+        XCTAssertEqual(request.url.absoluteString, "http://example.com/articles/123")
+        let stateUpdateCalls = await repository.stateUpdateCalls()
+        XCTAssertEqual(
+            stateUpdateCalls,
+            [
+                ArticleDetailStateUpdateCall(
+                    itemID: "item-123",
+                    request: ItemStateUpdateRequest(isRead: true, isStarred: nil),
+                    accessToken: "test-access-token"
+                )
+            ]
+        )
+        XCTAssertEqual(stateChanges.map(\.isRead), [true])
+        XCTAssertNil(stateChanges.first?.isStarred)
+        XCTAssertNil(viewModel.mutationMessage)
+    }
+
+    func testOpenOriginalWithValidHTTPSURLReturnsRequest() async throws {
+        let repository = ArticleDetailRecordingRepository(
+            detailResults: [],
+            stateUpdateResults: [.success(())]
+        )
+        let viewModel = makeViewModel(
+            summaryLink: "https://example.com/articles/123",
+            repository: repository
+        )
+
+        let request = try XCTUnwrap(await viewModel.openOriginal())
+
+        XCTAssertEqual(request.url.absoluteString, "https://example.com/articles/123")
+    }
+
+    func testOpenOriginalPrefersLoadedDetailURLOverSummaryURL() async throws {
+        let repository = ArticleDetailRecordingRepository(
+            detailResults: [
+                .success(makeDetail(
+                    isRead: false,
+                    isStarred: false,
+                    link: "https://example.com/detail"
+                ))
+            ],
+            stateUpdateResults: [.success(())]
+        )
+        let viewModel = makeViewModel(
+            summaryLink: "https://example.com/summary",
+            repository: repository
+        )
+
+        await viewModel.open()
+        let request = try XCTUnwrap(await viewModel.openOriginal())
+
+        XCTAssertEqual(request.url.absoluteString, "https://example.com/detail")
+        XCTAssertEqual((await repository.stateUpdateCalls()).count, 1)
+    }
+
+    func testOpenOriginalWithInvalidURLReturnsNilAndDoesNotMarkRead() async {
+        let invalidLinks = [
+            "",
+            "not-a-valid-absolute-url",
+            "ftp://example.com/articles/123"
+        ]
+
+        for invalidLink in invalidLinks {
+            let repository = ArticleDetailRecordingRepository(
+                detailResults: [],
+                stateUpdateResults: [.success(())]
+            )
+            let viewModel = makeViewModel(summaryLink: invalidLink, repository: repository)
+
+            let request = await viewModel.openOriginal()
+
+            XCTAssertNil(request)
+            XCTAssertEqual(viewModel.mutationMessage?.kind, .openOriginal)
+            XCTAssertEqual(viewModel.mutationMessage?.message, "元記事のURLを開けませんでした。")
+            let stateUpdateCalls = await repository.stateUpdateCalls()
+            XCTAssertTrue(stateUpdateCalls.isEmpty)
+        }
+    }
+
+    func testOpenOriginalReadMarkingFailureStillReturnsURLAndKeepsMessage() async throws {
+        let repository = ArticleDetailRecordingRepository(
+            detailResults: [],
+            stateUpdateResults: [.failure(ArticleDetailTestError.transport)]
+        )
+        let viewModel = makeViewModel(repository: repository)
+
+        let request = try XCTUnwrap(await viewModel.openOriginal())
+
+        XCTAssertEqual(request.url.absoluteString, "https://example.com/summary")
+        XCTAssertEqual(viewModel.mutationMessage?.kind, .read)
+        XCTAssertEqual(viewModel.mutationMessage?.message, "既読状態を保存できませんでした。")
+        XCTAssertEqual((await repository.stateUpdateCalls()).count, 1)
+    }
+
+    func testOpenOriginalMissingAccessTokenRoutesAuthBoundary() async throws {
+        let repository = ArticleDetailRecordingRepository(
+            detailResults: [],
+            stateUpdateResults: [.success(())]
+        )
+        var authRequiredCount = 0
+        let viewModel = makeViewModel(
+            repository: repository,
+            accessToken: nil,
+            onAuthRequired: {
+                authRequiredCount += 1
+            }
+        )
+
+        let request = try XCTUnwrap(await viewModel.openOriginal())
+
+        XCTAssertEqual(request.url.absoluteString, "https://example.com/summary")
+        XCTAssertEqual(authRequiredCount, 1)
+        let stateUpdateCalls = await repository.stateUpdateCalls()
+        XCTAssertTrue(stateUpdateCalls.isEmpty)
+        XCTAssertEqual(
+            viewModel.state,
+            .failed(
+                message: "認証の有効期限が切れました。もう一度ログインしてください。",
+                isAuthRequired: true
+            )
+        )
+    }
+
+    func testOpenOriginalAuthRequiredFailureRoutesAuthBoundary() async throws {
+        let repository = ArticleDetailRecordingRepository(
+            detailResults: [],
+            stateUpdateResults: [.failure(Self.authRequiredError)]
+        )
+        var authRequiredCount = 0
+        let viewModel = makeViewModel(
+            repository: repository,
+            onAuthRequired: {
+                authRequiredCount += 1
+            }
+        )
+
+        let request = try XCTUnwrap(await viewModel.openOriginal())
+
+        XCTAssertEqual(request.url.absoluteString, "https://example.com/summary")
+        XCTAssertEqual(authRequiredCount, 1)
+        XCTAssertEqual(viewModel.mutationMessage?.kind, .read)
+        XCTAssertEqual(
+            viewModel.mutationMessage?.message,
+            "認証の有効期限が切れました。もう一度ログインしてください。"
+        )
+        XCTAssertEqual((await repository.stateUpdateCalls()).count, 1)
+    }
+
     func testPublishedDateFormatterFormatsSummaryPreviewDate() {
         let dateText = ArticleDetailPublishedDateFormatter.string(
             from: "2026-06-08T08:30:00Z",
@@ -218,8 +382,10 @@ final class ArticleDetailViewModelTests: XCTestCase {
     }
 
     private func makeViewModel(
+        summaryLink: String = "https://example.com/summary",
         repository: any ItemRepository,
         accessToken: String? = "test-access-token",
+        onAuthRequired: @escaping () -> Void = {},
         onItemStateChange: @escaping (ItemStateChange) -> Void = { _ in }
     ) -> ArticleDetailViewModel {
         ArticleDetailViewModel(
@@ -229,13 +395,14 @@ final class ArticleDetailViewModelTests: XCTestCase {
                 feedTitle: "Summary Feed",
                 title: "Summary Title",
                 summary: "Summary text",
-                link: "https://example.com/summary",
+                link: summaryLink,
                 publishedAt: "2026-06-08T08:30:00Z",
                 isStarred: false,
                 hatebuCount: 1
             ),
             repository: repository,
             accessToken: accessToken,
+            onAuthRequired: onAuthRequired,
             onItemStateChange: onItemStateChange
         )
     }
@@ -264,6 +431,14 @@ final class ArticleDetailViewModelTests: XCTestCase {
             author: "Author"
         )
     }
+
+    private static let authRequiredError = FeedmanAPIError.authRequired(
+        AuthRequiredContext(
+            reason: .missingRefreshHook,
+            statusCode: 401,
+            underlyingError: nil
+        )
+    )
 }
 
 private enum ArticleDetailTestError: Error {
