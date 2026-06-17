@@ -386,6 +386,15 @@ final class CrossFeedRepositoryTests: XCTestCase {
         XCTAssertEqual(starredPage.items.map(\.id), ["publickey-item-2", "publickey-item-3"])
     }
 
+    func testMockManualFetchRecordsSubscriptionID() async throws {
+        let repository = MockFeedRepository()
+
+        try await repository.manualFetchSubscription(subscriptionID: "sub-publickey")
+
+        let subscriptionIDs = await repository.manualFetchSubscriptionIDs
+        XCTAssertEqual(subscriptionIDs, ["sub-publickey"])
+    }
+
     func testSubscriptionsRequestsAuthenticatedEndpointAndMapsDrawerFeeds() async throws {
         let transport = RecordingSubscriptionTransport()
         transport.enqueue(

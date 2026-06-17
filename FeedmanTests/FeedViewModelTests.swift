@@ -422,6 +422,177 @@ final class FeedViewModelTests: XCTestCase {
         XCTAssertEqual(calls, [.firstPage(feedID: "feed-1", filter: .all, limit: nil)])
     }
 
+    func testManualRefreshSuccessFetchesBeforeReloadAndPreservesFilter() async {
+        let repository = RecordingFeedItemsRepository(
+            firstPageResults: [
+                .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "all")], canLoadMore: false)),
+                .success(snapshot(feedID: "feed-1", filter: .unread, items: [item(id: "old-unread")], canLoadMore: false)),
+                .success(snapshot(feedID: "feed-1", filter: .unread, items: [item(id: "new-unread")], canLoadMore: true))
+            ],
+            manualFetchResults: [.success(())]
+        )
+        let viewModel = FeedViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded(feedID: "feed-1")
+        await viewModel.selectFilter(.unread, feedID: "feed-1")
+        await viewModel.refreshFeed(feedID: "feed-1", subscriptionID: "sub-feed-1")
+
+        XCTAssertEqual(viewModel.state, .loaded)
+        XCTAssertEqual(viewModel.filter, .unread)
+        XCTAssertEqual(viewModel.items.map(\.id), ["new-unread"])
+        XCTAssertTrue(viewModel.canLoadMore)
+        XCTAssertNil(viewModel.refreshFeedback)
+        XCTAssertFalse(viewModel.isRefreshing)
+        let calls = await repository.calls()
+        XCTAssertEqual(
+            calls,
+            [
+                .firstPage(feedID: "feed-1", filter: .all, limit: nil),
+                .firstPage(feedID: "feed-1", filter: .unread, limit: nil),
+                .manualFetch(subscriptionID: "sub-feed-1"),
+                .firstPage(feedID: "feed-1", filter: .unread, limit: nil)
+            ]
+        )
+    }
+
+    func testManualRefreshCooldownPreservesItemsAndShowsRetryAfterGuidance() async {
+        let repository = RecordingFeedItemsRepository(
+            firstPageResults: [
+                .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "existing")], canLoadMore: true))
+            ],
+            manualFetchResults: [.failure(cooldownError(retryAfterSeconds: 120, retryAfter: "180"))]
+        )
+        let viewModel = FeedViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded(feedID: "feed-1")
+        await viewModel.refreshFeed(feedID: "feed-1", subscriptionID: "sub-feed-1")
+
+        XCTAssertEqual(viewModel.state, .loaded)
+        XCTAssertEqual(viewModel.items.map(\.id), ["existing"])
+        XCTAssertTrue(viewModel.canLoadMore)
+        XCTAssertEqual(viewModel.refreshFeedback?.style, .warning)
+        XCTAssertEqual(
+            viewModel.refreshFeedback?.message,
+            "このフィードは取得間隔の制限中です。約 120 秒後にもう一度お試しください。"
+        )
+        let calls = await repository.calls()
+        XCTAssertEqual(
+            calls,
+            [
+                .firstPage(feedID: "feed-1", filter: .all, limit: nil),
+                .manualFetch(subscriptionID: "sub-feed-1")
+            ]
+        )
+    }
+
+    func testManualRefreshCooldownUsesRetryAfterHeaderFallback() async {
+        let repository = RecordingFeedItemsRepository(
+            firstPageResults: [
+                .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "existing")], canLoadMore: false))
+            ],
+            manualFetchResults: [.failure(cooldownError(retryAfterSeconds: nil, retryAfter: "90"))]
+        )
+        let viewModel = FeedViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded(feedID: "feed-1")
+        await viewModel.refreshFeed(feedID: "feed-1", subscriptionID: "sub-feed-1")
+
+        XCTAssertEqual(
+            viewModel.refreshFeedback?.message,
+            "このフィードは取得間隔の制限中です。約 90 秒後にもう一度お試しください。"
+        )
+        XCTAssertEqual(viewModel.items.map(\.id), ["existing"])
+    }
+
+    func testManualRefreshGenericErrorPreservesItemsAndShowsFailureGuidance() async {
+        let repository = RecordingFeedItemsRepository(
+            firstPageResults: [
+                .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "existing")], canLoadMore: false))
+            ],
+            manualFetchResults: [.failure(FeedViewModelTestError.transport)]
+        )
+        let viewModel = FeedViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded(feedID: "feed-1")
+        await viewModel.refreshFeed(feedID: "feed-1", subscriptionID: "sub-feed-1")
+
+        XCTAssertEqual(viewModel.items.map(\.id), ["existing"])
+        XCTAssertEqual(
+            viewModel.refreshFeedback?.message,
+            "フィードを更新できませんでした。しばらく待ってからもう一度お試しください。"
+        )
+        let calls = await repository.calls()
+        XCTAssertEqual(
+            calls,
+            [
+                .firstPage(feedID: "feed-1", filter: .all, limit: nil),
+                .manualFetch(subscriptionID: "sub-feed-1")
+            ]
+        )
+    }
+
+    func testManualRefreshMissingSubscriptionIDDoesNotCallFetch() async {
+        let repository = RecordingFeedItemsRepository(
+            firstPageResults: [
+                .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "existing")], canLoadMore: false))
+            ],
+            manualFetchResults: [.success(())]
+        )
+        let viewModel = FeedViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded(feedID: "feed-1")
+        await viewModel.refreshFeed(feedID: "feed-1", subscriptionID: "   \n")
+
+        XCTAssertEqual(viewModel.items.map(\.id), ["existing"])
+        XCTAssertEqual(
+            viewModel.refreshFeedback?.message,
+            "このフィードは手動更新に必要な購読情報がありません。"
+        )
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(feedID: "feed-1", filter: .all, limit: nil)])
+    }
+
+    func testDuplicateManualRefreshSuppressesDuplicateFetch() async {
+        let repository = PausedManualFetchRepository(
+            firstPageResults: [
+                .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "initial")], canLoadMore: false)),
+                .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "reloaded")], canLoadMore: false))
+            ]
+        )
+        let viewModel = FeedViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded(feedID: "feed-1")
+        let refreshTask = Task { @MainActor in
+            await viewModel.refreshFeed(feedID: "feed-1", subscriptionID: "sub-feed-1")
+        }
+        await repository.waitForManualFetchStart()
+
+        await viewModel.refreshFeed(feedID: "feed-1", subscriptionID: "sub-feed-1")
+
+        let callsDuringRefresh = await repository.calls()
+        XCTAssertEqual(
+            callsDuringRefresh,
+            [
+                .firstPage(feedID: "feed-1", filter: .all, limit: nil),
+                .manualFetch(subscriptionID: "sub-feed-1")
+            ]
+        )
+
+        await repository.completeManualFetch(with: .success(()))
+        await refreshTask.value
+
+        XCTAssertEqual(viewModel.items.map(\.id), ["reloaded"])
+        let calls = await repository.calls()
+        XCTAssertEqual(
+            calls,
+            [
+                .firstPage(feedID: "feed-1", filter: .all, limit: nil),
+                .manualFetch(subscriptionID: "sub-feed-1"),
+                .firstPage(feedID: "feed-1", filter: .all, limit: nil)
+            ]
+        )
+    }
+
     private func snapshot(
         feedID: String,
         filter: FeedItemFilter,
@@ -467,6 +638,27 @@ final class FeedViewModelTests: XCTestCase {
             author: nil
         )
     }
+
+    private func cooldownError(
+        retryAfterSeconds: Int?,
+        retryAfter: String?
+    ) -> FeedmanAPIError {
+        FeedmanAPIError.feedmanError(
+            FeedmanErrorContext(
+                statusCode: 429,
+                body: FeedmanErrorBody(
+                    code: "FEED_COOLDOWN",
+                    message: "cooldown",
+                    category: "rate_limit",
+                    action: "retry_later",
+                    details: retryAfterSeconds.map {
+                        ["retry_after_seconds": .int($0)]
+                    }
+                ),
+                retryAfter: retryAfter
+            )
+        )
+    }
 }
 
 private enum FeedViewModelTestError: Error {
@@ -475,19 +667,23 @@ private enum FeedViewModelTestError: Error {
 
 private enum FeedItemsRepositoryCall: Equatable {
     case firstPage(feedID: String, filter: FeedItemFilter, limit: Int?)
+    case manualFetch(subscriptionID: String)
     case nextPage
 }
 
 private actor RecordingFeedItemsRepository: FeedRepository {
     private var recordedCalls: [FeedItemsRepositoryCall] = []
     private var firstPageResults: [Result<FeedItemPaginationSnapshot, Error>]
+    private var manualFetchResults: [Result<Void, Error>]
     private var nextPageResults: [Result<FeedItemPaginationSnapshot, Error>]
 
     init(
         firstPageResults: [Result<FeedItemPaginationSnapshot, Error>],
+        manualFetchResults: [Result<Void, Error>] = [],
         nextPageResults: [Result<FeedItemPaginationSnapshot, Error>] = []
     ) {
         self.firstPageResults = firstPageResults
+        self.manualFetchResults = manualFetchResults
         self.nextPageResults = nextPageResults
     }
 
@@ -513,6 +709,15 @@ private actor RecordingFeedItemsRepository: FeedRepository {
 
     func loadCrossFeedNextPage() async throws -> CrossFeedPaginationSnapshot {
         throw CrossFeedRepositoryError.paginationUnsupported
+    }
+
+    func manualFetchSubscription(subscriptionID: String) async throws {
+        recordedCalls.append(.manualFetch(subscriptionID: subscriptionID))
+        guard !manualFetchResults.isEmpty else {
+            return
+        }
+
+        try manualFetchResults.removeFirst().get()
     }
 
     func loadFeedItemsFirstPage(
@@ -593,6 +798,10 @@ private actor PausedNextPageFeedItemsRepository: FeedRepository {
         throw CrossFeedRepositoryError.paginationUnsupported
     }
 
+    func manualFetchSubscription(subscriptionID: String) async throws {
+        recordedCalls.append(.manualFetch(subscriptionID: subscriptionID))
+    }
+
     func loadFeedItemsFirstPage(
         feedID: String,
         filter: FeedItemFilter,
@@ -618,5 +827,87 @@ private actor PausedNextPageFeedItemsRepository: FeedRepository {
         }
 
         return try firstPageResults.removeFirst().get()
+    }
+}
+
+private actor PausedManualFetchRepository: FeedRepository {
+    private var recordedCalls: [FeedItemsRepositoryCall] = []
+    private var firstPageResults: [Result<FeedItemPaginationSnapshot, Error>]
+    private var manualFetchContinuation: CheckedContinuation<Void, Error>?
+    private var manualFetchStartedContinuation: CheckedContinuation<Void, Never>?
+
+    init(firstPageResults: [Result<FeedItemPaginationSnapshot, Error>]) {
+        self.firstPageResults = firstPageResults
+    }
+
+    func calls() -> [FeedItemsRepositoryCall] {
+        recordedCalls
+    }
+
+    func waitForManualFetchStart() async {
+        if recordedCalls.contains(.manualFetch(subscriptionID: "sub-feed-1")) {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            manualFetchStartedContinuation = continuation
+        }
+    }
+
+    func completeManualFetch(with result: Result<Void, Error>) {
+        guard let manualFetchContinuation else {
+            return
+        }
+
+        self.manualFetchContinuation = nil
+        manualFetchContinuation.resume(with: result)
+    }
+
+    func subscriptions() async throws -> [Feed] {
+        []
+    }
+
+    func registerFeed(url: String) async throws -> RegisteredFeed {
+        throw FeedItemRepositoryError.paginationUnsupported
+    }
+
+    func crossFeedItems() async throws -> [FeedItem] {
+        []
+    }
+
+    func loadCrossFeedFirstPage(limit: Int?) async throws -> CrossFeedPaginationSnapshot {
+        throw CrossFeedRepositoryError.paginationUnsupported
+    }
+
+    func loadCrossFeedNextPage() async throws -> CrossFeedPaginationSnapshot {
+        throw CrossFeedRepositoryError.paginationUnsupported
+    }
+
+    func manualFetchSubscription(subscriptionID: String) async throws {
+        recordedCalls.append(.manualFetch(subscriptionID: subscriptionID))
+        manualFetchStartedContinuation?.resume()
+        manualFetchStartedContinuation = nil
+
+        return try await withCheckedThrowingContinuation { continuation in
+            manualFetchContinuation = continuation
+        }
+    }
+
+    func loadFeedItemsFirstPage(
+        feedID: String,
+        filter: FeedItemFilter,
+        limit: Int?
+    ) async throws -> FeedItemPaginationSnapshot {
+        recordedCalls.append(.firstPage(feedID: feedID, filter: filter, limit: limit))
+        guard !firstPageResults.isEmpty else {
+            throw FeedViewModelTestError.transport
+        }
+
+        return try firstPageResults.removeFirst().get()
+    }
+
+    func loadFeedItemsNextPage() async throws -> FeedItemPaginationSnapshot {
+        recordedCalls.append(.nextPage)
+        throw FeedItemRepositoryError.nextPageRequestedBeforeFirstPage
     }
 }
