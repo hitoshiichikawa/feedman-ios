@@ -250,8 +250,7 @@ final class TimelineViewModel: ObservableObject {
     }
 
     private func isPaginationTriggerItem(id: String) -> Bool {
-        let triggerIDs = items.suffix(5).map(\.id)
-        return triggerIDs.contains(id)
+        items.last?.id == id
     }
 }
 

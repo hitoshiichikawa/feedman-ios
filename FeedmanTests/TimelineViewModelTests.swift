@@ -92,6 +92,48 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertEqual(calls, [.firstPage(limit: nil), .firstPage(limit: nil)])
     }
 
+    func testRefreshSuccessReplacesItemsAndClearsNextPageError() async {
+        let repository = RecordingTimelineFeedRepository(
+            firstPageResults: [
+                .success(snapshot(items: [item(id: "existing")], canLoadMore: true)),
+                .success(snapshot(items: [item(id: "refreshed")], canLoadMore: false))
+            ],
+            nextPageResults: [
+                .failure(TimelineViewModelTestError.transport)
+            ]
+        )
+        let viewModel = TimelineViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded()
+        await viewModel.loadNextPageIfNeeded(currentItemID: "existing")
+        await viewModel.refresh()
+
+        XCTAssertEqual(viewModel.state, .loaded)
+        XCTAssertEqual(viewModel.items.map(\.id), ["refreshed"])
+        XCTAssertFalse(viewModel.canLoadMore)
+        XCTAssertNil(viewModel.nextPageErrorMessage)
+    }
+
+    func testRefreshSuccessWithEmptyPageClearsExistingItemsAndRefreshError() async {
+        let repository = RecordingTimelineFeedRepository(
+            firstPageResults: [
+                .success(snapshot(items: [item(id: "existing")], canLoadMore: true)),
+                .failure(TimelineViewModelTestError.transport),
+                .success(snapshot(items: [], canLoadMore: false))
+            ]
+        )
+        let viewModel = TimelineViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded()
+        await viewModel.refresh()
+        await viewModel.refresh()
+
+        XCTAssertEqual(viewModel.state, .empty)
+        XCTAssertEqual(viewModel.items, [])
+        XCTAssertFalse(viewModel.canLoadMore)
+        XCTAssertNil(viewModel.refreshErrorMessage)
+    }
+
     func testRefreshFailurePreservesExistingItems() async {
         let repository = RecordingTimelineFeedRepository(
             firstPageResults: [
@@ -107,6 +149,19 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.state, .loaded)
         XCTAssertEqual(viewModel.items.map(\.id), ["existing"])
         XCTAssertEqual(viewModel.refreshErrorMessage, "タイムラインを更新できませんでした。")
+    }
+
+    func testRefreshFailureBeforeItemsExposesInitialRecoverableError() async {
+        let repository = RecordingTimelineFeedRepository(
+            firstPageResults: [.failure(TimelineViewModelTestError.transport)]
+        )
+        let viewModel = TimelineViewModel(repository: repository)
+
+        await viewModel.refresh()
+
+        XCTAssertEqual(viewModel.state, .failed(message: "タイムラインを読み込めませんでした。"))
+        XCTAssertEqual(viewModel.items, [])
+        XCTAssertFalse(viewModel.canLoadMore)
     }
 
     func testNextPageSuccessAppendsItemsInRepositoryOrder() async {
@@ -130,6 +185,25 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertEqual(calls, [.firstPage(limit: nil), .nextPage])
     }
 
+    func testNonLastSentinelDoesNotRequestNextPage() async {
+        let repository = RecordingTimelineFeedRepository(
+            firstPageResults: [
+                .success(snapshot(items: [item(id: "first"), item(id: "last")], canLoadMore: true))
+            ],
+            nextPageResults: [
+                .success(snapshot(items: [item(id: "unexpected")], canLoadMore: false))
+            ]
+        )
+        let viewModel = TimelineViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded()
+        await viewModel.loadNextPageIfNeeded(currentItemID: "first")
+
+        XCTAssertEqual(viewModel.items.map(\.id), ["first", "last"])
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil)])
+    }
+
     func testNextPageFailurePreservesExistingItemsAndShowsRetryableError() async {
         let repository = RecordingTimelineFeedRepository(
             firstPageResults: [
@@ -146,12 +220,86 @@ final class TimelineViewModelTests: XCTestCase {
         await viewModel.loadNextPageIfNeeded(currentItemID: "first")
 
         XCTAssertEqual(viewModel.items.map(\.id), ["first"])
+        XCTAssertTrue(viewModel.canLoadMore)
         XCTAssertEqual(viewModel.nextPageErrorMessage, "続きを読み込めませんでした。")
 
         await viewModel.retryNextPage()
 
         XCTAssertEqual(viewModel.items.map(\.id), ["first", "second"])
         XCTAssertNil(viewModel.nextPageErrorMessage)
+    }
+
+    func testDuplicateRefreshIsIgnoredWhileFirstPageIsLoading() async {
+        let repository = SuspendedTimelineFeedRepository(
+            firstPageResult: snapshot(items: [item(id: "refreshed")], canLoadMore: false),
+            nextPageResult: snapshot(items: [], canLoadMore: false),
+            suspendFirstPage: true
+        )
+        let viewModel = TimelineViewModel(repository: repository)
+
+        let refreshTask = Task { @MainActor in
+            await viewModel.refresh()
+        }
+        await repository.waitForCallCount(1)
+
+        await viewModel.refresh()
+
+        var calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil)])
+
+        await repository.resumeFirstPage()
+        await refreshTask.value
+
+        calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil)])
+    }
+
+    func testNextPageIsIgnoredWhileRefreshIsLoading() async {
+        let repository = SuspendedTimelineFeedRepository(
+            firstPageResult: snapshot(items: [item(id: "refreshed")], canLoadMore: false),
+            nextPageResult: snapshot(items: [item(id: "existing"), item(id: "unexpected")], canLoadMore: false),
+            suspendFirstPage: true
+        )
+        let viewModel = TimelineViewModel(
+            repository: repository,
+            state: .loaded,
+            items: [item(id: "existing")],
+            canLoadMore: true
+        )
+
+        let refreshTask = Task { @MainActor in
+            await viewModel.refresh()
+        }
+        await repository.waitForCallCount(1)
+
+        await viewModel.loadNextPageIfNeeded(currentItemID: "existing")
+
+        XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil)])
+
+        await repository.resumeFirstPage()
+        await refreshTask.value
+    }
+
+    func testDuplicateNextPageRequestIsIgnoredWhileNextPageIsLoading() async {
+        let repository = SuspendedTimelineFeedRepository(
+            firstPageResult: snapshot(items: [item(id: "first")], canLoadMore: true),
+            nextPageResult: snapshot(items: [item(id: "first"), item(id: "second")], canLoadMore: false),
+            suspendNextPage: true
+        )
+        let viewModel = TimelineViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded()
+        let nextPageTask = Task { @MainActor in
+            await viewModel.loadNextPageIfNeeded(currentItemID: "first")
+        }
+        await repository.waitForCallCount(2)
+
+        await viewModel.loadNextPageIfNeeded(currentItemID: "first")
+
+        XCTAssertEqual(await repository.calls(), [.firstPage(limit: nil), .nextPage])
+
+        await repository.resumeNextPage()
+        await nextPageTask.value
     }
 
     func testTerminalStateDoesNotRequestNextPage() async {
@@ -392,5 +540,108 @@ private actor RecordingTimelineFeedRepository: FeedRepository {
         }
 
         return try results.removeFirst().get()
+    }
+}
+
+private actor SuspendedTimelineFeedRepository: FeedRepository {
+    private var recordedCalls: [TimelineRepositoryCall] = []
+    private let firstPageResult: CrossFeedPaginationSnapshot
+    private let nextPageResult: CrossFeedPaginationSnapshot
+    private let suspendFirstPage: Bool
+    private let suspendNextPage: Bool
+    private var firstPageContinuations: [CheckedContinuation<CrossFeedPaginationSnapshot, Error>] = []
+    private var nextPageContinuations: [CheckedContinuation<CrossFeedPaginationSnapshot, Error>] = []
+    private var callCountWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+
+    init(
+        firstPageResult: CrossFeedPaginationSnapshot,
+        nextPageResult: CrossFeedPaginationSnapshot,
+        suspendFirstPage: Bool = false,
+        suspendNextPage: Bool = false
+    ) {
+        self.firstPageResult = firstPageResult
+        self.nextPageResult = nextPageResult
+        self.suspendFirstPage = suspendFirstPage
+        self.suspendNextPage = suspendNextPage
+    }
+
+    func calls() -> [TimelineRepositoryCall] {
+        recordedCalls
+    }
+
+    func waitForCallCount(_ count: Int) async {
+        guard recordedCalls.count < count else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            callCountWaiters.append((count, continuation))
+        }
+    }
+
+    func resumeFirstPage() {
+        let continuations = firstPageContinuations
+        firstPageContinuations = []
+        continuations.forEach { $0.resume(returning: firstPageResult) }
+    }
+
+    func resumeNextPage() {
+        let continuations = nextPageContinuations
+        nextPageContinuations = []
+        continuations.forEach { $0.resume(returning: nextPageResult) }
+    }
+
+    func subscriptions() async throws -> [Feed] {
+        []
+    }
+
+    func registerFeed(url: String) async throws -> RegisteredFeed {
+        throw CrossFeedRepositoryError.paginationUnsupported
+    }
+
+    func crossFeedItems() async throws -> [FeedItem] {
+        []
+    }
+
+    func loadCrossFeedFirstPage(limit: Int?) async throws -> CrossFeedPaginationSnapshot {
+        record(.firstPage(limit: limit))
+        guard suspendFirstPage else {
+            return firstPageResult
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            firstPageContinuations.append(continuation)
+        }
+    }
+
+    func loadCrossFeedNextPage() async throws -> CrossFeedPaginationSnapshot {
+        record(.nextPage)
+        guard suspendNextPage else {
+            return nextPageResult
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            nextPageContinuations.append(continuation)
+        }
+    }
+
+    func loadFeedItemsFirstPage(
+        feedID: String,
+        filter: FeedItemFilter,
+        limit: Int?
+    ) async throws -> FeedItemPaginationSnapshot {
+        throw FeedItemRepositoryError.paginationUnsupported
+    }
+
+    func loadFeedItemsNextPage() async throws -> FeedItemPaginationSnapshot {
+        throw FeedItemRepositoryError.paginationUnsupported
+    }
+
+    private func record(_ call: TimelineRepositoryCall) {
+        recordedCalls.append(call)
+        let currentCallCount = recordedCalls.count
+        let readyWaiters = callCountWaiters.filter { currentCallCount >= $0.count }
+        callCountWaiters.removeAll { currentCallCount >= $0.count }
+        readyWaiters.forEach { $0.continuation.resume() }
     }
 }
