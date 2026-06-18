@@ -143,21 +143,40 @@ extension FeedmanEmptyStateView where PrimaryAction == EmptyView {
     }
 }
 
+struct FeedmanRetryDescriptor: Equatable {
+    let label: String
+    let accessibilityLabel: String
+    let isEnabled: Bool
+
+    init(
+        label: String = "再試行",
+        accessibilityLabel: String? = nil,
+        isEnabled: Bool = true
+    ) {
+        self.label = label
+        self.accessibilityLabel = accessibilityLabel ?? label
+        self.isEnabled = isEnabled
+    }
+}
+
 struct FeedmanRecoverableErrorView<RetryAction: View>: View {
     let title: String
     let message: String?
     let usesDangerEmphasis: Bool
+    let retryDescriptor: FeedmanRetryDescriptor
     private let retryAction: RetryAction?
 
     init(
         title: String,
         message: String? = nil,
         usesDangerEmphasis: Bool = true,
+        retryDescriptor: FeedmanRetryDescriptor = FeedmanRetryDescriptor(),
         @ViewBuilder retryAction: () -> RetryAction
     ) {
         self.title = title
         self.message = message
         self.usesDangerEmphasis = usesDangerEmphasis
+        self.retryDescriptor = retryDescriptor
         self.retryAction = retryAction()
     }
 
@@ -190,7 +209,9 @@ struct FeedmanRecoverableErrorView<RetryAction: View>: View {
             if let retryAction {
                 retryAction
                     .buttonStyle(FeedmanPrimaryButtonStyle())
-                    .accessibilityLabel("再試行")
+                    .disabled(!retryDescriptor.isEnabled)
+                    .opacity(retryDescriptor.isEnabled ? 1 : 0.58)
+                    .accessibilityLabel(retryDescriptor.accessibilityLabel)
                     .padding(.top, 4)
             }
         }
@@ -223,6 +244,7 @@ extension FeedmanRecoverableErrorView where RetryAction == EmptyView {
         self.title = title
         self.message = message
         self.usesDangerEmphasis = usesDangerEmphasis
+        self.retryDescriptor = FeedmanRetryDescriptor()
         self.retryAction = nil
     }
 }

@@ -128,7 +128,8 @@ struct GlobalSearchView: View {
                 FeedmanRecoverableErrorView(
                     title: isAuthRequired ? "再ログインが必要です" : "検索できませんでした",
                     message: message,
-                    usesDangerEmphasis: !isAuthRequired
+                    usesDangerEmphasis: !isAuthRequired,
+                    retryDescriptor: FeedmanRetryDescriptor(accessibilityLabel: "検索を再試行")
                 ) {
                     Button("再試行") {
                         Task {

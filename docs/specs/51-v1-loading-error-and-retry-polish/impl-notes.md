@@ -39,3 +39,27 @@ Baseline audit として、実装変更は行わず、既存の DesignSystem pri
 - `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。
 - `git diff --check`: 成功。
 - `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: 実行不可。`xcode-select` の active developer directory が `/Library/Developer/CommandLineTools` で、Xcode 本体ではないため。
+
+### Task 2
+
+採用方針: DesignSystem に API error 非依存の `FeedmanRetryDescriptor` を追加し、既存 `FeedmanRecoverableErrorView` の retry 表示補助として後方互換で接続した。
+
+重要な判断:
+
+- `FeedmanFeedbackPresentation` 相当の toast/banner 共通値型は追加しない。既存の `FeedmanToastCenter` は current toast を置換する deterministic policy を持ち、banner/local message も feature-local state で単一表示に収まっているため。
+- `FeedmanRetryDescriptor` は label / accessibilityLabel / isEnabled だけに絞り、`FeedmanAPIError` や endpoint code の inspect は引き続き Feature/ViewModel 側に閉じた。
+- Timeline / Feed / Starred / Search / ArticleDetail / Account の初回 recoverable retry は、ボタン表示名を変えずに画面固有の VoiceOver label を渡す形へ揃えた。
+
+残存課題: なし。auth-required の二重導線整理や画面別 mutation polish は後続 task の scope で扱う。
+
+Finding Closure Matrix:
+
+| Finding | Target | Category | 変更ファイルまたは commit | 実行したテスト | status |
+| --- | --- | --- | --- | --- | --- |
+| 前回 reject finding なし | Task 2 | N/A | N/A | `plutil -lint Feedman.xcodeproj/project.pbxproj`; `git diff --check`; `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` は CommandLineTools のため実行不可 | closed |
+
+検証:
+
+- `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。
+- `git diff --check`: 成功。
+- `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: 実行不可。`xcode-select` の active developer directory が `/Library/Developer/CommandLineTools` で、Xcode 本体ではないため。

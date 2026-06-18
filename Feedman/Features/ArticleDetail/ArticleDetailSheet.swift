@@ -121,7 +121,8 @@ private struct ArticleDetailBody: View {
                 FeedmanRecoverableErrorView(
                     title: isAuthRequired ? "再ログインが必要です" : "記事詳細を読み込めませんでした",
                     message: message,
-                    usesDangerEmphasis: !isAuthRequired
+                    usesDangerEmphasis: !isAuthRequired,
+                    retryDescriptor: FeedmanRetryDescriptor(accessibilityLabel: "記事詳細の読み込みを再試行")
                 ) {
                     Button("再試行", action: onRetry)
                 }
