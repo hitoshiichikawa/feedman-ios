@@ -168,6 +168,21 @@ final class GlobalSearchViewModelTests: XCTestCase {
         XCTAssertFalse(descriptor.isStarMutationEnabled)
     }
 
+    func testResultDescriptorAccessibilityLabelIncludesActionAndArticleContext() {
+        let descriptor = SearchResultRowDescriptor(
+            hit: hit(
+                id: "accessible",
+                publishedAt: "2026-06-08T08:30:00Z",
+                isRead: true
+            )
+        )
+
+        XCTAssertEqual(
+            descriptor.detailAccessibilityLabel,
+            "記事詳細を開く、Title accessible、Feed accessible、2026-06-08T08:30:00Z、既読"
+        )
+    }
+
     func testResultDescriptorBuildsSafeDetailInputFromNullableHit() throws {
         let descriptor = SearchResultRowDescriptor(
             hit: hit(

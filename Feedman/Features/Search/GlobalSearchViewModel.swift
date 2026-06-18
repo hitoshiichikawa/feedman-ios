@@ -48,6 +48,21 @@ struct SearchResultRowDescriptor: Equatable {
         hit.publishedAt?.nilIfBlank
     }
 
+    var detailAccessibilityLabel: String {
+        var components = [
+            "記事詳細を開く",
+            title,
+            hit.feedTitle
+        ]
+
+        if let publishedDateText {
+            components.append(publishedDateText)
+        }
+
+        components.append(isRead ? "既読" : "未読")
+        return components.joined(separator: "、")
+    }
+
     var isRead: Bool {
         hit.isRead ?? false
     }

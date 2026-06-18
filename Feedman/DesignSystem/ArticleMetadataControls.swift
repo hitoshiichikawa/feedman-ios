@@ -293,6 +293,8 @@ struct ArticleSourceMetadata: Equatable {
 }
 
 struct ArticleSourceRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private let metadata: ArticleSourceMetadata?
     private let size: ArticleMetadataControlSize
 
@@ -320,21 +322,30 @@ struct ArticleSourceRow: View {
 
     var body: some View {
         if let metadata {
-            HStack(spacing: 8) {
-                FeedmanFaviconView(
-                    faviconURL: metadata.faviconURL,
-                    displayName: metadata.feedTitle,
-                    size: size.faviconSize,
-                    cornerRadius: 6
-                )
-                .accessibilityHidden(true)
+            content(for: metadata)
+                .frame(minHeight: size.sourceRowHeight)
+                .accessibilityElement(children: .combine)
+        }
+    }
 
-                Text(metadata.feedTitle)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(FeedmanTheme.mutedForeground)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .layoutPriority(1)
+    @ViewBuilder
+    private func content(for metadata: ArticleSourceMetadata) -> some View {
+        if FeedmanAccessibilityLayout.usesStackedControls(for: dynamicTypeSize) {
+            VStack(alignment: .leading, spacing: 4) {
+                titleRow(for: metadata)
+
+                if let relativeDate = metadata.relativeDate,
+                   !relativeDate.isEmpty {
+                    Text(relativeDate)
+                        .font(.caption)
+                        .foregroundStyle(FeedmanTheme.mutedForeground)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        } else {
+            HStack(spacing: 8) {
+                titleRow(for: metadata)
 
                 if let relativeDate = metadata.relativeDate,
                    !relativeDate.isEmpty {
@@ -345,8 +356,26 @@ struct ArticleSourceRow: View {
                         .fixedSize(horizontal: true, vertical: false)
                 }
             }
-            .frame(minHeight: size.sourceRowHeight)
-            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private func titleRow(for metadata: ArticleSourceMetadata) -> some View {
+        HStack(spacing: 8) {
+            FeedmanFaviconView(
+                faviconURL: metadata.faviconURL,
+                displayName: metadata.feedTitle,
+                size: size.faviconSize,
+                cornerRadius: 6
+            )
+            .accessibilityHidden(true)
+
+            Text(metadata.feedTitle)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(FeedmanTheme.mutedForeground)
+                .lineLimit(FeedmanAccessibilityLayout.usesStackedControls(for: dynamicTypeSize) ? 2 : 1)
+                .fixedSize(horizontal: false, vertical: true)
+                .truncationMode(.tail)
+                .layoutPriority(1)
         }
     }
 }

@@ -1,7 +1,20 @@
 import XCTest
+import SwiftUI
 @testable import Feedman
 
 final class ArticleMetadataControlsTests: XCTestCase {
+    func testAccessibilityLayoutStacksControlsOnlyForAccessibilityDynamicType() {
+        XCTAssertFalse(FeedmanAccessibilityLayout.usesStackedControls(for: .large))
+        XCTAssertFalse(FeedmanAccessibilityLayout.usesStackedControls(for: .xxxLarge))
+        XCTAssertTrue(FeedmanAccessibilityLayout.usesStackedControls(for: .accessibility1))
+        XCTAssertTrue(FeedmanAccessibilityLayout.usesStackedControls(for: .accessibility5))
+    }
+
+    func testAccessibilityLayoutAllowsPrimaryActionsToGrowAtAccessibilitySizes() {
+        XCTAssertEqual(FeedmanAccessibilityLayout.primaryActionLineLimit(for: .large), 2)
+        XCTAssertNil(FeedmanAccessibilityLayout.primaryActionLineLimit(for: .accessibility3))
+    }
+
     func testStarDescriptorUsesFilledStarAndSelectedAccessibilityWhenStarred() {
         let descriptor = ArticleStarControlDescriptor(isStarred: true)
 
@@ -113,6 +126,16 @@ final class ArticleMetadataControlsTests: XCTestCase {
         XCTAssertEqual(openedLink, "https://example.com/article")
     }
 
+    func testEnabledOpenLinkDescriptorExposesOriginalArticleSemantics() {
+        let descriptor = ArticleOpenLinkControlDescriptor(isOpenable: true)
+
+        XCTAssertEqual(descriptor.systemImageName, "arrow.up.forward.square")
+        XCTAssertEqual(descriptor.accessibilityLabel, "元記事をブラウザで開く")
+        XCTAssertNil(descriptor.accessibilityHint)
+        XCTAssertTrue(descriptor.isEnabled)
+        XCTAssertFalse(descriptor.isHidden)
+    }
+
     func testDisabledOpenLinkDoesNotCallAction() {
         let descriptor = ArticleOpenLinkControlDescriptor(isOpenable: false)
         var actionCount = 0
@@ -142,4 +165,3 @@ final class ArticleMetadataControlsTests: XCTestCase {
         XCTAssertEqual(actionCount, 0)
     }
 }
-

@@ -178,6 +178,8 @@ private struct ArticleDetailSummaryPreview: View {
 }
 
 private struct ArticleDetailLoadedContent: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let presentation: ArticleDetailPresentation
 
     var body: some View {
@@ -218,44 +220,60 @@ private struct ArticleDetailLoadedContent: View {
         .accessibilityElement(children: .contain)
     }
 
+    @ViewBuilder
     private var metadataLine: some View {
-        HStack(alignment: .center, spacing: 8) {
-            ArticleHatebuCountControl(
-                state: presentation.hatebuState,
-                size: .standard
-            )
-
-            if let authorText = presentation.authorText {
-                Label {
-                    Text(authorText)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                } icon: {
-                    Image(systemName: "person")
-                        .accessibilityHidden(true)
-                }
-                .font(.caption)
-                .foregroundStyle(FeedmanTheme.mutedForeground)
-                .labelStyle(.titleAndIcon)
+        if FeedmanAccessibilityLayout.usesStackedControls(for: dynamicTypeSize) {
+            VStack(alignment: .leading, spacing: 8) {
+                metadataControls
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            HStack(alignment: .center, spacing: 8) {
+                metadataControls
 
-            if presentation.isDateEstimated {
-                Text("推定日時")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(FeedmanTheme.mutedForeground)
-                    .padding(.horizontal, 8)
-                    .frame(minHeight: 28)
-                    .background(FeedmanTheme.muted)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                Spacer(minLength: 0)
             }
-
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var metadataControls: some View {
+        ArticleHatebuCountControl(
+            state: presentation.hatebuState,
+            size: .standard
+        )
+
+        if let authorText = presentation.authorText {
+            Label {
+                Text(authorText)
+                    .lineLimit(FeedmanAccessibilityLayout.usesStackedControls(for: dynamicTypeSize) ? 2 : 1)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .truncationMode(.tail)
+            } icon: {
+                Image(systemName: "person")
+                    .accessibilityHidden(true)
+            }
+            .font(.caption)
+            .foregroundStyle(FeedmanTheme.mutedForeground)
+            .labelStyle(.titleAndIcon)
+        }
+
+        if presentation.isDateEstimated {
+            Text("推定日時")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(FeedmanTheme.mutedForeground)
+                .padding(.horizontal, 8)
+                .frame(minHeight: 28)
+                .background(FeedmanTheme.muted)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
     }
 }
 
 private struct ArticleDetailFooter: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let presentation: ArticleDetailPresentation?
     let summary: ArticleDetailSummary?
     let isStarUpdateInFlight: Bool
@@ -263,26 +281,44 @@ private struct ArticleDetailFooter: View {
     let onToggleStar: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Button(action: onOpenOriginal) {
-                Label("元記事を開く", systemImage: "arrow.up.forward.square")
-                    .frame(maxWidth: .infinity)
-            }
-            .accessibilityLabel("元記事を開く")
-            .accessibilityHint(
-                linkURL == nil
-                    ? "リンクを確認できない場合はエラーを表示します"
-                    : "アプリ内Safariで元記事を開きます"
-            )
+        if FeedmanAccessibilityLayout.usesStackedControls(for: dynamicTypeSize) {
+            VStack(alignment: .trailing, spacing: 10) {
+                openOriginalButton
 
-            ArticleStarControl(
-                isStarred: isStarred,
-                isEnabled: presentation != nil && !isStarUpdateInFlight,
-                size: .standard,
-                onToggle: onToggleStar
-            )
-            .accessibilityHint(isStarUpdateInFlight ? "スター状態を保存中です" : "")
+                starControl
+            }
+        } else {
+            HStack(spacing: 12) {
+                openOriginalButton
+
+                starControl
+            }
         }
+    }
+
+    private var openOriginalButton: some View {
+        Button(action: onOpenOriginal) {
+            Label("元記事を開く", systemImage: "arrow.up.forward.square")
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+        }
+        .accessibilityLabel("元記事を開く")
+        .accessibilityHint(
+            linkURL == nil
+                ? "リンクを確認できない場合はエラーを表示します"
+                : "アプリ内Safariで元記事を開きます"
+        )
+    }
+
+    private var starControl: some View {
+        ArticleStarControl(
+            isStarred: isStarred,
+            isEnabled: presentation != nil && !isStarUpdateInFlight,
+            size: .standard,
+            onToggle: onToggleStar
+        )
+        .accessibilityHint(isStarUpdateInFlight ? "スター状態を保存中です" : "")
     }
 
     private var linkURL: URL? {

@@ -1,5 +1,20 @@
 import SwiftUI
 
+enum FeedmanAccessibilityLayout {
+    static func usesStackedControls(for dynamicTypeSize: DynamicTypeSize) -> Bool {
+        switch dynamicTypeSize {
+        case .accessibility1, .accessibility2, .accessibility3, .accessibility4, .accessibility5:
+            return true
+        default:
+            return false
+        }
+    }
+
+    static func primaryActionLineLimit(for dynamicTypeSize: DynamicTypeSize) -> Int? {
+        usesStackedControls(for: dynamicTypeSize) ? nil : 2
+    }
+}
+
 struct FeedmanLoadingView: View {
     let message: String?
     let accessibilityLabel: String
@@ -416,6 +431,8 @@ extension View {
 }
 
 struct FeedmanBannerView<ActionContent: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let message: String
     let style: FeedmanToast.Style
     private let actionContent: ActionContent?
@@ -431,6 +448,28 @@ struct FeedmanBannerView<ActionContent: View>: View {
     }
 
     var body: some View {
+        content
+            .padding(12)
+            .background(backgroundColor)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(FeedmanTheme.border, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(message)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if FeedmanAccessibilityLayout.usesStackedControls(for: dynamicTypeSize) {
+            stackedContent
+        } else {
+            horizontalContent
+        }
+    }
+
+    private var messageContent: some View {
         HStack(alignment: .center, spacing: 10) {
             if let systemImage {
                 Image(systemName: systemImage)
@@ -445,6 +484,14 @@ struct FeedmanBannerView<ActionContent: View>: View {
                 .lineLimit(4)
                 .fixedSize(horizontal: false, vertical: true)
 
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var horizontalContent: some View {
+        HStack(alignment: .center, spacing: 10) {
+            messageContent
+
             Spacer(minLength: 8)
 
             if let actionContent {
@@ -452,15 +499,18 @@ struct FeedmanBannerView<ActionContent: View>: View {
                     .buttonStyle(FeedmanSecondaryButtonStyle())
             }
         }
-        .padding(12)
-        .background(backgroundColor)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(FeedmanTheme.border, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(message)
+    }
+
+    private var stackedContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            messageContent
+
+            if let actionContent {
+                actionContent
+                    .buttonStyle(FeedmanSecondaryButtonStyle())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 
     private var systemImage: String? {
@@ -654,12 +704,14 @@ extension View {
 }
 
 private struct FeedmanPrimaryButtonStyle: ButtonStyle {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(FeedmanTheme.accentOn)
             .multilineTextAlignment(.center)
-            .lineLimit(2)
+            .lineLimit(FeedmanAccessibilityLayout.primaryActionLineLimit(for: dynamicTypeSize))
             .fixedSize(horizontal: false, vertical: true)
             .frame(minHeight: 44)
             .frame(maxWidth: .infinity)
@@ -670,11 +722,14 @@ private struct FeedmanPrimaryButtonStyle: ButtonStyle {
 }
 
 private struct FeedmanSecondaryButtonStyle: ButtonStyle {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.footnote.weight(.semibold))
             .foregroundStyle(FeedmanTheme.accent)
-            .lineLimit(2)
+            .multilineTextAlignment(.center)
+            .lineLimit(FeedmanAccessibilityLayout.primaryActionLineLimit(for: dynamicTypeSize))
             .fixedSize(horizontal: false, vertical: true)
             .frame(minHeight: 36)
             .padding(.horizontal, 12)

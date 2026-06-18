@@ -70,7 +70,9 @@ struct RegisterFeedSheet: View {
                     }
 
                     Text(viewModel.submissionState.isLoading ? "登録中" : "フィードを登録")
-                        .lineLimit(1)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(minWidth: 92)
                 }
                 .frame(maxWidth: .infinity)
