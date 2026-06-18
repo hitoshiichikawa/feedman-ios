@@ -62,6 +62,7 @@ final class AppEnvironment: ObservableObject {
 
     @Published private(set) var authenticationState: AppAuthenticationState
     @Published private(set) var pendingDeviceRegistrationRetryError: Error?
+    @Published private(set) var apnsRegistrationError: APNsDeviceRegistrationError?
 
     init(
         feedRepository: FeedRepository,
@@ -120,6 +121,7 @@ final class AppEnvironment: ObservableObject {
         accessTokenStore.update(accessToken: nil)
         await deviceRegistrationService.clearLocalState()
         pendingDeviceRegistrationRetryError = nil
+        apnsRegistrationError = nil
         authenticationState = .unauthenticated
     }
 
@@ -140,6 +142,7 @@ final class AppEnvironment: ObservableObject {
 
         accessTokenStore.update(accessToken: nil)
         pendingDeviceRegistrationRetryError = nil
+        apnsRegistrationError = nil
         authenticationState = .unauthenticated
 
         return AppLogoutResult(
@@ -165,6 +168,7 @@ final class AppEnvironment: ObservableObject {
             accessTokenStore.update(accessToken: nil)
             await deviceRegistrationService.clearLocalState()
             pendingDeviceRegistrationRetryError = nil
+            apnsRegistrationError = nil
             authenticationState = .unauthenticated
         } catch {
             // 保存 token があるのに refresh が拒否された場合は失効済みとして
@@ -173,6 +177,7 @@ final class AppEnvironment: ObservableObject {
             accessTokenStore.update(accessToken: nil)
             await deviceRegistrationService.clearLocalState()
             pendingDeviceRegistrationRetryError = nil
+            apnsRegistrationError = nil
             authenticationState = .unauthenticated
         }
     }
@@ -184,6 +189,15 @@ final class AppEnvironment: ObservableObject {
         } catch {
             pendingDeviceRegistrationRetryError = error
         }
+    }
+
+    func configureAPNsDeviceRegistrationBridge() {
+        APNsDeviceRegistrationBridge.shared.configure(
+            service: deviceRegistrationService,
+            registrationErrorHandler: { [weak self] error in
+                self?.apnsRegistrationError = error
+            }
+        )
     }
 
     func makeSearchRepository() -> any SearchRepository {
@@ -272,7 +286,7 @@ final class AppEnvironment: ObservableObject {
             authenticationState: authenticationState,
             accessTokenStore: accessTokenStore
         )
-        APNsDeviceRegistrationBridge.shared.configure(service: deviceRegistrationService)
+        configureAPNsDeviceRegistrationBridge()
     }
 
     static let preview = AppEnvironment(

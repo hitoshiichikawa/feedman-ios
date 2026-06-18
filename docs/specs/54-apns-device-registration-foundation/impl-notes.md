@@ -60,3 +60,10 @@ xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS
 - `AppEnvironment` に `pendingDeviceRegistrationRetryError` を追加し、`completeLogin(with:)` と `restoreSessionAtLaunch()` からの pending APNs device registration retry 失敗を握りつぶさず、owning flow が観測できる retryable error state として保持するようにした。
 - pending retry 成功時、logout、退会後 local clear、session restore 失敗時は `pendingDeviceRegistrationRetryError` を clear し、古い retry error が残らないようにした。
 - `AppEnvironmentSessionRestoreTests` に login 後 retry と session restore 後 retry の失敗ケースを追加し、retry 失敗が `AppEnvironment` から観測できること、失敗後も `APNsDeviceRegistrationService` が APNs token を保持して同じ token で再 retry できることを検証した。
+
+## Reviewer reject 是正 2
+
+- `APNsDeviceRegistrationError.remoteNotificationRegistrationFailed` を追加し、APNs remote notification registration failure callback を raw `Error` の保存ではなく Notifications feature の domain error に変換するようにした。
+- `APNsDeviceRegistrationBridge` から MainActor closure で `AppEnvironment.apnsRegistrationError` へ通知し、`didFailToRegisterForRemoteNotificationsWithError` 相当の失敗を owning flow から観測可能にした。APNs device token 成功 callback では古い APNs registration failure state を clear する。
+- logout、退会後 local clear、session restore failure、APNs device token 成功 callback 時に `apnsRegistrationError` を clear し、`pendingDeviceRegistrationRetryError` は `/api/devices` retry 専用 state のまま分離した。
+- `AppEnvironmentSessionRestoreTests` に APNs registration failure が `/api/devices` mock を呼ばず domain error を publish するケースと、成功 token callback 後に古い APNs registration failure state が clear されるケースを追加した。

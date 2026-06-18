@@ -20,6 +20,10 @@ enum DeviceUnregisterOutcome: Equatable {
     case unregistered(deviceID: String)
 }
 
+enum APNsDeviceRegistrationError: Error, Equatable {
+    case remoteNotificationRegistrationFailed
+}
+
 actor APNsDeviceRegistrationService {
     typealias AccessTokenProvider = @Sendable () async throws -> String
 
@@ -126,19 +130,27 @@ final class APNsDeviceRegistrationBridge {
     static let shared = APNsDeviceRegistrationBridge()
 
     private var service: APNsDeviceRegistrationService?
-    private(set) var lastRegistrationFailure: Error?
+    private var registrationErrorHandler: (@MainActor (APNsDeviceRegistrationError?) -> Void)?
+    private(set) var lastRegistrationFailure: APNsDeviceRegistrationError?
 
     private init() {}
 
-    func configure(service: APNsDeviceRegistrationService) {
+    func configure(
+        service: APNsDeviceRegistrationService,
+        registrationErrorHandler: (@MainActor (APNsDeviceRegistrationError?) -> Void)? = nil
+    ) {
         self.service = service
+        self.registrationErrorHandler = registrationErrorHandler
     }
 
     func clearRegistrationFailure() {
         lastRegistrationFailure = nil
+        registrationErrorHandler?(nil)
     }
 
     func handleDeviceToken(_ deviceToken: Data) {
+        clearRegistrationFailure()
+
         guard let service else {
             return
         }
@@ -147,18 +159,20 @@ final class APNsDeviceRegistrationBridge {
             do {
                 _ = try await service.registerDeviceToken(deviceToken)
                 await MainActor.run {
-                    self.lastRegistrationFailure = nil
+                    self.clearRegistrationFailure()
                 }
             } catch {
                 await MainActor.run {
-                    self.lastRegistrationFailure = error
+                    self.clearRegistrationFailure()
                 }
             }
         }
     }
 
-    func handleRegistrationFailure(_ error: Error) {
-        lastRegistrationFailure = error
+    func handleRegistrationFailure(_: Error) {
+        let registrationError = APNsDeviceRegistrationError.remoteNotificationRegistrationFailed
+        lastRegistrationFailure = registrationError
+        registrationErrorHandler?(registrationError)
     }
 }
 

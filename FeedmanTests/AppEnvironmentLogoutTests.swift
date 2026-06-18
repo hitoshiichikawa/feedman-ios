@@ -14,10 +14,18 @@ final class AppEnvironmentLogoutTests: XCTestCase {
             deviceRepository: deviceRepository,
             stateStore: stateStore
         )
+        environment.configureAPNsDeviceRegistrationBridge()
+        defer {
+            resetAPNsDeviceRegistrationBridge()
+        }
+        APNsDeviceRegistrationBridge.shared.handleRegistrationFailure(
+            EnvironmentLogoutTestError.apnsRegistrationRejected
+        )
 
         let result = await environment.logout()
 
         XCTAssertEqual(environment.authenticationState, .unauthenticated)
+        XCTAssertNil(environment.apnsRegistrationError)
         XCTAssertNil(environment.currentAccessToken)
         XCTAssertNil(stateStore.load())
         XCTAssertEqual(
@@ -148,4 +156,19 @@ private actor EnvironmentDeviceRegistrationRepositoryMock: DeviceRegistrationRep
 private enum EnvironmentLogoutTestError: Error {
     case authRejected
     case unregisterRejected
+    case apnsRegistrationRejected
+}
+
+@MainActor
+private func resetAPNsDeviceRegistrationBridge() {
+    APNsDeviceRegistrationBridge.shared.configure(
+        service: APNsDeviceRegistrationService(
+            repository: UnavailableDeviceRegistrationRepository(),
+            stateStore: InMemoryDeviceRegistrationStateStore(),
+            accessTokenProvider: {
+                throw AppEnvironmentError.missingAccessToken
+            }
+        )
+    )
+    APNsDeviceRegistrationBridge.shared.clearRegistrationFailure()
 }

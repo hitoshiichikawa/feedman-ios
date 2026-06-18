@@ -110,10 +110,18 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
             refreshResult: .failure(SessionRestoreTestError.refreshRejected)
         )
         let environment = makeEnvironment(repository: repository)
+        environment.configureAPNsDeviceRegistrationBridge()
+        defer {
+            resetAPNsDeviceRegistrationBridge()
+        }
+        APNsDeviceRegistrationBridge.shared.handleRegistrationFailure(
+            SessionRestoreTestError.apnsRegistrationRejected
+        )
 
         await environment.restoreSessionAtLaunch()
 
         XCTAssertEqual(environment.authenticationState, .unauthenticated)
+        XCTAssertNil(environment.apnsRegistrationError)
         XCTAssertEqual(repository.refreshCallCount, 1)
         XCTAssertEqual(repository.clearLocalCallCount, 1)
     }
@@ -204,6 +212,78 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         )
     }
 
+    func testAPNsRegistrationFailurePublishesDomainErrorWithoutPostingDeviceRegistration() async {
+        let repository = SessionRestoreAuthRepositoryMock(
+            refreshResult: .failure(AuthRepositoryError.missingRefreshToken)
+        )
+        let deviceRepository = SessionRestoreDeviceRegistrationRepository()
+        let deviceRegistrationService = APNsDeviceRegistrationService(
+            repository: deviceRepository,
+            stateStore: InMemoryDeviceRegistrationStateStore(),
+            accessTokenProvider: {
+                "access-1"
+            }
+        )
+        let environment = makeEnvironment(
+            repository: repository,
+            state: .authenticated(accessToken: "access-1"),
+            deviceRegistrationService: deviceRegistrationService
+        )
+        environment.configureAPNsDeviceRegistrationBridge()
+        defer {
+            resetAPNsDeviceRegistrationBridge()
+        }
+
+        APNsDeviceRegistrationBridge.shared.handleRegistrationFailure(
+            SessionRestoreTestError.apnsRegistrationRejected
+        )
+
+        XCTAssertEqual(environment.apnsRegistrationError, .remoteNotificationRegistrationFailed)
+        XCTAssertEqual(
+            APNsDeviceRegistrationBridge.shared.lastRegistrationFailure,
+            .remoteNotificationRegistrationFailed
+        )
+        XCTAssertEqual(await deviceRepository.registerRequests, [])
+    }
+
+    func testAPNsDeviceTokenSuccessClearsPublishedRegistrationFailure() async {
+        let repository = SessionRestoreAuthRepositoryMock(
+            refreshResult: .failure(AuthRepositoryError.missingRefreshToken)
+        )
+        let deviceRepository = SessionRestoreDeviceRegistrationRepository(
+            registerResults: [.success(DeviceRegistrationResponse(id: "device-1"))]
+        )
+        let deviceRegistrationService = APNsDeviceRegistrationService(
+            repository: deviceRepository,
+            stateStore: InMemoryDeviceRegistrationStateStore(),
+            accessTokenProvider: {
+                "access-1"
+            }
+        )
+        let environment = makeEnvironment(
+            repository: repository,
+            state: .authenticated(accessToken: "access-1"),
+            deviceRegistrationService: deviceRegistrationService
+        )
+        environment.configureAPNsDeviceRegistrationBridge()
+        defer {
+            resetAPNsDeviceRegistrationBridge()
+        }
+
+        APNsDeviceRegistrationBridge.shared.handleRegistrationFailure(
+            SessionRestoreTestError.apnsRegistrationRejected
+        )
+        APNsDeviceRegistrationBridge.shared.handleDeviceToken(Data([0xCA, 0xFE]))
+        await waitForDeviceRegistrationRequest(deviceRepository)
+
+        XCTAssertNil(environment.apnsRegistrationError)
+        XCTAssertNil(APNsDeviceRegistrationBridge.shared.lastRegistrationFailure)
+        XCTAssertEqual(
+            await deviceRepository.registerRequests,
+            [DeviceRegisterRequest(pushToken: "cafe", accessToken: "access-1")]
+        )
+    }
+
     func testAccountDeletionSessionClearClearsCredentialsAndShowsLogin() async {
         let repository = SessionRestoreAuthRepositoryMock(
             refreshResult: .failure(AuthRepositoryError.missingRefreshToken)
@@ -223,10 +303,18 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
             state: .authenticated(accessToken: "existing-access"),
             deviceRegistrationService: deviceRegistrationService
         )
+        environment.configureAPNsDeviceRegistrationBridge()
+        defer {
+            resetAPNsDeviceRegistrationBridge()
+        }
+        APNsDeviceRegistrationBridge.shared.handleRegistrationFailure(
+            SessionRestoreTestError.apnsRegistrationRejected
+        )
 
         await environment.clearLocalAuthenticationAfterAccountDeletion()
 
         XCTAssertEqual(environment.authenticationState, .unauthenticated)
+        XCTAssertNil(environment.apnsRegistrationError)
         XCTAssertNil(environment.currentAccessToken)
         XCTAssertNil(deviceStateStore.load())
         XCTAssertEqual(repository.clearLocalCallCount, 1)
@@ -242,6 +330,7 @@ private struct DeviceRegisterRequest: Equatable {
 private enum SessionRestoreTestError: Error, Equatable {
     case refreshRejected
     case deviceRegistrationRejected
+    case apnsRegistrationRejected
 }
 
 private actor SessionRestoreAccessTokenBox {
@@ -264,7 +353,7 @@ private actor SessionRestoreDeviceRegistrationRepository: DeviceRegistrationRepo
     private(set) var registerRequests: [DeviceRegisterRequest] = []
     private var registerResults: [Result<DeviceRegistrationResponse, Error>]
 
-    init(registerResults: [Result<DeviceRegistrationResponse, Error>]) {
+    init(registerResults: [Result<DeviceRegistrationResponse, Error>] = []) {
         self.registerResults = registerResults
     }
 
@@ -323,4 +412,33 @@ private func waitForPendingDeviceRegistrationRetryError(
     }
     XCTFail("Timed out waiting for pending device registration retry error", file: file, line: line)
     return nil
+}
+
+@MainActor
+private func waitForDeviceRegistrationRequest(
+    _ repository: SessionRestoreDeviceRegistrationRepository,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) async {
+    for _ in 0..<50 {
+        if await repository.registerRequests.count == 1 {
+            return
+        }
+        try? await Task.sleep(nanoseconds: 1_000_000)
+    }
+    XCTFail("Timed out waiting for device registration request", file: file, line: line)
+}
+
+@MainActor
+private func resetAPNsDeviceRegistrationBridge() {
+    APNsDeviceRegistrationBridge.shared.configure(
+        service: APNsDeviceRegistrationService(
+            repository: UnavailableDeviceRegistrationRepository(),
+            stateStore: InMemoryDeviceRegistrationStateStore(),
+            accessTokenProvider: {
+                throw AppEnvironmentError.missingAccessToken
+            }
+        )
+    )
+    APNsDeviceRegistrationBridge.shared.clearRegistrationFailure()
 }
