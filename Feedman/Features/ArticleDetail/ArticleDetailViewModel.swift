@@ -317,7 +317,7 @@ final class ArticleDetailViewModel: ObservableObject {
         summary: ArticleDetailSummary? = nil,
         repository: any ItemRepository,
         accessToken: String?,
-        itemStateCoordinator: ItemStateCoordinator = ItemStateCoordinator(),
+        itemStateCoordinator: ItemStateCoordinator? = nil,
         onAuthRequired: @escaping () -> Void = {},
         onItemStateChange: @escaping (ItemStateChange) -> Void = { _ in }
     ) {
@@ -325,7 +325,7 @@ final class ArticleDetailViewModel: ObservableObject {
         self.summary = summary
         self.repository = repository
         self.accessToken = accessToken
-        self.itemStateCoordinator = itemStateCoordinator
+        self.itemStateCoordinator = itemStateCoordinator ?? ItemStateCoordinator()
         self.onAuthRequired = onAuthRequired
         self.onItemStateChange = onItemStateChange
         self.state = .idle

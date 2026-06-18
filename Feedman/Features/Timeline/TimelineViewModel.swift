@@ -123,7 +123,7 @@ final class TimelineViewModel: ObservableObject {
         repository: (any FeedRepository)? = nil,
         itemRepository: (any ItemRepository)? = nil,
         accessToken: String? = nil,
-        itemStateCoordinator: ItemStateCoordinator = ItemStateCoordinator(),
+        itemStateCoordinator: ItemStateCoordinator? = nil,
         state: TimelineViewState = .idle,
         items: [ItemSummary] = [],
         canLoadMore: Bool = false
@@ -131,7 +131,7 @@ final class TimelineViewModel: ObservableObject {
         self.repository = repository
         self.itemRepository = itemRepository
         self.accessToken = accessToken
-        self.itemStateCoordinator = itemStateCoordinator
+        self.itemStateCoordinator = itemStateCoordinator ?? ItemStateCoordinator()
         self.state = state
         self.items = items
         self.canLoadMore = canLoadMore

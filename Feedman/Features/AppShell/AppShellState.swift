@@ -120,14 +120,14 @@ struct AppShellSearchResultOpenLinkCoordinator {
     init(
         itemRepository: any ItemRepository,
         accessToken: String?,
-        itemStateCoordinator: ItemStateCoordinator = ItemStateCoordinator(),
+        itemStateCoordinator: ItemStateCoordinator? = nil,
         openURL: @escaping (URL) -> Void,
         onItemStateChange: @escaping (ItemStateChange) -> Void,
         onFailure: @escaping (AppShellSearchResultOpenLinkFailure) -> Void
     ) {
         self.itemRepository = itemRepository
         self.accessToken = accessToken
-        self.itemStateCoordinator = itemStateCoordinator
+        self.itemStateCoordinator = itemStateCoordinator ?? ItemStateCoordinator()
         self.openURL = openURL
         self.onItemStateChange = onItemStateChange
         self.onFailure = onFailure

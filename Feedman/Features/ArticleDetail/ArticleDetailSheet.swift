@@ -12,7 +12,7 @@ struct ArticleDetailSheet: View {
         input: ArticleDetailSheetInput,
         repository: any ItemRepository,
         accessToken: String?,
-        itemStateCoordinator: ItemStateCoordinator = ItemStateCoordinator(),
+        itemStateCoordinator: ItemStateCoordinator? = nil,
         onDismiss: @escaping () -> Void,
         onAuthRequired: @escaping () -> Void = {},
         onItemStateChange: @escaping (ItemStateChange) -> Void = { _ in }

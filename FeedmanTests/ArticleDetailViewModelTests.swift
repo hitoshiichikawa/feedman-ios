@@ -518,7 +518,7 @@ final class ArticleDetailViewModelTests: XCTestCase {
         repository: any ItemRepository,
         accessToken: String? = "test-access-token",
         summaryIsRead: Bool = false,
-        itemStateCoordinator: ItemStateCoordinator = ItemStateCoordinator(),
+        itemStateCoordinator: ItemStateCoordinator? = nil,
         onAuthRequired: @escaping () -> Void = {},
         onItemStateChange: @escaping (ItemStateChange) -> Void = { _ in }
     ) -> ArticleDetailViewModel {
