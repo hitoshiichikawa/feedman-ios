@@ -18,3 +18,19 @@
 ### 確認事項
 
 - 追加の PM 確認事項はなし。
+
+## Reviewer round=2 reject 是正
+
+- Debugger の Fix Plan に従い、Timeline card 起点の star success / failure について、同一 `ItemStateCoordinator` を共有する Timeline card descriptor と ArticleDetail loaded presentation の双方が同時に更新 / rollback される ViewModel tests を追加した。
+- ArticleDetail open 時の read marking success について、ArticleDetail presentation と同一 coordinator 経由の visible list copy effective state がどちらも read になる ViewModel test を追加した。
+- 追加した success test では star-only / read-only の `ItemStateUpdateRequest` も検証し、既存の partial request 期待値と整合させた。
+
+### 検証
+
+- `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。
+- `git diff --check`: 成功。
+- `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: この環境の active developer directory が `/Library/Developer/CommandLineTools` のため実行不可。`xcodebuild` が Xcode ではなく Command Line Tools を指しており、iOS Simulator test を起動できなかった。
+
+### 確認事項
+
+- 追加の PM 確認事項はなし。

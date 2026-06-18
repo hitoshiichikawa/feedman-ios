@@ -42,6 +42,31 @@ final class ArticleDetailViewModelTests: XCTestCase {
         XCTAssertEqual(stateChanges.map(\.isStarred), [nil])
     }
 
+    func testDetailOpenReadSuccessSyncsVisibleListState() async throws {
+        let coordinator = ItemStateCoordinator()
+        let repository = ArticleDetailRecordingRepository(
+            detailResults: [.success(makeDetail(isRead: false, isStarred: false))],
+            stateUpdateResults: [.success(())]
+        )
+        let viewModel = makeViewModel(
+            repository: repository,
+            itemStateCoordinator: coordinator
+        )
+
+        await viewModel.open()
+
+        XCTAssertEqual(viewModel.loadedPresentation?.isRead, true)
+        XCTAssertEqual(
+            coordinator.effectiveSummary(makeSummaryItem(isRead: false, isStarred: false)).isRead,
+            true
+        )
+        XCTAssertNil(viewModel.mutationMessage)
+        let stateUpdateCalls = await repository.stateUpdateCalls()
+        XCTAssertEqual(stateUpdateCalls.map(\.request), [
+            ItemStateUpdateRequest(isRead: true, isStarred: nil)
+        ])
+    }
+
     func testDetailFailureShowsRecoverableStateAndRetryUsesSameItem() async throws {
         let repository = ArticleDetailRecordingRepository(
             detailResults: [

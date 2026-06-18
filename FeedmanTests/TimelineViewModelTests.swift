@@ -395,6 +395,49 @@ final class TimelineViewModelTests: XCTestCase {
         )
     }
 
+    func testCardStarSuccessSyncsVisibleTimelineAndLoadedDetail() async throws {
+        let coordinator = ItemStateCoordinator()
+        let repository = RecordingTimelineFeedRepository(
+            firstPageResults: [
+                .success(snapshot(items: [item(id: "target", isRead: true, isStarred: false)], canLoadMore: false))
+            ]
+        )
+        let itemRepository = MockItemRepository(
+            itemDetails: ["target": detail(id: "target", isRead: true, isStarred: false)]
+        )
+        let timelineViewModel = TimelineViewModel(
+            repository: repository,
+            itemRepository: itemRepository,
+            accessToken: "test-access-token",
+            itemStateCoordinator: coordinator
+        )
+        let detailViewModel = ArticleDetailViewModel(
+            itemID: "target",
+            summary: ArticleDetailSummary(item: item(id: "target", isRead: true, isStarred: false)),
+            repository: itemRepository,
+            accessToken: "test-access-token",
+            itemStateCoordinator: coordinator
+        )
+
+        await timelineViewModel.loadInitialIfNeeded()
+        await detailViewModel.open()
+        await timelineViewModel.toggleStar(id: "target")
+        await Task.yield()
+
+        let timelineItem = try XCTUnwrap(timelineViewModel.items.first { $0.id == "target" })
+        XCTAssertTrue(timelineViewModel.descriptor(for: timelineItem).isStarred)
+        XCTAssertEqual(detailViewModel.loadedPresentation?.isStarred, true)
+        XCTAssertEqual(
+            itemRepository.stateUpdates,
+            [
+                MockItemStateUpdate(
+                    itemID: "target",
+                    request: ItemStateUpdateRequest(isRead: nil, isStarred: true)
+                )
+            ]
+        )
+    }
+
     func testStarToggleFailureRollsBackEffectiveStateAndShowsError() async throws {
         let repository = RecordingTimelineFeedRepository(
             firstPageResults: [
@@ -414,6 +457,42 @@ final class TimelineViewModelTests: XCTestCase {
         let firstItem = try XCTUnwrap(viewModel.items.first)
         XCTAssertFalse(viewModel.descriptor(for: firstItem).isStarred)
         XCTAssertEqual(viewModel.starMutationErrorMessage, "スターを更新できませんでした。")
+    }
+
+    func testCardStarFailureRollsBackVisibleTimelineAndLoadedDetail() async throws {
+        let coordinator = ItemStateCoordinator()
+        let repository = RecordingTimelineFeedRepository(
+            firstPageResults: [
+                .success(snapshot(items: [item(id: "target", isRead: true, isStarred: false)], canLoadMore: false))
+            ]
+        )
+        let itemRepository = MockItemRepository(
+            itemDetails: ["target": detail(id: "target", isRead: true, isStarred: false)],
+            stateUpdateFailure: TimelineViewModelTestError.transport
+        )
+        let timelineViewModel = TimelineViewModel(
+            repository: repository,
+            itemRepository: itemRepository,
+            accessToken: "test-access-token",
+            itemStateCoordinator: coordinator
+        )
+        let detailViewModel = ArticleDetailViewModel(
+            itemID: "target",
+            summary: ArticleDetailSummary(item: item(id: "target", isRead: true, isStarred: false)),
+            repository: itemRepository,
+            accessToken: "test-access-token",
+            itemStateCoordinator: coordinator
+        )
+
+        await timelineViewModel.loadInitialIfNeeded()
+        await detailViewModel.open()
+        await timelineViewModel.toggleStar(id: "target")
+        await Task.yield()
+
+        let timelineItem = try XCTUnwrap(timelineViewModel.items.first { $0.id == "target" })
+        XCTAssertFalse(timelineViewModel.descriptor(for: timelineItem).isStarred)
+        XCTAssertEqual(detailViewModel.loadedPresentation?.isStarred, false)
+        XCTAssertEqual(timelineViewModel.starMutationErrorMessage, "スターを更新できませんでした。")
     }
 
     func testStarToggleSurvivesPaginationSnapshotReplacement() async throws {
@@ -550,6 +629,30 @@ final class TimelineViewModelTests: XCTestCase {
             isStarred: isStarred,
             hatebuCount: hatebuCount,
             hatebuFetchedAt: hatebuFetchedAt,
+            author: nil
+        )
+    }
+
+    private func detail(
+        id: String,
+        isRead: Bool,
+        isStarred: Bool
+    ) -> ItemDetail {
+        ItemDetail(
+            id: id,
+            feedID: "feed-\(id)",
+            feedTitle: "Feed \(id)",
+            feedFaviconURL: nil,
+            title: "Title \(id)",
+            summary: "Summary",
+            content: "<p>Body</p>",
+            link: "https://example.com/\(id)",
+            publishedAt: "2026-06-08T08:30:00Z",
+            isDateEstimated: false,
+            isRead: isRead,
+            isStarred: isStarred,
+            hatebuCount: nil,
+            hatebuFetchedAt: nil,
             author: nil
         )
     }
