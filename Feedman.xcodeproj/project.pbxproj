@@ -85,6 +85,9 @@
 		100000000000000000000175 /* SubscriptionSettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000278 /* SubscriptionSettingsViewModelTests.swift */; };
 		100000000000000000000181 /* ItemStateCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000280 /* ItemStateCoordinator.swift */; };
 		100000000000000000000182 /* ItemStateCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000281 /* ItemStateCoordinatorTests.swift */; };
+		100000000000000000000183 /* StarredViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000282 /* StarredViewModel.swift */; };
+		100000000000000000000184 /* StarredView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000283 /* StarredView.swift */; };
+		100000000000000000000185 /* StarredViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000284 /* StarredViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -179,6 +182,9 @@
 		100000000000000000000278 /* SubscriptionSettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionSettingsViewModelTests.swift; sourceTree = "<group>"; };
 		100000000000000000000280 /* ItemStateCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemStateCoordinator.swift; sourceTree = "<group>"; };
 		100000000000000000000281 /* ItemStateCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemStateCoordinatorTests.swift; sourceTree = "<group>"; };
+		100000000000000000000282 /* StarredViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarredViewModel.swift; sourceTree = "<group>"; };
+		100000000000000000000283 /* StarredView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarredView.swift; sourceTree = "<group>"; };
+		100000000000000000000284 /* StarredViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarredViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -245,6 +251,7 @@
 				100000000000000000000281 /* ItemStateCoordinatorTests.swift */,
 				100000000000000000000268 /* TimelineViewModelTests.swift */,
 				100000000000000000000271 /* FeedViewModelTests.swift */,
+				100000000000000000000284 /* StarredViewModelTests.swift */,
 				100000000000000000000274 /* ArticleDetailViewModelTests.swift */,
 				100000000000000000000277 /* SubscriptionActionRepositoryTests.swift */,
 				100000000000000000000278 /* SubscriptionSettingsViewModelTests.swift */,
@@ -307,6 +314,7 @@
 				100000000000000000000616 /* RegisterFeed */,
 				100000000000000000000617 /* Timeline */,
 				100000000000000000000618 /* Feeds */,
+				100000000000000000000622 /* Starred */,
 				100000000000000000000619 /* ArticleDetail */,
 				100000000000000000000620 /* Subscriptions */,
 			);
@@ -417,6 +425,15 @@
 				100000000000000000000270 /* FeedView.swift */,
 			);
 			path = Feeds;
+			sourceTree = "<group>";
+		};
+		100000000000000000000622 /* Starred */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000282 /* StarredViewModel.swift */,
+				100000000000000000000283 /* StarredView.swift */,
+			);
+			path = Starred;
 			sourceTree = "<group>";
 		};
 		100000000000000000000619 /* ArticleDetail */ = {
@@ -589,6 +606,8 @@
 				100000000000000000000164 /* TimelineView.swift in Sources */,
 				100000000000000000000166 /* FeedViewModel.swift in Sources */,
 				100000000000000000000167 /* FeedView.swift in Sources */,
+				100000000000000000000183 /* StarredViewModel.swift in Sources */,
+				100000000000000000000184 /* StarredView.swift in Sources */,
 				100000000000000000000169 /* ArticleDetailViewModel.swift in Sources */,
 				100000000000000000000170 /* ArticleDetailSheet.swift in Sources */,
 				100000000000000000000180 /* ArticleDetailSafariView.swift in Sources */,
@@ -627,6 +646,7 @@
 				100000000000000000000182 /* ItemStateCoordinatorTests.swift in Sources */,
 				100000000000000000000165 /* TimelineViewModelTests.swift in Sources */,
 				100000000000000000000168 /* FeedViewModelTests.swift in Sources */,
+				100000000000000000000185 /* StarredViewModelTests.swift in Sources */,
 				100000000000000000000171 /* ArticleDetailViewModelTests.swift in Sources */,
 				100000000000000000000174 /* SubscriptionActionRepositoryTests.swift in Sources */,
 				100000000000000000000175 /* SubscriptionSettingsViewModelTests.swift in Sources */,

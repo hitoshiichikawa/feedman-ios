@@ -357,6 +357,197 @@ final class CrossFeedRepositoryTests: XCTestCase {
         }
     }
 
+    func testStarredItemsFirstPageRequestsStarredEndpointWithLimitOnly() async throws {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueue(response: feedItemPage(ids: ["starred-1"], nextCursor: "cursor-2", hasMore: true))
+        let repository = makeStarredItemsRepository(transport: transport)
+
+        let snapshot = try await repository.loadStarredItemsFirstPage(limit: nil)
+
+        let request = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(request.url?.path, "/api/feeds/starred/items")
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
+        XCTAssertEqual(queryValue("limit", in: request), "50")
+        XCTAssertNil(queryValue("cursor", in: request))
+        XCTAssertEqual(snapshot.items.map(\.id), ["starred-1"])
+        XCTAssertEqual(snapshot.nextCursor, "cursor-2")
+        XCTAssertTrue(snapshot.canLoadMore)
+    }
+
+    func testStarredItemsNextPageSendsStoredCursorAndAppendsItems() async throws {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueue(response: feedItemPage(ids: ["starred-1"], nextCursor: "cursor-2", hasMore: true))
+        transport.enqueue(response: feedItemPage(ids: ["starred-2"], nextCursor: nil, hasMore: false))
+        let repository = makeStarredItemsRepository(transport: transport)
+
+        _ = try await repository.loadStarredItemsFirstPage(limit: 25)
+        let snapshot = try await repository.loadStarredItemsNextPage()
+
+        let request = try XCTUnwrap(transport.requests.last)
+        XCTAssertEqual(request.url?.path, "/api/feeds/starred/items")
+        XCTAssertEqual(queryValue("limit", in: request), "25")
+        XCTAssertEqual(queryValue("cursor", in: request), "cursor-2")
+        XCTAssertEqual(snapshot.items.map(\.id), ["starred-1", "starred-2"])
+        XCTAssertFalse(snapshot.canLoadMore)
+    }
+
+    func testTerminalStarredItemsPageDoesNotRequestAnotherNextPage() async throws {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueue(response: feedItemPage(ids: ["starred-1"], nextCursor: "ignored", hasMore: false))
+        let repository = makeStarredItemsRepository(transport: transport)
+
+        let firstSnapshot = try await repository.loadStarredItemsFirstPage(limit: nil)
+        let nextSnapshot = try await repository.loadStarredItemsNextPage()
+
+        XCTAssertEqual(transport.requests.count, 1)
+        XCTAssertEqual(nextSnapshot, firstSnapshot)
+        XCTAssertFalse(nextSnapshot.canLoadMore)
+    }
+
+    func testStarredItemsNextPageBeforeFirstPageFailsWithoutNetworkRequest() async {
+        let transport = RecordingFeedItemsTransport()
+        let repository = makeStarredItemsRepository(transport: transport)
+
+        do {
+            _ = try await repository.loadStarredItemsNextPage()
+            XCTFail("Expected nextPageRequestedBeforeFirstPage")
+        } catch StarredItemRepositoryError.nextPageRequestedBeforeFirstPage {
+            XCTAssertTrue(transport.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testStarredItemsRefreshesExpiredAccessTokenAndReturnsDecodedPage() async throws {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueueErrorResponse(statusCode: 401, code: "ACCESS_TOKEN_EXPIRED")
+        transport.enqueue(response: feedItemPage(ids: ["starred-retried"], nextCursor: nil, hasMore: false, isStarred: true))
+        let refreshHook = SubscriptionRefreshHook(refreshedAccessToken: "refreshed-access-token")
+        let repository = makeStarredItemsRepository(
+            transport: transport,
+            accessTokenRefreshHook: {
+                try await refreshHook.refresh()
+            }
+        )
+
+        let snapshot = try await repository.loadStarredItemsFirstPage(limit: 25)
+
+        XCTAssertEqual(snapshot.items.map(\.id), ["starred-retried"])
+        XCTAssertFalse(snapshot.canLoadMore)
+        let refreshCallCount = await refreshHook.callCount
+        XCTAssertEqual(refreshCallCount, 1)
+        XCTAssertEqual(transport.requests.count, 2)
+        XCTAssertEqual(transport.requests.first?.url?.path, "/api/feeds/starred/items")
+        XCTAssertEqual(transport.requests.last?.url?.path, "/api/feeds/starred/items")
+        XCTAssertEqual(queryValue("limit", in: try XCTUnwrap(transport.requests.first)), "25")
+        XCTAssertEqual(queryValue("limit", in: try XCTUnwrap(transport.requests.last)), "25")
+        XCTAssertEqual(
+            transport.requests.first?.value(forHTTPHeaderField: "Authorization"),
+            "Bearer access-token"
+        )
+        XCTAssertEqual(
+            transport.requests.last?.value(forHTTPHeaderField: "Authorization"),
+            "Bearer refreshed-access-token"
+        )
+    }
+
+    func testStarredItemsAuthRequiredPropagatesWhenRefreshHookIsMissing() async {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueueErrorResponse(statusCode: 401, code: "ACCESS_TOKEN_EXPIRED")
+        let repository = makeStarredItemsRepository(transport: transport)
+
+        do {
+            _ = try await repository.loadStarredItemsFirstPage(limit: nil)
+            XCTFail("Expected FeedmanAPIError.authRequired")
+        } catch FeedmanAPIError.authRequired(let context) {
+            XCTAssertEqual(context.reason, .missingRefreshHook)
+            XCTAssertEqual(transport.requests.count, 1)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testStarredItemsAuthRequiredPropagatesWhenRefreshFails() async {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueueErrorResponse(statusCode: 401, code: "ACCESS_TOKEN_EXPIRED")
+        let repository = makeStarredItemsRepository(
+            transport: transport,
+            accessTokenRefreshHook: {
+                throw URLError(.userAuthenticationRequired)
+            }
+        )
+
+        do {
+            _ = try await repository.loadStarredItemsFirstPage(limit: nil)
+            XCTFail("Expected FeedmanAPIError.authRequired")
+        } catch FeedmanAPIError.authRequired(let context) {
+            XCTAssertEqual(context.reason, .refreshFailed)
+            XCTAssertEqual(transport.requests.count, 1)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testMockStarredItemsStateReturnsDeterministicSuccessAndEmpty() async throws {
+        let successRepository = MockFeedRepository(
+            starredItemsState: .success(
+                items: feedItemPage(ids: ["mock-starred"], nextCursor: nil, hasMore: false, isStarred: true).items
+            )
+        )
+        let emptyRepository = MockFeedRepository(starredItemsState: .empty)
+
+        let successSnapshot = try await successRepository.loadStarredItemsFirstPage(limit: nil)
+        let emptySnapshot = try await emptyRepository.loadStarredItemsFirstPage(limit: nil)
+
+        XCTAssertEqual(successSnapshot.items.map(\.id), ["mock-starred"])
+        XCTAssertFalse(successSnapshot.canLoadMore)
+        XCTAssertEqual(emptySnapshot.items, [])
+        XCTAssertFalse(emptySnapshot.canLoadMore)
+    }
+
+    func testMockStarredItemsStatePaginatesConfiguredPages() async throws {
+        let repository = MockFeedRepository(
+            starredItemsState: .paginated(
+                pages: [
+                    feedItemPage(ids: ["page-1"], nextCursor: nil, hasMore: false, isStarred: true).items,
+                    feedItemPage(ids: ["page-2"], nextCursor: nil, hasMore: false, isStarred: true).items
+                ]
+            )
+        )
+
+        let firstPage = try await repository.loadStarredItemsFirstPage(limit: nil)
+        let nextPage = try await repository.loadStarredItemsNextPage()
+
+        XCTAssertEqual(firstPage.items.map(\.id), ["page-1"])
+        XCTAssertTrue(firstPage.canLoadMore)
+        XCTAssertEqual(nextPage.items.map(\.id), ["page-1", "page-2"])
+        XCTAssertFalse(nextPage.canLoadMore)
+    }
+
+    func testMockStarredItemsStatePropagatesTransportAndAuthErrors() async {
+        let transportRepository = MockFeedRepository(starredItemsState: .transportError)
+        let authRepository = MockFeedRepository(starredItemsState: .authError())
+
+        do {
+            _ = try await transportRepository.loadStarredItemsFirstPage(limit: nil)
+            XCTFail("Expected FeedmanAPIError.transportFailed")
+        } catch FeedmanAPIError.transportFailed(let underlyingError) {
+            XCTAssertEqual((underlyingError as? URLError)?.code, .notConnectedToInternet)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        do {
+            _ = try await authRepository.loadStarredItemsFirstPage(limit: nil)
+            XCTFail("Expected FeedmanAPIError.authRequired")
+        } catch FeedmanAPIError.authRequired(let context) {
+            XCTAssertEqual(context.reason, .missingRefreshHook)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testMockFeedItemsFilterAndPaginateDeterministically() async throws {
         let repository = MockFeedRepository()
 
@@ -571,6 +762,22 @@ final class CrossFeedRepositoryTests: XCTestCase {
         )
     }
 
+    private func makeStarredItemsRepository(
+        transport: RecordingFeedItemsTransport,
+        accessTokenRefreshHook: APIClient.AccessTokenRefreshHook? = nil
+    ) -> APIClientFeedRepository {
+        APIClientFeedRepository(
+            apiClient: APIClient(
+                baseURL: baseURL,
+                transport: transport,
+                accessTokenRefreshHook: accessTokenRefreshHook
+            ),
+            accessTokenProvider: {
+                "access-token"
+            }
+        )
+    }
+
     private func queryValue(_ name: String, in request: URLRequest) -> String? {
         guard
             let url = request.url,
@@ -617,7 +824,8 @@ final class CrossFeedRepositoryTests: XCTestCase {
         ids: [String],
         feedID: String = "feed-1",
         nextCursor: String?,
-        hasMore: Bool
+        hasMore: Bool,
+        isStarred: Bool = false
     ) -> CursorPaginatedResponse<ItemSummary> {
         CursorPaginatedResponse(
             items: ids.map { id in
@@ -632,7 +840,7 @@ final class CrossFeedRepositoryTests: XCTestCase {
                     publishedAt: "2026-06-08T08:30:00Z",
                     isDateEstimated: false,
                     isRead: false,
-                    isStarred: false,
+                    isStarred: isStarred,
                     hatebuCount: nil,
                     hatebuFetchedAt: nil,
                     author: nil

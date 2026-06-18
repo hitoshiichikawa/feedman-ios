@@ -19,6 +19,8 @@ protocol FeedRepository {
         limit: Int?
     ) async throws -> FeedItemPaginationSnapshot
     func loadFeedItemsNextPage() async throws -> FeedItemPaginationSnapshot
+    func loadStarredItemsFirstPage(limit: Int?) async throws -> StarredItemPaginationSnapshot
+    func loadStarredItemsNextPage() async throws -> StarredItemPaginationSnapshot
 }
 
 protocol ItemRepository {
@@ -171,6 +173,14 @@ extension FeedRepository {
     func loadFeedItemsNextPage() async throws -> FeedItemPaginationSnapshot {
         throw FeedItemRepositoryError.paginationUnsupported
     }
+
+    func loadStarredItemsFirstPage(limit: Int? = nil) async throws -> StarredItemPaginationSnapshot {
+        throw StarredItemRepositoryError.paginationUnsupported
+    }
+
+    func loadStarredItemsNextPage() async throws -> StarredItemPaginationSnapshot {
+        throw StarredItemRepositoryError.paginationUnsupported
+    }
 }
 
 struct CrossFeedPaginationSnapshot: Equatable {
@@ -196,6 +206,13 @@ struct FeedItemPaginationSnapshot: Equatable {
     let limit: Int
 }
 
+struct StarredItemPaginationSnapshot: Equatable {
+    let items: [ItemSummary]
+    let nextCursor: String?
+    let canLoadMore: Bool
+    let limit: Int
+}
+
 enum CrossFeedRepositoryError: Error, Equatable {
     case paginationUnsupported
     case nextPageRequestedBeforeFirstPage
@@ -207,6 +224,35 @@ enum FeedItemRepositoryError: Error, Equatable {
     case paginationUnsupported
     case nextPageRequestedBeforeFirstPage
     case loadInProgress
+}
+
+enum StarredItemRepositoryError: Error, Equatable {
+    case paginationUnsupported
+    case nextPageRequestedBeforeFirstPage
+    case loadInProgress
+}
+
+enum MockStarredItemsState {
+    case defaultItems
+    case success(items: [ItemSummary])
+    case empty
+    case paginated(pages: [[ItemSummary]])
+    case transportFailure(Error)
+    case authRequired(AuthRequiredContext)
+
+    static var transportError: MockStarredItemsState {
+        .transportFailure(URLError(.notConnectedToInternet))
+    }
+
+    static func authError(reason: AuthRequiredReason = .missingRefreshHook) -> MockStarredItemsState {
+        .authRequired(
+            AuthRequiredContext(
+                reason: reason,
+                statusCode: 401,
+                underlyingError: nil
+            )
+        )
+    }
 }
 
 struct RegisteredFeed: Equatable {
@@ -296,6 +342,10 @@ actor APIClientFeedRepository: FeedRepository {
     private var feedItemPaginationState = CursorPaginationState<ItemSummary>()
     private var feedItemSession: FeedItemPaginationSession?
     private var isLoadingFeedItemPage = false
+    private var starredItemPaginationState = CursorPaginationState<ItemSummary>()
+    private var starredItemSessionLimit = CrossFeedPageLimit.defaultValue
+    private var didLoadStarredFirstPage = false
+    private var isLoadingStarredItemPage = false
 
     init(
         apiClient: APIClient,
@@ -478,6 +528,54 @@ actor APIClientFeedRepository: FeedRepository {
         return feedItemSnapshot()
     }
 
+    func loadStarredItemsFirstPage(limit: Int? = nil) async throws -> StarredItemPaginationSnapshot {
+        try startStarredItemLoad()
+        defer {
+            finishStarredItemLoad()
+        }
+
+        starredItemPaginationState.resetForRefresh()
+        starredItemSessionLimit = CrossFeedPageLimit.normalized(limit)
+        didLoadStarredFirstPage = false
+
+        let response = try await fetchStarredItemPage(
+            cursor: nil,
+            limit: starredItemSessionLimit
+        )
+
+        starredItemPaginationState.applyFirstPage(response)
+        didLoadStarredFirstPage = true
+
+        return starredItemSnapshot()
+    }
+
+    func loadStarredItemsNextPage() async throws -> StarredItemPaginationSnapshot {
+        guard didLoadStarredFirstPage else {
+            throw StarredItemRepositoryError.nextPageRequestedBeforeFirstPage
+        }
+
+        guard starredItemPaginationState.canLoadMore else {
+            return starredItemSnapshot()
+        }
+
+        guard let cursor = starredItemPaginationState.nextCursor else {
+            return starredItemSnapshot()
+        }
+
+        try startStarredItemLoad()
+        defer {
+            finishStarredItemLoad()
+        }
+
+        let response = try await fetchStarredItemPage(
+            cursor: cursor,
+            limit: starredItemSessionLimit
+        )
+
+        starredItemPaginationState.appendPage(response)
+        return starredItemSnapshot()
+    }
+
     private func fetchCrossFeedPage(
         cursor: String?,
         sinceTime: String?,
@@ -526,6 +624,26 @@ actor APIClientFeedRepository: FeedRepository {
         )
     }
 
+    private func fetchStarredItemPage(
+        cursor: String?,
+        limit: Int
+    ) async throws -> CursorPaginatedResponse<ItemSummary> {
+        var queryItems = [
+            URLQueryItem(name: "limit", value: String(limit))
+        ]
+
+        if let cursor {
+            queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+        }
+
+        return try await apiClient.send(
+            CursorPaginatedResponse<ItemSummary>.self,
+            path: "/api/feeds/starred/items",
+            queryItems: queryItems,
+            accessToken: try await accessTokenProvider()
+        )
+    }
+
     private func startCrossFeedLoad() throws {
         if isLoadingCrossFeedPage {
             throw CrossFeedRepositoryError.loadInProgress
@@ -548,6 +666,18 @@ actor APIClientFeedRepository: FeedRepository {
 
     private func finishFeedItemLoad() {
         isLoadingFeedItemPage = false
+    }
+
+    private func startStarredItemLoad() throws {
+        if isLoadingStarredItemPage {
+            throw StarredItemRepositoryError.loadInProgress
+        }
+
+        isLoadingStarredItemPage = true
+    }
+
+    private func finishStarredItemLoad() {
+        isLoadingStarredItemPage = false
     }
 
     private func snapshot() -> CrossFeedPaginationSnapshot {
@@ -574,6 +704,15 @@ actor APIClientFeedRepository: FeedRepository {
             feedID: session.feedID,
             filter: session.filter,
             limit: session.limit
+        )
+    }
+
+    private func starredItemSnapshot() -> StarredItemPaginationSnapshot {
+        StarredItemPaginationSnapshot(
+            items: starredItemPaginationState.items,
+            nextCursor: starredItemPaginationState.nextCursor,
+            canLoadMore: starredItemPaginationState.canLoadMore,
+            limit: starredItemSessionLimit
         )
     }
 
@@ -632,6 +771,10 @@ actor MockFeedRepository: FeedRepository {
     private var sessionLimit = CrossFeedPageLimit.defaultValue
     private var feedItemPaginationState = CursorPaginationState<ItemSummary>()
     private var feedItemSession: FeedItemPaginationSession?
+    private var starredItemPaginationState = CursorPaginationState<ItemSummary>()
+    private var starredItemSessionLimit = CrossFeedPageLimit.defaultValue
+    private var didLoadStarredFirstPage = false
+    private var starredItemsState: MockStarredItemsState
     private let pages: [CrossFeedItemsResponse]
     private var subscriptionFeeds: [Feed]
     private(set) var settingsUpdates: [MockSubscriptionSettingsUpdate] = []
@@ -652,7 +795,8 @@ actor MockFeedRepository: FeedRepository {
         settingsUpdateResult: Result<Void, Error> = .success(()),
         manualFetchResult: Result<Void, Error> = .success(()),
         resumeResult: Result<Void, Error> = .success(()),
-        unsubscribeResult: Result<Void, Error> = .success(())
+        unsubscribeResult: Result<Void, Error> = .success(()),
+        starredItemsState: MockStarredItemsState = .defaultItems
     ) {
         self.pages = pages ?? Self.defaultPages
         self.subscriptionFeeds = subscriptionFeeds ?? Self.defaultSubscriptionFeeds
@@ -661,6 +805,11 @@ actor MockFeedRepository: FeedRepository {
         self.manualFetchResult = manualFetchResult
         self.resumeResult = resumeResult
         self.unsubscribeResult = unsubscribeResult
+        self.starredItemsState = starredItemsState
+    }
+
+    func setStarredItemsState(_ state: MockStarredItemsState) {
+        starredItemsState = state
     }
 
     func subscriptions() async throws -> [Feed] {
@@ -790,6 +939,33 @@ actor MockFeedRepository: FeedRepository {
         return feedItemSnapshot()
     }
 
+    func loadStarredItemsFirstPage(limit: Int? = nil) async throws -> StarredItemPaginationSnapshot {
+        starredItemSessionLimit = CrossFeedPageLimit.normalized(limit)
+        starredItemPaginationState.resetForRefresh()
+        didLoadStarredFirstPage = false
+        starredItemPaginationState.applyFirstPage(try mockStarredItemFirstPage())
+        didLoadStarredFirstPage = true
+
+        return starredItemSnapshot()
+    }
+
+    func loadStarredItemsNextPage() async throws -> StarredItemPaginationSnapshot {
+        guard didLoadStarredFirstPage else {
+            throw StarredItemRepositoryError.nextPageRequestedBeforeFirstPage
+        }
+
+        guard starredItemPaginationState.canLoadMore else {
+            return starredItemSnapshot()
+        }
+
+        guard let cursor = starredItemPaginationState.nextCursor else {
+            return starredItemSnapshot()
+        }
+
+        starredItemPaginationState.appendPage(try mockStarredItemNextPage(cursor: cursor))
+        return starredItemSnapshot()
+    }
+
     private func snapshot() -> CrossFeedPaginationSnapshot {
         CrossFeedPaginationSnapshot(
             items: paginationState.items,
@@ -817,6 +993,15 @@ actor MockFeedRepository: FeedRepository {
         )
     }
 
+    private func starredItemSnapshot() -> StarredItemPaginationSnapshot {
+        StarredItemPaginationSnapshot(
+            items: starredItemPaginationState.items,
+            nextCursor: starredItemPaginationState.nextCursor,
+            canLoadMore: starredItemPaginationState.canLoadMore,
+            limit: starredItemSessionLimit
+        )
+    }
+
     private func mockFeedItemPage(
         for session: FeedItemPaginationSession,
         offset: Int
@@ -829,6 +1014,61 @@ actor MockFeedRepository: FeedRepository {
         let pageItems = Array(filteredItems.dropFirst(safeOffset).prefix(session.limit))
         let nextOffset = safeOffset + pageItems.count
         let hasMore = nextOffset < filteredItems.count
+
+        return CursorPaginatedResponse(
+            items: pageItems,
+            nextCursor: hasMore ? String(nextOffset) : nil,
+            hasMore: hasMore
+        )
+    }
+
+    private func mockStarredItemFirstPage() throws -> CursorPaginatedResponse<ItemSummary> {
+        try mockStarredItemPage(pageIndex: 0, defaultOffset: 0)
+    }
+
+    private func mockStarredItemNextPage(cursor: String) throws -> CursorPaginatedResponse<ItemSummary> {
+        let pageIndex = Int(cursor) ?? 0
+        return try mockStarredItemPage(pageIndex: pageIndex, defaultOffset: pageIndex)
+    }
+
+    private func mockStarredItemPage(
+        pageIndex: Int,
+        defaultOffset: Int
+    ) throws -> CursorPaginatedResponse<ItemSummary> {
+        switch starredItemsState {
+        case .defaultItems:
+            return mockDefaultStarredItemPage(offset: defaultOffset)
+        case .success(let items):
+            return CursorPaginatedResponse(items: items, nextCursor: nil, hasMore: false)
+        case .empty:
+            return CursorPaginatedResponse(items: [], nextCursor: nil, hasMore: false)
+        case .paginated(let pages):
+            guard !pages.isEmpty else {
+                return CursorPaginatedResponse(items: [], nextCursor: nil, hasMore: false)
+            }
+
+            let safeIndex = min(max(pageIndex, 0), pages.count - 1)
+            let nextIndex = safeIndex + 1
+            let hasMore = nextIndex < pages.count
+
+            return CursorPaginatedResponse(
+                items: pages[safeIndex],
+                nextCursor: hasMore ? String(nextIndex) : nil,
+                hasMore: hasMore
+            )
+        case .transportFailure(let error):
+            throw FeedmanAPIError.transportFailed(underlyingError: error)
+        case .authRequired(let context):
+            throw FeedmanAPIError.authRequired(context)
+        }
+    }
+
+    private func mockDefaultStarredItemPage(offset: Int) -> CursorPaginatedResponse<ItemSummary> {
+        let starredItems = Self.defaultFeedSpecificItems.filter(\.isStarred)
+        let safeOffset = min(max(offset, 0), starredItems.count)
+        let pageItems = Array(starredItems.dropFirst(safeOffset).prefix(starredItemSessionLimit))
+        let nextOffset = safeOffset + pageItems.count
+        let hasMore = nextOffset < starredItems.count
 
         return CursorPaginatedResponse(
             items: pageItems,
