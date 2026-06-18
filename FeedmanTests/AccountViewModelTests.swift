@@ -65,6 +65,26 @@ final class AccountViewModelTests: XCTestCase {
         )
     }
 
+    func testCurrentUserAuthRequiredShowsAuthBoundaryError() async {
+        let repository = RecordingAccountRepository(results: [
+            .failure(Self.authRequiredError)
+        ])
+        let viewModel = AccountViewModel(repository: repository, accessToken: "access-1")
+
+        await viewModel.loadCurrentUser()
+
+        XCTAssertEqual(repository.accessTokens, ["access-1"])
+        XCTAssertEqual(
+            viewModel.state,
+            .failed(
+                AccountErrorViewState(
+                    title: "認証の有効期限が切れました",
+                    message: "ログイン状態を更新できませんでした。再ログインしてください。"
+                )
+            )
+        )
+    }
+
     func testRetryRunsCurrentUserLoadingAgain() async {
         let repository = RecordingAccountRepository(results: [
             .failure(AccountTestError.rejected),
@@ -205,6 +225,38 @@ final class AccountViewModelTests: XCTestCase {
         XCTAssertEqual(session.completionCount, 0)
     }
 
+    func testConfirmDeleteAccountAuthRequiredPreservesLoadedUserAndDoesNotCompleteSession() async {
+        let repository = RecordingAccountRepository(deleteResults: [
+            .failure(Self.authRequiredError)
+        ])
+        let session = RecordingAccountDeletionSession()
+        let viewModel = AccountViewModel(
+            repository: repository,
+            accessToken: "access-1",
+            onAccountDeleted: {
+                await session.complete()
+            }
+        )
+        await viewModel.loadCurrentUser()
+        let loadedState = viewModel.state
+
+        viewModel.requestDeleteAccountConfirmation()
+        await viewModel.confirmDeleteAccount()
+
+        XCTAssertEqual(repository.deleteAccessTokens, ["access-1"])
+        XCTAssertEqual(viewModel.state, loadedState)
+        XCTAssertEqual(
+            viewModel.deletionState,
+            .failed(
+                AccountErrorViewState(
+                    title: "認証の有効期限が切れました",
+                    message: "退会は完了していません。再ログイン後にもう一度お試しください。"
+                )
+            )
+        )
+        XCTAssertEqual(session.completionCount, 0)
+    }
+
     func testDuplicateDeleteConfirmationWhileDeletingDoesNotStartSecondRequest() async {
         let repository = SlowDeletingAccountRepository()
         let session = RecordingAccountDeletionSession()
@@ -251,6 +303,14 @@ final class AccountViewModelTests: XCTestCase {
         }
         XCTAssertTrue(viewModel.deletionState.isDeleting, file: file, line: line)
     }
+
+    private static let authRequiredError = FeedmanAPIError.authRequired(
+        AuthRequiredContext(
+            reason: .missingRefreshHook,
+            statusCode: 401,
+            underlyingError: nil
+        )
+    )
 }
 
 private final class RecordingAccountRepository: AccountRepository {

@@ -68,6 +68,19 @@ final class SubscriptionSettingsViewModelTests: XCTestCase {
         )
     }
 
+    func testAuthRequiredMapsToAuthGuidance() {
+        let presentation = SubscriptionSettingsViewModel.errorPresentation(for: Self.authRequiredError)
+
+        XCTAssertEqual(
+            presentation,
+            SubscriptionSettingsErrorPresentation(
+                kind: .authRequired,
+                title: "ログインが必要です",
+                message: "認証の有効期限が切れています。再ログイン後にもう一度お試しください。"
+            )
+        )
+    }
+
     func testConcurrentSavePreventsDuplicateRequest() async throws {
         let repository = ControlledSubscriptionSettingsRepository()
         let viewModel = SubscriptionSettingsViewModel(
@@ -122,6 +135,32 @@ final class SubscriptionSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.message, .success("購読を再開しました"))
     }
 
+    func testResumeFailurePreservesStoppedStatusAndShowsFailure() async {
+        let repository = StubSubscriptionSettingsRepository()
+        repository.resumeResult = .failure(FeedmanAPIError.transportFailed(underlyingError: URLError(.notConnectedToInternet)))
+        let viewModel = SubscriptionSettingsViewModel(
+            feed: makeFeed(status: .stopped(message: "手動で停止しました")),
+            repository: repository
+        )
+
+        let didResume = await viewModel.resume()
+
+        XCTAssertFalse(didResume)
+        XCTAssertEqual(repository.resumeRequests, ["sub-feed"])
+        XCTAssertEqual(viewModel.status, .stopped(message: "手動で停止しました"))
+        XCTAssertNil(viewModel.operation)
+        XCTAssertEqual(
+            viewModel.message,
+            .failure(
+                SubscriptionSettingsErrorPresentation(
+                    kind: .network,
+                    title: "通信できませんでした",
+                    message: "ネットワーク接続を確認してからもう一度お試しください。"
+                )
+            )
+        )
+    }
+
     func testUnsubscribeCancelDoesNotCallRepositoryAndConfirmCallsOnce() async {
         let repository = StubSubscriptionSettingsRepository()
         let viewModel = SubscriptionSettingsViewModel(
@@ -148,6 +187,43 @@ final class SubscriptionSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(didSecondConfirm)
         XCTAssertEqual(repository.unsubscribeRequests, ["sub-feed"])
     }
+
+    func testUnsubscribeFailureKeepsConfirmationAndDoesNotPublishEvent() async {
+        let repository = StubSubscriptionSettingsRepository()
+        repository.unsubscribeResult = .failure(FeedmanAPIError.transportFailed(underlyingError: URLError(.notConnectedToInternet)))
+        let viewModel = SubscriptionSettingsViewModel(
+            feed: makeFeed(),
+            repository: repository
+        )
+
+        viewModel.requestUnsubscribeConfirmation()
+        let didConfirm = await viewModel.confirmUnsubscribe()
+
+        XCTAssertFalse(didConfirm)
+        XCTAssertEqual(repository.unsubscribeRequests, ["sub-feed"])
+        XCTAssertTrue(viewModel.isUnsubscribeConfirmationPresented)
+        XCTAssertTrue(viewModel.canUnsubscribe)
+        XCTAssertNil(viewModel.unsubscribeEvent)
+        XCTAssertNil(viewModel.operation)
+        XCTAssertEqual(
+            viewModel.message,
+            .failure(
+                SubscriptionSettingsErrorPresentation(
+                    kind: .network,
+                    title: "通信できませんでした",
+                    message: "ネットワーク接続を確認してからもう一度お試しください。"
+                )
+            )
+        )
+    }
+
+    private static let authRequiredError = FeedmanAPIError.authRequired(
+        AuthRequiredContext(
+            reason: .missingRefreshHook,
+            statusCode: 401,
+            underlyingError: nil
+        )
+    )
 
     private func makeFeed(
         status: FeedStatus = .active,
