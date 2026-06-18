@@ -54,9 +54,9 @@ Baseline audit として、実装変更は行わず、既存の DesignSystem pri
 
 Finding Closure Matrix:
 
-| Finding | Target | Category | 変更ファイルまたは commit | 実行したテスト | status |
-| --- | --- | --- | --- | --- | --- |
-| 前回 reject finding なし | Task 2 | N/A | N/A | `plutil -lint Feedman.xcodeproj/project.pbxproj`; `git diff --check`; `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` は CommandLineTools のため実行不可 | closed |
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| boundary:tasks.md | boundary 逸脱 | task 2 の review range から `73c5336` 相当の `tasks.md` 正規化差分を除外し、許可された task 2 marker commit では task 2 checkbox の `[ ]` から `[x]` への変更だけにする。 | `4d1ec21 docs(tasks): undo issue 51 marker normalization`; `docs(tasks): mark 2 as done` | `git diff e9d2ca66016a15873e22de25599af01d43f24065..HEAD -- docs/specs/51-v1-loading-error-and-retry-polish/tasks.md` で task 1 / 3〜12 の marker 行追加と task 10 文言変更が残らず、task 2 完了行だけが残ることを確認。 | `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。`git diff --check`: 成功。`xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: CommandLineTools active directory のため実行不可。 | reset / rebase 禁止のため既存 commit は温存し、打ち消し commit で非 canonical な spec artifact 差分を除去した。実装 code / test 変更は不要。 |
 
 検証:
 
