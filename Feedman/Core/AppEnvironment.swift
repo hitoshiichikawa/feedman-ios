@@ -53,6 +53,8 @@ final class AppEnvironment: ObservableObject {
     let itemRepository: any ItemRepository
     let authRepository: any AuthRepository
     let accountRepository: any AccountRepository
+    let notificationPermissionCoordinator: NotificationPermissionCoordinator
+    let deviceRegistrationService: APNsDeviceRegistrationService
     let authBaseURL: URL
     private let searchRepositoryFactory: SearchRepositoryFactory
 
@@ -65,6 +67,8 @@ final class AppEnvironment: ObservableObject {
         itemRepository: any ItemRepository = MockItemRepository(),
         authRepository: any AuthRepository,
         accountRepository: any AccountRepository,
+        notificationPermissionCoordinator: NotificationPermissionCoordinator? = nil,
+        deviceRegistrationService: APNsDeviceRegistrationService? = nil,
         authBaseURL: URL,
         searchRepositoryFactory: @escaping SearchRepositoryFactory = { _ in MockSearchRepository() },
         authenticationState: AppAuthenticationState = .unauthenticated,
@@ -74,6 +78,17 @@ final class AppEnvironment: ObservableObject {
         self.itemRepository = itemRepository
         self.authRepository = authRepository
         self.accountRepository = accountRepository
+        self.notificationPermissionCoordinator = notificationPermissionCoordinator ?? NotificationPermissionCoordinator(
+            authorizationProvider: UnavailableNotificationAuthorizationProvider(),
+            remoteNotificationRegistrar: UnavailableRemoteNotificationRegistrar()
+        )
+        self.deviceRegistrationService = deviceRegistrationService ?? APNsDeviceRegistrationService(
+            repository: UnavailableDeviceRegistrationRepository(),
+            stateStore: InMemoryDeviceRegistrationStateStore(),
+            accessTokenProvider: {
+                throw AppEnvironmentError.missingAccessToken
+            }
+        )
         self.authBaseURL = authBaseURL
         self.searchRepositoryFactory = searchRepositoryFactory
         self.accessTokenStore = accessTokenStore ?? AppAccessTokenStore(
@@ -94,12 +109,40 @@ final class AppEnvironment: ObservableObject {
     func completeLogin(with credentials: TokenCredentials) {
         accessTokenStore.update(accessToken: credentials.accessToken)
         authenticationState = .authenticated(accessToken: credentials.accessToken)
+        Task {
+            try? await deviceRegistrationService.retryPendingRegistrationIfPossible()
+        }
     }
 
-    func clearLocalAuthenticationAfterAccountDeletion() {
+    func clearLocalAuthenticationAfterAccountDeletion() async {
         try? authRepository.clearLocalCredentials()
         accessTokenStore.update(accessToken: nil)
+        await deviceRegistrationService.clearLocalState()
         authenticationState = .unauthenticated
+    }
+
+    @discardableResult
+    func logout() async -> AppLogoutResult {
+        let accessToken = currentAccessToken
+        let unregisterResult = await deviceRegistrationService.unregisterKnownDeviceForLogout(
+            accessToken: accessToken
+        )
+
+        var authRevokeError: Error?
+        do {
+            try await authRepository.revokeAndClearCredentials(accessToken: accessToken)
+        } catch {
+            authRevokeError = error
+            try? authRepository.clearLocalCredentials()
+        }
+
+        accessTokenStore.update(accessToken: nil)
+        authenticationState = .unauthenticated
+
+        return AppLogoutResult(
+            deviceUnregisterResult: unregisterResult,
+            authRevokeError: authRevokeError
+        )
     }
 
     /// 起動時に保存済み refresh token からセッションを復元する。
@@ -113,15 +156,18 @@ final class AppEnvironment: ObservableObject {
             let credentials = try await authRepository.refreshTokens()
             accessTokenStore.update(accessToken: credentials.accessToken)
             authenticationState = .authenticated(accessToken: credentials.accessToken)
+            try? await deviceRegistrationService.retryPendingRegistrationIfPossible()
         } catch AuthRepositoryError.missingRefreshToken {
             // 保存 token がなければ消すものもないため、そのまま未認証へ。
             accessTokenStore.update(accessToken: nil)
+            await deviceRegistrationService.clearLocalState()
             authenticationState = .unauthenticated
         } catch {
             // 保存 token があるのに refresh が拒否された場合は失効済みとして
             // ローカル credential を破棄する (server への revoke は行わない)。
             try? authRepository.clearLocalCredentials()
             accessTokenStore.update(accessToken: nil)
+            await deviceRegistrationService.clearLocalState()
             authenticationState = .unauthenticated
         }
     }
@@ -143,6 +189,7 @@ final class AppEnvironment: ObservableObject {
             apiClient: authAPIClient,
             tokenStore: KeychainTokenStore()
         )
+        let deviceRegistrationStateStore = UserDefaultsDeviceRegistrationStateStore()
         let apiClient = APIClient(
             baseURL: apiBaseURL,
             accessTokenRefreshHook: {
@@ -171,8 +218,47 @@ final class AppEnvironment: ObservableObject {
                 )
             },
             authenticationState: .restoring,
+            accessTokenStore: accessTokenStore,
+            deviceRegistrationRepository: APIClientDeviceRegistrationRepository(apiClient: apiClient),
+            deviceRegistrationStateStore: deviceRegistrationStateStore
+        )
+    }
+
+    private convenience init(
+        feedRepository: FeedRepository,
+        itemRepository: any ItemRepository,
+        authRepository: any AuthRepository,
+        accountRepository: any AccountRepository,
+        authBaseURL: URL,
+        searchRepositoryFactory: @escaping SearchRepositoryFactory,
+        authenticationState: AppAuthenticationState,
+        accessTokenStore: AppAccessTokenStore,
+        deviceRegistrationRepository: any DeviceRegistrationRepository,
+        deviceRegistrationStateStore: any DeviceRegistrationStateStore
+    ) {
+        let deviceRegistrationService = APNsDeviceRegistrationService(
+            repository: deviceRegistrationRepository,
+            stateStore: deviceRegistrationStateStore,
+            accessTokenProvider: {
+                try accessTokenStore.currentAccessToken()
+            }
+        )
+        self.init(
+            feedRepository: feedRepository,
+            itemRepository: itemRepository,
+            authRepository: authRepository,
+            accountRepository: accountRepository,
+            notificationPermissionCoordinator: NotificationPermissionCoordinator(
+                authorizationProvider: UserNotificationCenterAuthorizationProvider(),
+                remoteNotificationRegistrar: UIApplicationRemoteNotificationRegistrar()
+            ),
+            deviceRegistrationService: deviceRegistrationService,
+            authBaseURL: authBaseURL,
+            searchRepositoryFactory: searchRepositoryFactory,
+            authenticationState: authenticationState,
             accessTokenStore: accessTokenStore
         )
+        APNsDeviceRegistrationBridge.shared.configure(service: deviceRegistrationService)
     }
 
     static let preview = AppEnvironment(
@@ -180,10 +266,61 @@ final class AppEnvironment: ObservableObject {
         itemRepository: MockItemRepository(),
         authRepository: UnavailableAuthRepository(),
         accountRepository: UnavailableAccountRepository(),
+        notificationPermissionCoordinator: NotificationPermissionCoordinator(
+            authorizationProvider: UnavailableNotificationAuthorizationProvider(),
+            remoteNotificationRegistrar: UnavailableRemoteNotificationRegistrar()
+        ),
+        deviceRegistrationService: APNsDeviceRegistrationService(
+            repository: UnavailableDeviceRegistrationRepository(),
+            stateStore: InMemoryDeviceRegistrationStateStore(),
+            accessTokenProvider: {
+                "preview-access-token"
+            }
+        ),
         authBaseURL: URL(string: "https://example.com")!,
         searchRepositoryFactory: { _ in MockSearchRepository() },
         authenticationState: .authenticated(accessToken: "preview-access-token")
     )
+}
+
+struct AppLogoutResult {
+    let deviceUnregisterResult: Result<DeviceUnregisterOutcome, Error>
+    let authRevokeError: Error?
+}
+
+final class InMemoryDeviceRegistrationStateStore: DeviceRegistrationStateStore {
+    private var state: DeviceRegistrationState?
+
+    init(state: DeviceRegistrationState? = nil) {
+        self.state = state
+    }
+
+    func load() -> DeviceRegistrationState? {
+        state
+    }
+
+    func save(_ state: DeviceRegistrationState) {
+        self.state = state
+    }
+
+    func clear() {
+        state = nil
+    }
+}
+
+struct UnavailableNotificationAuthorizationProvider: NotificationAuthorizationProviding {
+    func currentStatus() async throws -> NotificationPermissionStatus {
+        .denied
+    }
+
+    func requestAuthorization() async throws -> NotificationPermissionStatus {
+        .denied
+    }
+}
+
+@MainActor
+final class UnavailableRemoteNotificationRegistrar: RemoteNotificationRegistering {
+    func registerForRemoteNotifications() {}
 }
 
 private extension AppAuthenticationState {

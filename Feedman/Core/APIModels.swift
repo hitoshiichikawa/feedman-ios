@@ -222,6 +222,20 @@ struct UserResponse: Codable, Equatable {
     }
 }
 
+struct DeviceRegistrationRequest: Codable, Equatable {
+    let platform: String
+    let pushToken: String
+
+    enum CodingKeys: String, CodingKey {
+        case platform
+        case pushToken = "push_token"
+    }
+}
+
+struct DeviceRegistrationResponse: Codable, Equatable {
+    let id: String
+}
+
 struct AuthTokenExchangeRequest: Codable, Equatable {
     let authCode: String
     let codeVerifier: String

@@ -88,6 +88,13 @@
 		100000000000000000000183 /* StarredViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000282 /* StarredViewModel.swift */; };
 		100000000000000000000184 /* StarredView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000283 /* StarredView.swift */; };
 		100000000000000000000185 /* StarredViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000284 /* StarredViewModelTests.swift */; };
+		100000000000000000000186 /* DeviceRegistrationRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000285 /* DeviceRegistrationRepository.swift */; };
+		100000000000000000000187 /* NotificationPermissionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000286 /* NotificationPermissionCoordinator.swift */; };
+		100000000000000000000188 /* APNsDeviceRegistrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000287 /* APNsDeviceRegistrationService.swift */; };
+		100000000000000000000189 /* DeviceRegistrationRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000288 /* DeviceRegistrationRepositoryTests.swift */; };
+		100000000000000000000190 /* NotificationPermissionCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000289 /* NotificationPermissionCoordinatorTests.swift */; };
+		100000000000000000000191 /* APNsDeviceRegistrationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000290 /* APNsDeviceRegistrationServiceTests.swift */; };
+		100000000000000000000192 /* AppEnvironmentLogoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000291 /* AppEnvironmentLogoutTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -185,6 +192,13 @@
 		100000000000000000000282 /* StarredViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarredViewModel.swift; sourceTree = "<group>"; };
 		100000000000000000000283 /* StarredView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarredView.swift; sourceTree = "<group>"; };
 		100000000000000000000284 /* StarredViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarredViewModelTests.swift; sourceTree = "<group>"; };
+		100000000000000000000285 /* DeviceRegistrationRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceRegistrationRepository.swift; sourceTree = "<group>"; };
+		100000000000000000000286 /* NotificationPermissionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPermissionCoordinator.swift; sourceTree = "<group>"; };
+		100000000000000000000287 /* APNsDeviceRegistrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APNsDeviceRegistrationService.swift; sourceTree = "<group>"; };
+		100000000000000000000288 /* DeviceRegistrationRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceRegistrationRepositoryTests.swift; sourceTree = "<group>"; };
+		100000000000000000000289 /* NotificationPermissionCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPermissionCoordinatorTests.swift; sourceTree = "<group>"; };
+		100000000000000000000290 /* APNsDeviceRegistrationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APNsDeviceRegistrationServiceTests.swift; sourceTree = "<group>"; };
+		100000000000000000000291 /* AppEnvironmentLogoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironmentLogoutTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -244,6 +258,7 @@
 				100000000000000000000249 /* ItemRepositoryTests.swift */,
 				100000000000000000000250 /* CrossFeedRepositoryTests.swift */,
 				100000000000000000000251 /* AppEnvironmentSessionRestoreTests.swift */,
+				100000000000000000000291 /* AppEnvironmentLogoutTests.swift */,
 				100000000000000000000261 /* SearchRepositoryTests.swift */,
 				100000000000000000000260 /* GlobalSearchViewModelTests.swift */,
 				100000000000000000000264 /* FeedRegistrationRepositoryTests.swift */,
@@ -255,6 +270,9 @@
 				100000000000000000000274 /* ArticleDetailViewModelTests.swift */,
 				100000000000000000000277 /* SubscriptionActionRepositoryTests.swift */,
 				100000000000000000000278 /* SubscriptionSettingsViewModelTests.swift */,
+				100000000000000000000288 /* DeviceRegistrationRepositoryTests.swift */,
+				100000000000000000000289 /* NotificationPermissionCoordinatorTests.swift */,
+				100000000000000000000290 /* APNsDeviceRegistrationServiceTests.swift */,
 				100000000000000000000232 /* CursorPaginationStateTests.swift */,
 				100000000000000000000234 /* FeedmanFaviconViewTests.swift */,
 				100000000000000000000237 /* ArticleMetadataControlsTests.swift */,
@@ -289,6 +307,7 @@
 				100000000000000000000204 /* FeedRepository.swift */,
 				100000000000000000000252 /* AccountRepository.swift */,
 				100000000000000000000257 /* SearchRepository.swift */,
+				100000000000000000000285 /* DeviceRegistrationRepository.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -317,6 +336,7 @@
 				100000000000000000000622 /* Starred */,
 				100000000000000000000619 /* ArticleDetail */,
 				100000000000000000000620 /* Subscriptions */,
+				100000000000000000000623 /* Notifications */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -463,6 +483,15 @@
 			path = State;
 			sourceTree = "<group>";
 		};
+		100000000000000000000623 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000286 /* NotificationPermissionCoordinator.swift */,
+				100000000000000000000287 /* APNsDeviceRegistrationService.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -577,6 +606,7 @@
 				100000000000000000000110 /* APIModels.swift in Sources */,
 				100000000000000000000125 /* APIError.swift in Sources */,
 				100000000000000000000127 /* APIClient.swift in Sources */,
+				100000000000000000000186 /* DeviceRegistrationRepository.swift in Sources */,
 				100000000000000000000129 /* CursorPaginationState.swift in Sources */,
 				100000000000000000000181 /* ItemStateCoordinator.swift in Sources */,
 				100000000000000000000119 /* PKCE.swift in Sources */,
@@ -613,6 +643,8 @@
 				100000000000000000000180 /* ArticleDetailSafariView.swift in Sources */,
 				100000000000000000000172 /* SubscriptionSettingsViewModel.swift in Sources */,
 				100000000000000000000173 /* SubscriptionSettingsSheet.swift in Sources */,
+				100000000000000000000187 /* NotificationPermissionCoordinator.swift in Sources */,
+				100000000000000000000188 /* APNsDeviceRegistrationService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -650,6 +682,10 @@
 				100000000000000000000171 /* ArticleDetailViewModelTests.swift in Sources */,
 				100000000000000000000174 /* SubscriptionActionRepositoryTests.swift in Sources */,
 				100000000000000000000175 /* SubscriptionSettingsViewModelTests.swift in Sources */,
+				100000000000000000000189 /* DeviceRegistrationRepositoryTests.swift in Sources */,
+				100000000000000000000190 /* NotificationPermissionCoordinatorTests.swift in Sources */,
+				100000000000000000000191 /* APNsDeviceRegistrationServiceTests.swift in Sources */,
+				100000000000000000000192 /* AppEnvironmentLogoutTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

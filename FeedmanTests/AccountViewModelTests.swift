@@ -132,14 +132,46 @@ final class AccountViewModelTests: XCTestCase {
         XCTAssertNil(missingEmail.email)
     }
 
-    func testLogoutPlaceholderOnlyShowsNotice() {
+    func testLogoutRunsCompletionWithoutAccountRepositoryRequest() async {
         let repository = RecordingAccountRepository()
-        let viewModel = AccountViewModel(repository: repository, accessToken: "access-1")
+        let session = RecordingLogoutSession()
+        let viewModel = AccountViewModel(
+            repository: repository,
+            accessToken: "access-1",
+            onLogout: {
+                await session.complete()
+            }
+        )
 
-        viewModel.requestLogoutPlaceholder()
-        XCTAssertEqual(viewModel.actionNotice?.title, "ログアウト")
+        await viewModel.logout()
+
+        XCTAssertEqual(viewModel.logoutState, .idle)
+        XCTAssertEqual(session.completionCount, 1)
         XCTAssertTrue(repository.accessTokens.isEmpty)
         XCTAssertTrue(repository.deleteAccessTokens.isEmpty)
+    }
+
+    func testLogoutFailureShowsRetryableError() async {
+        let repository = RecordingAccountRepository()
+        let viewModel = AccountViewModel(
+            repository: repository,
+            accessToken: "access-1",
+            onLogout: {
+                throw AccountTestError.rejected
+            }
+        )
+
+        await viewModel.logout()
+
+        XCTAssertEqual(
+            viewModel.logoutState,
+            .failed(
+                AccountErrorViewState(
+                    title: "ログアウトできませんでした",
+                    message: "通信状況を確認してから再試行してください。"
+                )
+            )
+        )
     }
 
     func testDeleteAccountActionShowsConfirmation() async {
@@ -385,6 +417,15 @@ private final class SlowDeletingAccountRepository: AccountRepository {
     func deleteCurrentUser(accessToken: String) async throws {
         deleteAccessTokens.append(accessToken)
         try await Task.sleep(nanoseconds: 50_000_000)
+    }
+}
+
+@MainActor
+private final class RecordingLogoutSession {
+    private(set) var completionCount = 0
+
+    func complete() async {
+        completionCount += 1
     }
 }
 

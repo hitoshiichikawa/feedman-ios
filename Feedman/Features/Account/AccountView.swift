@@ -4,6 +4,7 @@ struct AccountRouteView: View {
     let repository: any AccountRepository
     let accessToken: String?
     let onDismiss: () -> Void
+    let onLogout: AccountViewModel.LogoutCompletion
     let onAccountDeleted: AccountViewModel.AccountDeletionCompletion
 
     @StateObject private var viewModel: AccountViewModel
@@ -12,16 +13,19 @@ struct AccountRouteView: View {
         repository: any AccountRepository,
         accessToken: String?,
         onDismiss: @escaping () -> Void,
+        onLogout: @escaping AccountViewModel.LogoutCompletion,
         onAccountDeleted: @escaping AccountViewModel.AccountDeletionCompletion
     ) {
         self.repository = repository
         self.accessToken = accessToken
         self.onDismiss = onDismiss
+        self.onLogout = onLogout
         self.onAccountDeleted = onAccountDeleted
         _viewModel = StateObject(
             wrappedValue: AccountViewModel(
                 repository: repository,
                 accessToken: accessToken,
+                onLogout: onLogout,
                 onAccountDeleted: onAccountDeleted
             )
         )
@@ -117,11 +121,8 @@ struct AccountView: View {
         VStack(alignment: .leading, spacing: 16) {
             userCard(user)
             actionButtons
+            logoutStatus
             deletionStatus
-            Text("ログアウト処理は後続 Issue で接続します。")
-                .font(.caption)
-                .foregroundStyle(FeedmanTheme.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -169,12 +170,15 @@ struct AccountView: View {
     private var actionButtons: some View {
         VStack(spacing: 10) {
             Button {
-                viewModel.requestLogoutPlaceholder()
+                Task {
+                    await viewModel.logout()
+                }
             } label: {
                 Label("ログアウト", systemImage: "rectangle.portrait.and.arrow.right")
                     .frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(AccountActionButtonStyle())
+            .disabled(viewModel.logoutState.isLoggingOut || viewModel.deletionState.isDeleting)
             .accessibilityLabel("ログアウト")
 
             Button(role: .destructive) {
@@ -186,6 +190,37 @@ struct AccountView: View {
             .buttonStyle(AccountActionButtonStyle(foregroundColor: FeedmanTheme.danger))
             .disabled(viewModel.deletionState.isDeleting)
             .accessibilityLabel("退会、アカウント削除")
+        }
+    }
+
+    @ViewBuilder
+    private var logoutStatus: some View {
+        switch viewModel.logoutState {
+        case .idle:
+            EmptyView()
+        case .loggingOut:
+            FeedmanCompactLoadingRow(
+                "ログアウトしています",
+                accessibilityLabel: "ログアウト処理中"
+            )
+        case let .failed(errorState):
+            FeedmanRecoverableErrorView(
+                title: errorState.title,
+                message: errorState.message,
+                usesDangerEmphasis: false,
+                retryDescriptor: FeedmanRetryDescriptor(
+                    label: "もう一度ログアウト",
+                    accessibilityLabel: "ログアウト処理をもう一度実行"
+                )
+            ) {
+                Button {
+                    Task {
+                        await viewModel.logout()
+                    }
+                } label: {
+                    Text("もう一度ログアウト")
+                }
+            }
         }
     }
 
