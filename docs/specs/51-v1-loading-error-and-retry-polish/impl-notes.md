@@ -177,3 +177,117 @@ Finding Closure Matrix:
 - `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。
 - `git diff --check`: 成功。
 - `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/GlobalSearchViewModelTests -only-testing:FeedmanTests/ArticleDetailViewModelTests test`: 実行不可。`xcode-select` の active developer directory が `/Library/Developer/CommandLineTools` で、Xcode 本体ではないため。
+
+### Task 7
+
+採用方針: RegisterFeed / SubscriptionSettings / Account の production 実装は既に user input、sheet context、loaded account state を保持する方針に沿っていたため、挙動変更ではなく不足していた failure preservation と auth-required の assertion を追加して regression を固定した。
+
+重要な判断:
+
+- RegisterFeed は URL 入力保持、duplicate / invalid URL / rate-limit / network / generic / auth-required の表示文言が既存テストで固定済みだったため変更しない。
+- SubscriptionSettings は save failure の選択値保持に加え、resume failure が stopped/error status を維持し、unsubscribe failure が confirmation boundary と unsubscribe event 未発火を維持することを追加した。
+- Account は current-user auth-required と delete auth-required を generic failure と区別し、退会未完了時に loaded user state と session completion 未実行を維持することを追加した。
+
+残存課題: Task 7 範囲ではなし。
+
+Finding Closure Matrix:
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| Forms/settings/account mutation preservation | coverage | settings resume / unsubscribe failure と account deletion auth failure が context を失わないことを固定する。 | `test(forms): cover settings account polish preservation` | `testResumeFailurePreservesStoppedStatusAndShowsFailure`、`testUnsubscribeFailureKeepsConfirmationAndDoesNotPublishEvent`、`testConfirmDeleteAccountAuthRequiredPreservesLoadedUserAndDoesNotCompleteSession`。 | selected `xcodebuild` で 47 tests 成功。 | production 実装は既存の feature-local state を継続利用。 |
+| RegisterFeed failure guidance | coverage review | URL 入力保持と主要 error mapping の既存 coverage を確認する。 | なし | 既存 `RegisterFeedViewModelTests`。 | selected `xcodebuild` で関連なし。最終 full test で確認予定。 | 既存 coverage が Issue #51 要件を満たしていたため変更なし。 |
+
+検証:
+
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/SubscriptionSettingsViewModelTests -only-testing:FeedmanTests/AccountViewModelTests -only-testing:FeedmanTests/AppShellDrawerFeedStateTests test`: 成功。
+
+### Task 8
+
+採用方針: Auth-required は route owner callback を持つ画面では callback 発火、callback がない sheet/account では visible auth guidance として扱う既存 policy を維持し、不足していた SubscriptionSettings / Account の assertion を追加した。
+
+重要な判断:
+
+- Timeline / Feed / Starred / Search / ArticleDetail は既存テストで auth-required callback または auth-specific failed state が固定済み。
+- RegisterFeed は `RegisterFeedViewModel.errorPresentation` が `.authRequired` として表示文言を返す既存テストがあったため変更しない。
+- SubscriptionSettings は callback 境界を持たない sheet のため、`.authRequired` presentation を generic error と区別するテストを追加した。
+- Account は current-user load と account deletion の両方で auth-expired guidance を固定した。
+
+残存課題: Task 8 範囲ではなし。
+
+Finding Closure Matrix:
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| Cross-screen auth-required handling | coverage | callback なし画面で auth-required を generic failure に落とさないことを固定する。 | `test(forms): cover settings account polish preservation` | `testAuthRequiredMapsToAuthGuidance`、`testCurrentUserAuthRequiredShowsAuthBoundaryError`、`testConfirmDeleteAccountAuthRequiredPreservesLoadedUserAndDoesNotCompleteSession`。 | selected `xcodebuild` で 47 tests 成功。 | callback あり画面は既存 coverage を継続利用。 |
+
+検証:
+
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/SubscriptionSettingsViewModelTests -only-testing:FeedmanTests/AccountViewModelTests -only-testing:FeedmanTests/AppShellDrawerFeedStateTests test`: 成功。
+
+### Task 9
+
+採用方針: AppShell drawer、Login、Launch auth restoration、stale response suppression は既存 implementation と tests が概ね揃っていたため、AppShell drawer の loading 中 route preservation だけを追加で固定した。
+
+重要な判断:
+
+- Drawer subscriptions は failure 時の global route usability と既存 feed row preservation が既存テストで固定済みだったため、loading 中に既存 feeds を表示しながら global route を選択できる assertion を追加した。
+- Login cancel / failure retry と AppEnvironment auth restoration failure は既存テストで retry 可能状態、credential clear、unauthenticated transition を確認済み。
+- Feed / filter / search query / selected item 変更後の stale response suppression は Timeline / Feed / Search / drawer registration refresh の既存および追加 coverage で確認した。
+- Token / Authorization header / private content を出力する debug log 追加は行っていない。
+
+残存課題: Task 9 範囲ではなし。
+
+Finding Closure Matrix:
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| Drawer loading route preservation | coverage | subscriptions reload loading 中も global route entries が利用可能であることを固定する。 | `test(appshell): cover drawer loading route preservation` | `testLoadSubscriptionsLoadingWithExistingFeedsKeepsGlobalRoutesUsable`。 | selected `xcodebuild` で 47 tests 成功。 | production 実装は `sectionState = .loading(feeds: currentFeeds)` を継続利用。 |
+| Login / auth restoration / stale response | coverage review | 既存 coverage が Issue #51 要件を満たしていることを確認する。 | なし | 既存 `LoginViewModelTests`、`AppEnvironmentSessionRestoreTests`、各 stale response tests。 | 最終 full test で確認予定。 | production 変更なし。 |
+
+検証:
+
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/SubscriptionSettingsViewModelTests -only-testing:FeedmanTests/AccountViewModelTests -only-testing:FeedmanTests/AppShellDrawerFeedStateTests test`: 成功。
+
+### Task 10
+
+採用方針: 追加子 Issue は作らず、Issue #51 の単一 PR で完結させる。Production 変更は shared primitive の軽微な統一と、各 ViewModel の failure preservation を固定する focused tests に収まっている。
+
+重要な判断:
+
+- Slice 1-5 はこの PR 内で実装 / coverage 確認が完了した。
+- Follow-up として残したのは `SFSafariViewController` 表示後 failure の presenter redesign だけで、Issue #51 の blocking scope ではない。
+- idd-codex watcher の旧 parser による `tasks.md` marker 破損は実装内容とは独立の運用事故として扱い、最終 PR は手動作成する。
+
+残存課題: 追加子 Issue は不要。
+
+### Task 11
+
+採用方針: Risk が高い loading / retry / refresh / pagination / mutation / auth-required / stale response の観点を ViewModel tests で固定した。最終確認は full `xcodebuild test` で実施する。
+
+重要な判断:
+
+- Slow operation は Timeline / Feed / Starred / ArticleDetail / SubscriptionSettings / Account / AppShell で確認または追加済み。
+- Refresh failure preservation は Timeline / Feed / Starred、Search detail failure preservation、AppShell subscriptions failure preservation を確認済み。
+- Next-page failure retry は Timeline / Feed / Starred で first-page reset を起こさないことを固定済み。
+- Mutation failure navigation preservation は read/star、registration、settings、account で確認済み。
+- Cooldown / retry-after message、auth-required boundary、stale response suppression は既存および追加テストで確認済み。
+
+残存課題: Task 11 範囲ではなし。
+
+### Task 12
+
+採用方針: macOS / Xcode 環境で AGENTS.md 指定の iPhone 16 simulator test を実行し、Issue #51 の最終検証を完了した。
+
+検証:
+
+- `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。
+- `git diff --check`: 成功。
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: 成功。377 tests、0 failures。
+
+重要な判断:
+
+- Xcode 本体は `/Applications/Xcode.app/Contents/Developer` を明示して利用できたため、実行不可理由の PR 記載は不要。
+- Issue #51 は単一 PR に収まるため、追加子 Issue は作成しない。
+- `tasks.md` の親 task marker は 1-12 を完了状態へ戻し、旧 watcher が `1 PR` を task ID として誤検出した行は `単一 PR` へ戻した。
+
+残存課題: Task 12 範囲ではなし。
