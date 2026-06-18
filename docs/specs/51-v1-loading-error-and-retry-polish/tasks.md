@@ -17,7 +17,7 @@
 
 ## 2. Shared presentation helpers
 
-- [ ] 2. Shared presentation helpers
+- [x] 2. Shared presentation helpers
 
 - [ ] 必要な場合のみ、DesignSystem または Feature-local に `FeedmanFeedbackPresentation` 相当の小さな値型を追加する。
 - [ ] 必要な場合のみ、recoverable retry 表示用 descriptor を追加する。
