@@ -26,7 +26,7 @@
 
 ## 3. Timeline polish
 
-- [ ] 3. Timeline polish
+- [x] 3. Timeline polish
 
 - [ ] 初回 loading / empty / recoverable error が shared primitive に揃っていることを確認し、不足を修正する。
 - [ ] `retryInitialLoad()` が first-page load のみを再実行することをテストで固定する。
