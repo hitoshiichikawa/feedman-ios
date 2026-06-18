@@ -26,11 +26,13 @@
 
 ## 3. Timeline polish
 
-- [x] 初回 loading / empty / recoverable error が shared primitive に揃っていることを確認し、不足を修正する。
-- [x] `retryInitialLoad()` が first-page load のみを再実行することをテストで固定する。
-- [x] refresh failure が既存 items を保持し、non-destructive feedback を表示することを確認する。
-- [x] `retryNextPage()` が next-page request のみを再実行することをテストで固定する。
-- [x] read/star mutation failure が navigation state と selected item を失わないことを確認する。
+- [ ] 3. Timeline polish
+
+- [ ] 初回 loading / empty / recoverable error が shared primitive に揃っていることを確認し、不足を修正する。
+- [ ] `retryInitialLoad()` が first-page load のみを再実行することをテストで固定する。
+- [ ] refresh failure が既存 items を保持し、non-destructive feedback を表示することを確認する。
+- [ ] `retryNextPage()` が next-page request のみを再実行することをテストで固定する。
+- [ ] read/star mutation failure が navigation state と selected item を失わないことを確認する。
 
 ## 4. Feed list polish
 
