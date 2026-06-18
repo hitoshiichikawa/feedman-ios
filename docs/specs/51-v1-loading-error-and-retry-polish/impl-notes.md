@@ -63,3 +63,32 @@ Finding Closure Matrix:
 - `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。
 - `git diff --check`: 成功。
 - `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: 実行不可。`xcode-select` の active developer directory が `/Library/Developer/CommandLineTools` で、Xcode 本体ではないため。
+
+### Task 3
+
+採用方針: Timeline の production 実装は既に `FeedmanLoadingView`、`FeedmanEmptyStateView`、`FeedmanRecoverableErrorView`、`FeedmanBannerView`、`FeedmanCompactLoadingRow` に揃っていたため、挙動変更ではなく `TimelineViewModelTests` の不足 assertion を追加して regression を固定した。
+
+重要な判断:
+
+- `retryInitialLoad()` は既存テストで first-page のみを 2 回呼ぶことが固定済みだったため、追加実装は不要と判断した。
+- `retryNextPage()` は next-page failure 後に `.nextPage` だけを再実行し、first-page session を reset しないことを call sequence で明示した。
+- refresh failure は既存 items と `canLoadMore` を保持し、`refreshErrorMessage` で non-destructive feedback を出す既存 test coverage を維持した。
+- star mutation failure は `selectedItemID` を保持する assertion を追加した。
+- detail sheet 由来の read mutation failure は `ItemStateCoordinator` 共有下で Timeline の `selectedItemID` と loaded detail を保持し、既読 rollback と read failure message を出すことを追加テストで固定した。
+
+残存課題: Task 3 範囲ではなし。Timeline の auth-required boundary 整理は task 8 の scope として扱う。
+
+Finding Closure Matrix:
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| review-notes.md | review | 現行 review は approve / 追加 finding なしのため、reject finding の修正は不要。 | なし | なし | 追加 finding なしを確認。 | Task 3 learning として reject finding なしを記録した。 |
+| Timeline retry semantics | coverage | `retryNextPage()` が next-page request のみを再実行することを明示する。 | `test(timeline): cover timeline retry and mutation preservation` | `testNextPageFailurePreservesExistingItemsAndShowsRetryableError` の call sequence assertion。 | `plutil` / `git diff --check` は成功。`xcodebuild` は CommandLineTools active directory のため実行不可。 | `retryInitialLoad()` は既存 `testInitialLoadFailureCanRetryFirstPage` で first-page のみを固定済み。 |
+| Timeline mutation navigation preservation | coverage | read/star mutation failure が selected item と sheet/list state を失わないことを明示する。 | `test(timeline): cover timeline retry and mutation preservation` | `testStarToggleFailureRollsBackEffectiveStateAndShowsError` の `selectedItemID` assertion と `testDetailReadFailurePreservesTimelineSelectionAndLoadedDetail`。 | `plutil` / `git diff --check` は成功。`xcodebuild` は CommandLineTools active directory のため実行不可。 | production 実装は `ItemStateCoordinator` rollback と feature-local banner を継続利用。 |
+
+検証:
+
+- `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。
+- `git diff --check`: 成功。
+- `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/TimelineViewModelTests test`: 実行不可。`xcode-select` の active developer directory が `/Library/Developer/CommandLineTools` で、Xcode 本体ではないため。
+- `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: 実行不可。理由は同上。

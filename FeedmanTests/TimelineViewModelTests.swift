@@ -268,6 +268,8 @@ final class TimelineViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.items.map(\.id), ["first", "second"])
         XCTAssertNil(viewModel.nextPageErrorMessage)
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil), .nextPage, .nextPage])
     }
 
     func testDuplicateRefreshIsIgnoredWhileFirstPageIsLoading() async {
@@ -452,11 +454,13 @@ final class TimelineViewModelTests: XCTestCase {
         )
 
         await viewModel.loadInitialIfNeeded()
+        viewModel.selectItem(id: "target")
         await viewModel.toggleStar(id: "target")
 
         let firstItem = try XCTUnwrap(viewModel.items.first)
         XCTAssertFalse(viewModel.descriptor(for: firstItem).isStarred)
         XCTAssertEqual(viewModel.starMutationErrorMessage, "スターを更新できませんでした。")
+        XCTAssertEqual(viewModel.selectedItemID, "target")
     }
 
     func testCardStarFailureRollsBackVisibleTimelineAndLoadedDetail() async throws {
@@ -493,6 +497,46 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertFalse(timelineViewModel.descriptor(for: timelineItem).isStarred)
         XCTAssertEqual(detailViewModel.loadedPresentation?.isStarred, false)
         XCTAssertEqual(timelineViewModel.starMutationErrorMessage, "スターを更新できませんでした。")
+    }
+
+    func testDetailReadFailurePreservesTimelineSelectionAndLoadedDetail() async throws {
+        let coordinator = ItemStateCoordinator()
+        let repository = RecordingTimelineFeedRepository(
+            firstPageResults: [
+                .success(snapshot(items: [item(id: "target", isRead: false, isStarred: false)], canLoadMore: false))
+            ]
+        )
+        let itemRepository = MockItemRepository(
+            itemDetails: ["target": detail(id: "target", isRead: false, isStarred: false)],
+            stateUpdateFailure: TimelineViewModelTestError.transport
+        )
+        let timelineViewModel = TimelineViewModel(
+            repository: repository,
+            itemRepository: itemRepository,
+            accessToken: "test-access-token",
+            itemStateCoordinator: coordinator
+        )
+
+        await timelineViewModel.loadInitialIfNeeded()
+        timelineViewModel.selectItem(id: "target")
+
+        let detailViewModel = ArticleDetailViewModel(
+            itemID: "target",
+            summary: timelineViewModel.detailInput(for: "target").summary,
+            repository: itemRepository,
+            accessToken: "test-access-token",
+            itemStateCoordinator: coordinator
+        )
+
+        await detailViewModel.open()
+        await Task.yield()
+
+        let timelineItem = try XCTUnwrap(timelineViewModel.items.first { $0.id == "target" })
+        XCTAssertEqual(timelineViewModel.selectedItemID, "target")
+        XCTAssertFalse(timelineViewModel.descriptor(for: timelineItem).item.isRead)
+        XCTAssertEqual(detailViewModel.loadedPresentation?.isRead, false)
+        XCTAssertEqual(detailViewModel.mutationMessage?.kind, .read)
+        XCTAssertEqual(detailViewModel.mutationMessage?.message, "既読状態を更新できませんでした。")
     }
 
     func testStarToggleSurvivesPaginationSnapshotReplacement() async throws {
