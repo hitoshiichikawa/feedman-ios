@@ -56,6 +56,29 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
         XCTAssertFalse(shellState.isDrawerOpen)
     }
 
+    func testLoadSubscriptionsLoadingWithExistingFeedsKeepsGlobalRoutesUsable() async throws {
+        var shellState = AppShellState(currentRoute: .timeline, isDrawerOpen: true)
+        let existingFeeds = [
+            Feed(id: "feed-a", title: "Feed A", unreadCount: 3, status: .active)
+        ]
+        let repository = ControlledSubscriptionsRepository()
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: existingFeeds))
+
+        let loadTask = Task {
+            await viewModel.loadSubscriptions(repository: repository)
+        }
+        try await waitUntil { repository.pendingCallCount == 1 }
+
+        XCTAssertEqual(viewModel.sectionState, .loading(feeds: existingFeeds))
+
+        shellState.selectRoute(.account)
+        XCTAssertEqual(shellState.currentRoute, .account)
+        XCTAssertFalse(shellState.isDrawerOpen)
+
+        repository.completeCall(at: 0, with: .success(existingFeeds))
+        await loadTask.value
+    }
+
     func testLoadSubscriptionsFailureKeepsAlreadyLoadedFeeds() async {
         let existingFeeds = [
             Feed(id: "feed-a", title: "Feed A", unreadCount: 3, status: .active)
