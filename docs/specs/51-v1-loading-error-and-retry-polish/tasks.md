@@ -2,6 +2,8 @@
 
 ## 1. Baseline audit
 
+- [x] 1. Baseline audit
+
 - [x] `Feedman/DesignSystem/SharedPrimitives.swift` の loading / empty / recoverable error / toast / banner / sheet shell API を確認する。
 - [x] `TimelineViewModel` / `TimelineView` の initial / refresh / pagination / mutation failure 表示を確認する。
 - [x] `FeedViewModel` / `FeedView` の initial / filter empty / status banner / manual refresh cooldown / pagination / mutation failure 表示を確認する。
@@ -36,6 +38,8 @@
 
 ## 4. Feed list polish
 
+- [x] 4. Feed list polish
+
 - [ ] filter 別 empty state の文言と表示条件を確認する。
 - [ ] feed stopped/error banner と resume 導線が shared banner 表現に沿うことを確認する。
 - [ ] manual refresh `FEED_COOLDOWN` の retry-after message を `details.retry_after_seconds` / `Retry-After` から表示することを確認する。
@@ -44,6 +48,8 @@
 
 ## 5. Starred polish
 
+- [ ] 5. Starred polish
+
 - [ ] 初回 loading / empty / failed retry の表示を Timeline / Feed と揃える。
 - [ ] refresh failure が既存 starred items を保持することをテストで固定する。
 - [ ] next-page failure retry が pagination reset を起こさないことを確認する。
@@ -51,6 +57,8 @@
 - [ ] auth-required が stale success や empty として表示されないことをテストで固定する。
 
 ## 6. Search and detail polish
+
+- [ ] 6. Search and detail polish
 
 - [ ] Search idle suggestions / loading / empty / failed retry の表示条件を確認する。
 - [ ] Search retry が最後に submit 済みの query を使い、query text を保持することをテストで固定する。
@@ -61,6 +69,8 @@
 
 ## 7. Forms, settings, account polish
 
+- [ ] 7. Forms, settings, account polish
+
 - [ ] Feed registration failure で URL 入力が保持されることをテストで固定する。
 - [ ] Feed registration duplicate / invalid URL / rate-limit / network / generic error の表示文言を確認する。
 - [ ] Subscription settings の save / resume / unsubscribe failure が sheet context と選択値を保持することをテストで固定する。
@@ -70,12 +80,16 @@
 
 ## 8. Cross-screen auth-required handling
 
+- [ ] 8. Cross-screen auth-required handling
+
 - [ ] Timeline / Feed / Starred / Search / ArticleDetail / RegisterFeed / SubscriptionSettings / Account で `FeedmanAPIError.authRequired` の扱いを確認する。
 - [ ] Auth-required を empty state や generic success として扱っている箇所があれば修正する。
 - [ ] Route owner へ auth-required callback がある画面は callback が呼ばれることをテストで固定する。
 - [ ] Callback がない画面は既存 session-loss policy と矛盾しない visible error を表示する。
 
 ## 9. AppShell, login, and stale response
+
+- [ ] 9. AppShell, login, and stale response
 
 - [ ] Drawer subscriptions loading / empty / failed / retry 中も global route entries が利用可能であることを確認する。
 - [ ] subscriptions reload failure 後に前回 feed rows を保持できる場合は保持し、最新 reload failure を表示する。
@@ -86,14 +100,18 @@
 
 ## 10. Suggested implementation slices
 
+- [ ] 10. Suggested implementation slices
+
 - [ ] Slice 1: baseline audit + shared presentation helper の最小補強。
 - [ ] Slice 2: list 系 Timeline / Feed / Starred の loading / retry / refresh / pagination polish。
 - [ ] Slice 3: Search / ArticleDetail の retry / stale response / sheet feedback polish。
 - [ ] Slice 4: RegisterFeed / SubscriptionSettings / Account の mutation feedback polish。
 - [ ] Slice 5: AppShell drawer / Login / auth-required / final verification。
-- [ ] 1 PR で大きすぎる場合は、上記 slice を追加子 Issue として提案する。
+- [ ] 単一 PR で大きすぎる場合は、上記 slice を追加子 Issue として提案する。
 
 ## 11. Tests
+
+- [ ] 11. Tests
 
 - [ ] Slow repository operation 中の loading / busy state を各主要 ViewModel test に追加または確認する。
 - [ ] Empty response と recoverable error retry の test coverage を確認する。
@@ -105,6 +123,8 @@
 - [ ] Stale response suppression の test coverage を確認する。
 
 ## 12. Final verification
+
+- [ ] 12. Final verification
 
 - [ ] `plutil -lint Feedman.xcodeproj/project.pbxproj` を実行する。
 - [ ] `git diff --check` を実行する。
