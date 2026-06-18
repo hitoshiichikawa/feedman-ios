@@ -36,7 +36,7 @@
 
 ## 4. Feed list polish
 
-- [ ] 4. Feed list polish
+- [x] 4. Feed list polish
 
 - [ ] filter 別 empty state の文言と表示条件を確認する。
 - [ ] feed stopped/error banner と resume 導線が shared banner 表現に沿うことを確認する。
