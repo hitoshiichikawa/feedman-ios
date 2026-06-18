@@ -2,16 +2,16 @@
 
 ## 1. Baseline audit
 
-- [ ] `Feedman/DesignSystem/SharedPrimitives.swift` の loading / empty / recoverable error / toast / banner / sheet shell API を確認する。
-- [ ] `TimelineViewModel` / `TimelineView` の initial / refresh / pagination / mutation failure 表示を確認する。
-- [ ] `FeedViewModel` / `FeedView` の initial / filter empty / status banner / manual refresh cooldown / pagination / mutation failure 表示を確認する。
-- [ ] `StarredViewModel` / `StarredView` の initial / refresh / pagination / unstar failure / auth-required 表示を確認する。
-- [ ] `GlobalSearchViewModel` / `GlobalSearchView` の idle / loading / empty / error / retry / auth-required / query preservation を確認する。
-- [ ] `ArticleDetailViewModel` / `ArticleDetailSheet` の loading / error retry / read-star failure / open-link boundary を確認する。
-- [ ] `RegisterFeedViewModel` / `RegisterFeedSheet`、`SubscriptionSettingsViewModel` / sheet、`AccountViewModel` / view の mutation busy/failure 表示を確認する。
-- [ ] `AppShell` drawer subscriptions と `Login` / `AppEnvironment` auth restoration の loading / failure / retry を確認する。
-- [ ] route / feed / filter / query / selected item 変更後の stale async response 対策を確認する。
-- [ ] 不足が小さい修正で収まるか、追加子 Issue が必要かを実装 PR の冒頭で判断する。
+- [x] `Feedman/DesignSystem/SharedPrimitives.swift` の loading / empty / recoverable error / toast / banner / sheet shell API を確認する。
+- [x] `TimelineViewModel` / `TimelineView` の initial / refresh / pagination / mutation failure 表示を確認する。
+- [x] `FeedViewModel` / `FeedView` の initial / filter empty / status banner / manual refresh cooldown / pagination / mutation failure 表示を確認する。
+- [x] `StarredViewModel` / `StarredView` の initial / refresh / pagination / unstar failure / auth-required 表示を確認する。
+- [x] `GlobalSearchViewModel` / `GlobalSearchView` の idle / loading / empty / error / retry / auth-required / query preservation を確認する。
+- [x] `ArticleDetailViewModel` / `ArticleDetailSheet` の loading / error retry / read-star failure / open-link boundary を確認する。
+- [x] `RegisterFeedViewModel` / `RegisterFeedSheet`、`SubscriptionSettingsViewModel` / sheet、`AccountViewModel` / view の mutation busy/failure 表示を確認する。
+- [x] `AppShell` drawer subscriptions と `Login` / `AppEnvironment` auth restoration の loading / failure / retry を確認する。
+- [x] route / feed / filter / query / selected item 変更後の stale async response 対策を確認する。
+- [x] 不足が小さい修正で収まるか、追加子 Issue が必要かを実装 PR の冒頭で判断する。
 
 ## 2. Shared presentation helpers
 
