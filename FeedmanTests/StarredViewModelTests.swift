@@ -20,6 +20,27 @@ final class StarredViewModelTests: XCTestCase {
         XCTAssertEqual(calls, [.firstPage(limit: nil)])
     }
 
+    func testInitialLoadShowsLoadingWhileRepositoryIsInFlight() async {
+        let repository = SuspendedStarredRepository(
+            firstPageResult: snapshot(items: [item(id: "loaded")], canLoadMore: false)
+        )
+        let viewModel = StarredViewModel(repository: repository)
+
+        let loadTask = Task { @MainActor in
+            await viewModel.loadInitialIfNeeded()
+        }
+        await repository.waitForCallCount(1)
+
+        XCTAssertEqual(viewModel.state, .loading)
+        XCTAssertEqual(viewModel.items, [])
+
+        await repository.resumeFirstPage()
+        await loadTask.value
+
+        XCTAssertEqual(viewModel.state, .loaded)
+        XCTAssertEqual(viewModel.items.map(\.id), ["loaded"])
+    }
+
     func testInitialLoadEmptyPageExposesEmptyState() async {
         let repository = RecordingStarredRepository(
             firstPageResults: [.success(snapshot(items: [], canLoadMore: false))]
@@ -119,6 +140,7 @@ final class StarredViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.state, .loaded)
         XCTAssertEqual(viewModel.items.map(\.id), ["existing"])
+        XCTAssertTrue(viewModel.canLoadMore)
         XCTAssertEqual(viewModel.refreshErrorMessage, "お気に入りを更新できませんでした。")
     }
 
@@ -147,6 +169,35 @@ final class StarredViewModelTests: XCTestCase {
         )
         XCTAssertEqual(viewModel.items.map(\.id), ["existing"])
         XCTAssertNil(viewModel.refreshErrorMessage)
+        XCTAssertFalse(viewModel.canLoadMore)
+    }
+
+    func testRefreshAuthRequiredDoesNotLeavePreviousEmptyStateVisible() async {
+        let repository = RecordingStarredRepository(
+            firstPageResults: [
+                .failure(authRequiredError())
+            ]
+        )
+        var authRequiredCount = 0
+        let viewModel = StarredViewModel(
+            repository: repository,
+            onAuthRequired: {
+                authRequiredCount += 1
+            },
+            state: .empty
+        )
+
+        await viewModel.refresh()
+
+        XCTAssertEqual(authRequiredCount, 1)
+        XCTAssertEqual(
+            viewModel.state,
+            .failed(
+                message: "認証の有効期限が切れました。もう一度ログインしてください。",
+                isAuthRequired: true
+            )
+        )
+        XCTAssertEqual(viewModel.items, [])
         XCTAssertFalse(viewModel.canLoadMore)
     }
 
@@ -186,12 +237,16 @@ final class StarredViewModelTests: XCTestCase {
         await viewModel.loadNextPageIfNeeded(currentItemID: "first")
 
         XCTAssertEqual(viewModel.items.map(\.id), ["first"])
+        XCTAssertEqual(viewModel.state, .loaded)
+        XCTAssertTrue(viewModel.canLoadMore)
         XCTAssertEqual(viewModel.nextPageErrorMessage, "続きを読み込めませんでした。")
 
         await viewModel.retryNextPage()
 
         XCTAssertEqual(viewModel.items.map(\.id), ["first", "second"])
         XCTAssertNil(viewModel.nextPageErrorMessage)
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [.firstPage(limit: nil), .nextPage, .nextPage])
     }
 
     func testNextPageAuthRequiredCallsBoundaryAndShowsAuthFailure() async {
@@ -256,7 +311,7 @@ final class StarredViewModelTests: XCTestCase {
     func testUnstarFailureRestoresItemAndShowsNonBlockingError() async {
         let repository = RecordingStarredRepository(
             firstPageResults: [
-                .success(snapshot(items: [item(id: "target"), item(id: "other")], canLoadMore: false))
+                .success(snapshot(items: [item(id: "before"), item(id: "target"), item(id: "after")], canLoadMore: false))
             ]
         )
         let itemRepository = MockItemRepository(stateUpdateFailure: StarredViewModelTestError.transport)
@@ -269,10 +324,10 @@ final class StarredViewModelTests: XCTestCase {
         await viewModel.loadInitialIfNeeded()
         await viewModel.toggleStar(id: "target")
 
-        XCTAssertEqual(viewModel.items.map(\.id), ["target", "other"])
+        XCTAssertEqual(viewModel.items.map(\.id), ["before", "target", "after"])
         XCTAssertEqual(viewModel.state, .loaded)
         XCTAssertEqual(viewModel.starMutationErrorMessage, "スターを更新できませんでした。")
-        let target = viewModel.items[0]
+        let target = viewModel.items[1]
         XCTAssertTrue(viewModel.descriptor(for: target).isStarred)
     }
 
@@ -441,5 +496,64 @@ private actor RecordingStarredRepository: FeedRepository {
         }
 
         return try results.removeFirst().get()
+    }
+}
+
+private actor SuspendedStarredRepository: FeedRepository {
+    private var recordedCalls: [StarredRepositoryCall] = []
+    private let firstPageResult: StarredItemPaginationSnapshot
+    private var firstPageContinuations: [CheckedContinuation<StarredItemPaginationSnapshot, Error>] = []
+    private var callCountWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+
+    init(firstPageResult: StarredItemPaginationSnapshot) {
+        self.firstPageResult = firstPageResult
+    }
+
+    func waitForCallCount(_ count: Int) async {
+        guard recordedCalls.count < count else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            callCountWaiters.append((count, continuation))
+        }
+    }
+
+    func resumeFirstPage() {
+        let continuations = firstPageContinuations
+        firstPageContinuations = []
+        continuations.forEach { $0.resume(returning: firstPageResult) }
+    }
+
+    func subscriptions() async throws -> [Feed] {
+        []
+    }
+
+    func registerFeed(url: String) async throws -> RegisteredFeed {
+        throw StarredItemRepositoryError.paginationUnsupported
+    }
+
+    func crossFeedItems() async throws -> [FeedItem] {
+        []
+    }
+
+    func loadStarredItemsFirstPage(limit: Int?) async throws -> StarredItemPaginationSnapshot {
+        record(.firstPage(limit: limit))
+        return try await withCheckedThrowingContinuation { continuation in
+            firstPageContinuations.append(continuation)
+        }
+    }
+
+    func loadStarredItemsNextPage() async throws -> StarredItemPaginationSnapshot {
+        record(.nextPage)
+        throw StarredItemRepositoryError.paginationUnsupported
+    }
+
+    private func record(_ call: StarredRepositoryCall) {
+        recordedCalls.append(call)
+        let currentCallCount = recordedCalls.count
+        let readyWaiters = callCountWaiters.filter { currentCallCount >= $0.count }
+        callCountWaiters.removeAll { currentCallCount >= $0.count }
+        readyWaiters.forEach { $0.continuation.resume() }
     }
 }

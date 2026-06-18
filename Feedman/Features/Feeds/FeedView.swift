@@ -140,7 +140,8 @@ struct FeedView: View {
     private func failedContent(message: String) -> some View {
         FeedmanRecoverableErrorView(
             title: "フィードの記事を読み込めませんでした",
-            message: message
+            message: message,
+            retryDescriptor: FeedmanRetryDescriptor(accessibilityLabel: "フィードの記事読み込みを再試行")
         ) {
             Button("再試行") {
                 Task {

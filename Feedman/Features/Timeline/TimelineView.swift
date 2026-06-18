@@ -82,7 +82,8 @@ struct TimelineView: View {
         ScrollView {
             FeedmanRecoverableErrorView(
                 title: "タイムラインを読み込めませんでした",
-                message: message
+                message: message,
+                retryDescriptor: FeedmanRetryDescriptor(accessibilityLabel: "タイムラインの読み込みを再試行")
             ) {
                 Button("再試行") {
                     Task {

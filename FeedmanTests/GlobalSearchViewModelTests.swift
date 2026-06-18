@@ -69,6 +69,7 @@ final class GlobalSearchViewModelTests: XCTestCase {
             viewModel.state,
             .failed(query: "Swift", message: "検索結果を読み込めませんでした。", isAuthRequired: false)
         )
+        XCTAssertEqual(viewModel.query, "Swift")
 
         await repository.setResult(.success([hit(id: "recovered")]))
         await viewModel.retry()
@@ -78,6 +79,7 @@ final class GlobalSearchViewModelTests: XCTestCase {
             SearchRepositoryCall(query: "Swift", scope: .global),
             SearchRepositoryCall(query: "Swift", scope: .global)
         ])
+        XCTAssertEqual(viewModel.query, "Swift")
         XCTAssertEqual(viewModel.state, .results(query: "Swift", hits: [hit(id: "recovered")]))
     }
 
@@ -261,6 +263,31 @@ final class GlobalSearchViewModelTests: XCTestCase {
         XCTAssertEqual(hits.first(where: { $0.id == "other" })?.isStarred, false)
     }
 
+    func testSelectedDetailFailureDoesNotClearSearchResults() async throws {
+        let searchHit = hit(id: "target", isRead: false, isStarred: false)
+        let searchRepository = RecordingSearchRepository(result: .success([searchHit]))
+        let searchViewModel = makeViewModel(repository: searchRepository)
+
+        await searchViewModel.submitSearch("Swift")
+
+        let input = try XCTUnwrap(SearchResultRowDescriptor(hit: searchHit).detailInput)
+        let detailViewModel = ArticleDetailViewModel(
+            itemID: input.id,
+            summary: input.summary,
+            repository: ArticleDetailFailureRepository(),
+            accessToken: "test-access-token"
+        )
+
+        await detailViewModel.open()
+
+        XCTAssertEqual(
+            detailViewModel.state,
+            .failed(message: "記事詳細を読み込めませんでした。", isAuthRequired: false)
+        )
+        XCTAssertEqual(searchViewModel.query, "Swift")
+        XCTAssertEqual(searchViewModel.state, .results(query: "Swift", hits: [searchHit]))
+    }
+
     private func makeViewModel(
         repository: any SearchRepository = RecordingSearchRepository(result: .success([])),
         onAuthRequired: @escaping () -> Void = {}
@@ -364,4 +391,16 @@ private actor PendingSearchRepository: SearchRepository {
     func succeed(query: String, hits: [ItemSearchHit]) {
         continuations.removeValue(forKey: query)?.resume(returning: hits)
     }
+}
+
+private struct ArticleDetailFailureRepository: ItemRepository {
+    func itemDetail(id: String, accessToken: String) async throws -> ItemDetail {
+        throw SearchViewModelTestError.transport
+    }
+
+    func updateItemState(
+        id: String,
+        request: ItemStateUpdateRequest,
+        accessToken: String
+    ) async throws {}
 }

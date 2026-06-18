@@ -77,6 +77,26 @@ final class FeedmanTests: XCTestCase {
         XCTAssertNotEqual(light.usesDarkChrome, dark.usesDarkChrome)
     }
 
+    func testFeedmanRetryDescriptorDefaultsToRetryAccessibility() {
+        let descriptor = FeedmanRetryDescriptor()
+
+        XCTAssertEqual(descriptor.label, "再試行")
+        XCTAssertEqual(descriptor.accessibilityLabel, "再試行")
+        XCTAssertTrue(descriptor.isEnabled)
+    }
+
+    func testFeedmanRetryDescriptorKeepsScreenSpecificAccessibilityAndDisabledState() {
+        let descriptor = FeedmanRetryDescriptor(
+            label: "もう一度退会する",
+            accessibilityLabel: "退会処理をもう一度実行",
+            isEnabled: false
+        )
+
+        XCTAssertEqual(descriptor.label, "もう一度退会する")
+        XCTAssertEqual(descriptor.accessibilityLabel, "退会処理をもう一度実行")
+        XCTAssertFalse(descriptor.isEnabled)
+    }
+
     @MainActor
     func testFeedmanToastCenterReplacesCurrentToastDeterministically() {
         let toastCenter = FeedmanToastCenter()

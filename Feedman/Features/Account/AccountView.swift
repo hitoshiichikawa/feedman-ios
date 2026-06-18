@@ -98,7 +98,8 @@ struct AccountView: View {
             FeedmanRecoverableErrorView(
                 title: errorState.title,
                 message: errorState.message,
-                usesDangerEmphasis: false
+                usesDangerEmphasis: false,
+                retryDescriptor: FeedmanRetryDescriptor(accessibilityLabel: "ユーザー情報の読み込みを再試行")
             ) {
                 Button {
                     Task {
@@ -202,7 +203,11 @@ struct AccountView: View {
             FeedmanRecoverableErrorView(
                 title: errorState.title,
                 message: errorState.message,
-                usesDangerEmphasis: true
+                usesDangerEmphasis: true,
+                retryDescriptor: FeedmanRetryDescriptor(
+                    label: "もう一度退会する",
+                    accessibilityLabel: "退会処理をもう一度実行"
+                )
             ) {
                 Button {
                     viewModel.requestDeleteAccountConfirmation()
