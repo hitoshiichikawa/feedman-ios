@@ -120,3 +120,32 @@ Finding Closure Matrix:
 - `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。
 - `git diff --check`: 成功。
 - `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/FeedViewModelTests test`: 実行不可。`xcode-select` の active developer directory が `/Library/Developer/CommandLineTools` で、Xcode 本体ではないため。
+
+### Task 5
+
+採用方針: Starred の production 実装は既に `FeedmanLoadingView`、`FeedmanEmptyStateView`、`FeedmanRecoverableErrorView`、`FeedmanBannerView`、`FeedmanCompactLoadingRow` を Timeline / Feed と同じ構成で利用していたため、挙動変更ではなく `StarredViewModelTests` の不足 assertion を追加して regression を固定した。
+
+重要な判断:
+
+- 初回 loading は suspended repository で first-page request を停止し、`.loading` と空 items が request 中に見えることを固定した。
+- refresh failure は既存 starred items と `canLoadMore` を保持し、`refreshErrorMessage` で non-destructive feedback を出す既存方針を継続した。
+- next-page failure retry は `.nextPage` だけを再実行し、first-page reload / pagination reset を起こさないことを call sequence で明示した。
+- unstar failure は削除済み item を元の index に restore し、starred effective state と failure feedback を保つことを確認した。
+- auth-required は初回 / refresh / next-page で `onAuthRequired` を呼び、previous loaded / empty state へ残らず `.failed(..., isAuthRequired: true)` へ遷移する既存方針を固定した。
+
+残存課題: Task 5 範囲ではなし。auth-required 失敗画面で retry button も表示される二重導線の整理は、既存 Task 1 の残存課題どおり task 8 の scope で扱う。
+
+Finding Closure Matrix:
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| review-notes.md | review | 現行 reject は task 4 marker 境界逸脱であり、task 5 の code/test 変更対象外。task 5 では新規 finding なし / 該当なしとして扱う。 | なし | なし | `plutil` / `git diff --check` は成功。`xcodebuild` は CommandLineTools active directory のため実行不可。 | task 5 実装では task 4 commit を修正しない。 |
+| Starred initial state | coverage | 初回 loading / empty / failed retry が shared primitive 方針に沿うことを ViewModel state と retry call sequence で固定する。 | `test(starred): cover starred polish preservation` | `testInitialLoadShowsLoadingWhileRepositoryIsInFlight`、既存 `testInitialLoadEmptyPageExposesEmptyState`、`testInitialLoadFailureCanRetryFirstPage`。 | `plutil` / `git diff --check` は成功。`xcodebuild` は CommandLineTools active directory のため実行不可。 | production View は既に Timeline / Feed と同じ primitive 構成のため変更なし。 |
+| Starred refresh / pagination preservation | coverage | refresh failure が既存 items / pagination state を保持し、next-page retry が pagination reset を起こさないことを明示する。 | `test(starred): cover starred polish preservation` | `testRefreshFailurePreservesExistingItems` の `canLoadMore` assertion と `testNextPageFailurePreservesExistingItemsAndShowsRetryableError` の call sequence assertion。 | `plutil` / `git diff --check` は成功。`xcodebuild` は CommandLineTools active directory のため実行不可。 | `retryNextPage()` は `loadNextPageIfNeeded()` に閉じ、first-page request を呼ばない既存実装を維持。 |
+| Starred unstar failure / auth-required | coverage | unstar failure の元位置 restore と feedback、auth-required が stale success / empty として表示されないことを固定する。 | `test(starred): cover starred polish preservation` | `testUnstarFailureRestoresItemAndShowsNonBlockingError`、`testRefreshAuthRequiredDoesNotTreatExistingItemsAsCurrentSuccess`、`testRefreshAuthRequiredDoesNotLeavePreviousEmptyStateVisible`、既存 initial / next-page auth-required tests。 | `plutil` / `git diff --check` は成功。`xcodebuild` は CommandLineTools active directory のため実行不可。 | auth-required の最終導線整理は task 8 scope。 |
+
+検証:
+
+- `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。
+- `git diff --check`: 成功。
+- `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/StarredViewModelTests test`: 実行不可。`xcode-select` の active developer directory が `/Library/Developer/CommandLineTools` で、Xcode 本体ではないため。
