@@ -48,7 +48,7 @@
 
 ## 5. Starred polish
 
-- [ ] 5. Starred polish
+- [x] 5. Starred polish
 
 - [ ] 初回 loading / empty / failed retry の表示を Timeline / Feed と揃える。
 - [ ] refresh failure が既存 starred items を保持することをテストで固定する。
