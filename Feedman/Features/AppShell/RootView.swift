@@ -184,6 +184,9 @@ struct RootView: View {
                 },
                 onOpenLink: { url in
                     openURL(url)
+                },
+                onAuthRequired: {
+                    toastCenter.show("再ログインが必要です。", style: .warning)
                 }
             )
         case let .feed(id, title):

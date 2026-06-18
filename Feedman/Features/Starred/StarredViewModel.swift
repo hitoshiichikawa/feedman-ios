@@ -6,7 +6,7 @@ enum StarredViewState: Equatable {
     case loading
     case loaded
     case empty
-    case failed(message: String)
+    case failed(message: String, isAuthRequired: Bool)
 }
 
 struct StarredItemCardDescriptor: Equatable {
@@ -115,6 +115,7 @@ final class StarredViewModel: ObservableObject {
     private var repository: (any FeedRepository)?
     private var itemRepository: (any ItemRepository)?
     private var accessToken: String?
+    private var onAuthRequired: () -> Void
     private let itemStateCoordinator: ItemStateCoordinator
     private var isLoadingFirstPage = false
     private var removedItemsByMutation: [String: RemovedItem] = [:]
@@ -131,6 +132,7 @@ final class StarredViewModel: ObservableObject {
         itemRepository: (any ItemRepository)? = nil,
         accessToken: String? = nil,
         itemStateCoordinator: ItemStateCoordinator? = nil,
+        onAuthRequired: @escaping () -> Void = {},
         state: StarredViewState = .idle,
         items: [ItemSummary] = [],
         canLoadMore: Bool = false
@@ -138,6 +140,7 @@ final class StarredViewModel: ObservableObject {
         self.repository = repository
         self.itemRepository = itemRepository
         self.accessToken = accessToken
+        self.onAuthRequired = onAuthRequired
         self.itemStateCoordinator = itemStateCoordinator ?? ItemStateCoordinator()
         self.state = state
         self.items = items
@@ -153,7 +156,8 @@ final class StarredViewModel: ObservableObject {
     func configure(
         repository: any FeedRepository,
         itemRepository: (any ItemRepository)? = nil,
-        accessToken: String? = nil
+        accessToken: String? = nil,
+        onAuthRequired: (() -> Void)? = nil
     ) {
         if self.repository == nil {
             self.repository = repository
@@ -162,6 +166,9 @@ final class StarredViewModel: ObservableObject {
             self.itemRepository = itemRepository
         }
         self.accessToken = accessToken
+        if let onAuthRequired {
+            self.onAuthRequired = onAuthRequired
+        }
     }
 
     func loadInitialIfNeeded() async {
@@ -201,7 +208,9 @@ final class StarredViewModel: ObservableObject {
             let snapshot = try await repository.loadStarredItemsNextPage()
             apply(snapshot: snapshot)
         } catch {
-            applyNextPageFailure()
+            if !applyAuthRequiredFailureIfNeeded(error) {
+                applyNextPageFailure()
+            }
         }
 
         isLoadingNextPage = false
@@ -318,7 +327,7 @@ final class StarredViewModel: ObservableObject {
             let snapshot = try await repository.loadStarredItemsFirstPage(limit: nil)
             apply(snapshot: snapshot)
         } catch {
-            applyFirstPageFailure(preservingExistingItems: preservingExistingItems)
+            applyFirstPageFailure(error, preservingExistingItems: preservingExistingItems)
         }
 
         isLoadingFirstPage = false
@@ -379,19 +388,42 @@ final class StarredViewModel: ObservableObject {
         return accessToken
     }
 
-    private func applyFirstPageFailure(preservingExistingItems: Bool) {
+    private func applyFirstPageFailure(
+        _ error: Error? = nil,
+        preservingExistingItems: Bool
+    ) {
+        if let error, applyAuthRequiredFailureIfNeeded(error) {
+            return
+        }
+
         if preservingExistingItems, !items.isEmpty {
             refreshErrorMessage = "お気に入りを更新できませんでした。"
             state = .loaded
         } else {
             items = []
             canLoadMore = false
-            state = .failed(message: "お気に入りを読み込めませんでした。")
+            state = .failed(message: "お気に入りを読み込めませんでした。", isAuthRequired: false)
         }
     }
 
     private func applyNextPageFailure() {
         nextPageErrorMessage = "続きを読み込めませんでした。"
+    }
+
+    private func applyAuthRequiredFailureIfNeeded(_ error: Error) -> Bool {
+        guard case FeedmanAPIError.authRequired = error else {
+            return false
+        }
+
+        onAuthRequired()
+        refreshErrorMessage = nil
+        nextPageErrorMessage = nil
+        canLoadMore = false
+        state = .failed(
+            message: "認証の有効期限が切れました。もう一度ログインしてください。",
+            isAuthRequired: true
+        )
+        return true
     }
 
     private func isPaginationTriggerItem(id: String) -> Bool {

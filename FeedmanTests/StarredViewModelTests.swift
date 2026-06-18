@@ -44,7 +44,10 @@ final class StarredViewModelTests: XCTestCase {
 
         await viewModel.loadInitialIfNeeded()
 
-        XCTAssertEqual(viewModel.state, .failed(message: "お気に入りを読み込めませんでした。"))
+        XCTAssertEqual(
+            viewModel.state,
+            .failed(message: "お気に入りを読み込めませんでした。", isAuthRequired: false)
+        )
         XCTAssertEqual(viewModel.items, [])
 
         await viewModel.retryInitialLoad()
@@ -53,6 +56,31 @@ final class StarredViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.items.map(\.id), ["recovered"])
         let calls = await repository.calls()
         XCTAssertEqual(calls, [.firstPage(limit: nil), .firstPage(limit: nil)])
+    }
+
+    func testInitialLoadAuthRequiredCallsBoundaryAndShowsAuthFailure() async {
+        let repository = RecordingStarredRepository(
+            firstPageResults: [
+                .failure(authRequiredError())
+            ]
+        )
+        var authRequiredCount = 0
+        let viewModel = StarredViewModel(repository: repository, onAuthRequired: {
+            authRequiredCount += 1
+        })
+
+        await viewModel.loadInitialIfNeeded()
+
+        XCTAssertEqual(authRequiredCount, 1)
+        XCTAssertEqual(
+            viewModel.state,
+            .failed(
+                message: "認証の有効期限が切れました。もう一度ログインしてください。",
+                isAuthRequired: true
+            )
+        )
+        XCTAssertEqual(viewModel.items, [])
+        XCTAssertFalse(viewModel.canLoadMore)
     }
 
     func testRefreshSuccessReplacesItemsAndClearsNextPageError() async {
@@ -92,6 +120,34 @@ final class StarredViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.state, .loaded)
         XCTAssertEqual(viewModel.items.map(\.id), ["existing"])
         XCTAssertEqual(viewModel.refreshErrorMessage, "お気に入りを更新できませんでした。")
+    }
+
+    func testRefreshAuthRequiredDoesNotTreatExistingItemsAsCurrentSuccess() async {
+        let repository = RecordingStarredRepository(
+            firstPageResults: [
+                .success(snapshot(items: [item(id: "existing")], canLoadMore: true)),
+                .failure(authRequiredError())
+            ]
+        )
+        var authRequiredCount = 0
+        let viewModel = StarredViewModel(repository: repository, onAuthRequired: {
+            authRequiredCount += 1
+        })
+
+        await viewModel.loadInitialIfNeeded()
+        await viewModel.refresh()
+
+        XCTAssertEqual(authRequiredCount, 1)
+        XCTAssertEqual(
+            viewModel.state,
+            .failed(
+                message: "認証の有効期限が切れました。もう一度ログインしてください。",
+                isAuthRequired: true
+            )
+        )
+        XCTAssertEqual(viewModel.items.map(\.id), ["existing"])
+        XCTAssertNil(viewModel.refreshErrorMessage)
+        XCTAssertFalse(viewModel.canLoadMore)
     }
 
     func testNextPageSuccessAppendsItemsInRepositoryOrder() async {
@@ -136,6 +192,36 @@ final class StarredViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.items.map(\.id), ["first", "second"])
         XCTAssertNil(viewModel.nextPageErrorMessage)
+    }
+
+    func testNextPageAuthRequiredCallsBoundaryAndShowsAuthFailure() async {
+        let repository = RecordingStarredRepository(
+            firstPageResults: [
+                .success(snapshot(items: [item(id: "first")], canLoadMore: true))
+            ],
+            nextPageResults: [
+                .failure(authRequiredError())
+            ]
+        )
+        var authRequiredCount = 0
+        let viewModel = StarredViewModel(repository: repository, onAuthRequired: {
+            authRequiredCount += 1
+        })
+
+        await viewModel.loadInitialIfNeeded()
+        await viewModel.loadNextPageIfNeeded(currentItemID: "first")
+
+        XCTAssertEqual(authRequiredCount, 1)
+        XCTAssertEqual(
+            viewModel.state,
+            .failed(
+                message: "認証の有効期限が切れました。もう一度ログインしてください。",
+                isAuthRequired: true
+            )
+        )
+        XCTAssertEqual(viewModel.items.map(\.id), ["first"])
+        XCTAssertNil(viewModel.nextPageErrorMessage)
+        XCTAssertFalse(viewModel.canLoadMore)
     }
 
     func testUnstarSuccessRemovesItemFromStarredList() async {
@@ -285,6 +371,16 @@ final class StarredViewModelTests: XCTestCase {
             hatebuCount: hatebuCount,
             hatebuFetchedAt: hatebuFetchedAt,
             author: nil
+        )
+    }
+
+    private func authRequiredError() -> FeedmanAPIError {
+        FeedmanAPIError.authRequired(
+            AuthRequiredContext(
+                reason: .missingRefreshHook,
+                statusCode: 401,
+                underlyingError: nil
+            )
         )
     }
 }

@@ -41,3 +41,12 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Fee
 - `requirements.md` は PM 作成の入力として扱い、内容は変更していない。
 - Global search (#46/#47) と確定済み仕様 docs は変更していない。
 - `SharedPrimitives.swift` の既存 warning（`await` 内に async operation がない）は Issue #45 の変更ではないため未対応。
+
+## Reviewer reject 是正
+
+- Starred first-page / refresh / next-page で `FeedmanAPIError.authRequired` を通常 failure と分離し、`StarredViewModel` から auth-required callback を呼び出すようにした。`RootView` では既存 shell の toast boundary に接続した。
+- refresh 中に既存 items がある場合でも auth-required は `.loaded` の stale success として扱わず、`isAuthRequired == true` の failed state へ切り替える方針にした。
+- `MockFeedRepository` に `MockStarredItemsState` を追加し、starred list の deterministic success / empty / paginated / transport error / auth error を initializer または `setStarredItemsState(_:)` で指定できるようにした。
+- `CrossFeedRepositoryTests` に starred endpoint 固有の 401 refresh retry success、refresh hook 不在、refresh 失敗、Mock starred states の coverage を追加した。
+- `StarredViewModelTests` に first-page / refresh / next-page の auth-required boundary と stale success 非採用の coverage を追加した。
+- 検証: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` 成功。363 tests, 0 failures。

@@ -9,6 +9,7 @@ struct StarredView: View {
     private let itemStateChange: ItemStateChange?
     private let onSelectItem: (ArticleDetailSheetInput) -> Void
     private let onOpenLink: (URL) -> Void
+    private let onAuthRequired: () -> Void
 
     init(
         viewModel: StarredViewModel,
@@ -17,7 +18,8 @@ struct StarredView: View {
         accessToken: String?,
         itemStateChange: ItemStateChange?,
         onSelectItem: @escaping (ArticleDetailSheetInput) -> Void,
-        onOpenLink: @escaping (URL) -> Void
+        onOpenLink: @escaping (URL) -> Void,
+        onAuthRequired: @escaping () -> Void = {}
     ) {
         self.viewModel = viewModel
         self.repository = repository
@@ -26,6 +28,7 @@ struct StarredView: View {
         self.itemStateChange = itemStateChange
         self.onSelectItem = onSelectItem
         self.onOpenLink = onOpenLink
+        self.onAuthRequired = onAuthRequired
     }
 
     var body: some View {
@@ -36,7 +39,8 @@ struct StarredView: View {
                 viewModel.configure(
                     repository: repository,
                     itemRepository: itemRepository,
-                    accessToken: accessToken
+                    accessToken: accessToken,
+                    onAuthRequired: onAuthRequired
                 )
                 viewModel.handleItemStateChange(itemStateChange)
                 await viewModel.loadInitialIfNeeded()
@@ -48,7 +52,8 @@ struct StarredView: View {
                 viewModel.configure(
                     repository: repository,
                     itemRepository: itemRepository,
-                    accessToken: accessToken
+                    accessToken: accessToken,
+                    onAuthRequired: onAuthRequired
                 )
                 await viewModel.refresh()
             }
@@ -67,8 +72,8 @@ struct StarredView: View {
             }
         case .empty:
             emptyContent
-        case let .failed(message):
-            failedContent(message: message)
+        case let .failed(message, isAuthRequired):
+            failedContent(message: message, isAuthRequired: isAuthRequired)
         case .loaded:
             starredList
         }
@@ -85,11 +90,12 @@ struct StarredView: View {
         }
     }
 
-    private func failedContent(message: String) -> some View {
+    private func failedContent(message: String, isAuthRequired: Bool) -> some View {
         ScrollView {
             FeedmanRecoverableErrorView(
-                title: "お気に入りを読み込めませんでした",
-                message: message
+                title: isAuthRequired ? "再ログインが必要です" : "お気に入りを読み込めませんでした",
+                message: message,
+                usesDangerEmphasis: !isAuthRequired
             ) {
                 Button("再試行") {
                     Task {
@@ -255,12 +261,13 @@ private struct StarredItemCard: View {
 
 #Preview {
     StarredView(
-        viewModel: StarredViewModel(repository: MockFeedRepository()),
-        repository: MockFeedRepository(),
+        viewModel: StarredViewModel(repository: MockFeedRepository(starredItemsState: .defaultItems)),
+        repository: MockFeedRepository(starredItemsState: .defaultItems),
         itemRepository: MockItemRepository(),
         accessToken: "preview-access-token",
         itemStateChange: nil,
         onSelectItem: { _ in },
-        onOpenLink: { _ in }
+        onOpenLink: { _ in },
+        onAuthRequired: {}
     )
 }
