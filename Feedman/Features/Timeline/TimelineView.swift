@@ -243,6 +243,7 @@ private struct TimelineCard: View {
         .opacity(descriptor.opacity)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(descriptor.accessibilityLabel)
+        .accessibilityValue(descriptor.accessibilityValue)
     }
 }
 

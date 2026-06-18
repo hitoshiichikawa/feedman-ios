@@ -87,7 +87,9 @@ struct SubscriptionSettingsSheet: View {
                 }
 
                 Text(viewModel.operation == .savingInterval ? "保存中" : "取得間隔を保存")
-                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(minWidth: 112)
             }
             .frame(maxWidth: .infinity)
@@ -191,7 +193,9 @@ struct SubscriptionSettingsSheet: View {
                         }
 
                         Label(viewModel.operation == .resuming ? "再開中" : "購読を再開", systemImage: "play.circle")
-                            .lineLimit(1)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity)
                 }

@@ -267,7 +267,7 @@ private struct SearchResultCard: View {
             descriptor.select(onSelectItem)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("記事詳細を開く")
+        .accessibilityLabel(descriptor.detailAccessibilityLabel)
     }
 
     private var actionRow: some View {
