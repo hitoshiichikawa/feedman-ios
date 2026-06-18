@@ -91,6 +91,32 @@ final class ArticleDetailViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.loadedPresentation?.isStarred, true)
     }
 
+    func testOpenShowsSummaryLoadingWhileDetailRequestIsInFlight() async throws {
+        let repository = PendingArticleDetailRepository()
+        let viewModel = makeViewModel(
+            repository: repository,
+            summaryIsRead: true
+        )
+
+        let task = Task {
+            await viewModel.open()
+        }
+        try await waitUntil {
+            await repository.detailCalls().count == 1
+        }
+
+        guard case let .loading(summary) = viewModel.state else {
+            return XCTFail("Expected summary loading state")
+        }
+        XCTAssertEqual(summary?.id, "item-123")
+        XCTAssertEqual(summary?.title, "Summary Title")
+
+        await repository.succeed(makeDetail(isRead: true, isStarred: false))
+        await task.value
+
+        XCTAssertEqual(viewModel.loadedPresentation?.title, "Article Title")
+    }
+
     func testReadMarkingFailureDoesNotBlockLoadedDetail() async throws {
         let repository = ArticleDetailRecordingRepository(
             detailResults: [.success(makeDetail(isRead: false, isStarred: false))],
@@ -102,6 +128,7 @@ final class ArticleDetailViewModelTests: XCTestCase {
 
         let presentation = try XCTUnwrap(viewModel.loadedPresentation)
         XCTAssertEqual(presentation.title, "Article Title")
+        XCTAssertEqual(viewModel.state, .loaded(presentation))
         XCTAssertEqual(viewModel.mutationMessage?.kind, .read)
         XCTAssertEqual(viewModel.mutationMessage?.message, "既読状態を更新できませんでした。")
     }
@@ -142,6 +169,12 @@ final class ArticleDetailViewModelTests: XCTestCase {
         await viewModel.toggleStar()
 
         XCTAssertEqual(viewModel.loadedPresentation?.isStarred, false)
+        if case let .loaded(presentation) = viewModel.state {
+            XCTAssertEqual(presentation.id, "item-123")
+            XCTAssertFalse(presentation.isStarred)
+        } else {
+            XCTFail("Expected loaded state after star failure")
+        }
         XCTAssertEqual(viewModel.mutationMessage?.kind, .star)
         XCTAssertEqual(viewModel.mutationMessage?.message, "スターを更新できませんでした。")
     }
@@ -587,6 +620,21 @@ final class ArticleDetailViewModelTests: XCTestCase {
         )
     }
 
+    private func waitUntil(
+        _ condition: @escaping () async -> Bool,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        for _ in 0..<20 {
+            if await condition() {
+                return
+            }
+            await Task.yield()
+        }
+
+        XCTFail("Timed out waiting for condition", file: file, line: line)
+    }
+
     private static let authRequiredError = FeedmanAPIError.authRequired(
         AuthRequiredContext(
             reason: .missingRefreshHook,
@@ -658,5 +706,32 @@ private actor ArticleDetailRecordingRepository: ItemRepository {
             return
         }
         try stateUpdateResults.removeFirst().get()
+    }
+}
+
+private actor PendingArticleDetailRepository: ItemRepository {
+    private var recordedDetailCalls: [ArticleDetailCall] = []
+    private var detailContinuation: CheckedContinuation<ItemDetail, Error>?
+
+    func detailCalls() -> [ArticleDetailCall] {
+        recordedDetailCalls
+    }
+
+    func itemDetail(id: String, accessToken: String) async throws -> ItemDetail {
+        recordedDetailCalls.append(ArticleDetailCall(itemID: id, accessToken: accessToken))
+        return try await withCheckedThrowingContinuation { continuation in
+            detailContinuation = continuation
+        }
+    }
+
+    func updateItemState(
+        id: String,
+        request: ItemStateUpdateRequest,
+        accessToken: String
+    ) async throws {}
+
+    func succeed(_ detail: ItemDetail) {
+        detailContinuation?.resume(returning: detail)
+        detailContinuation = nil
     }
 }

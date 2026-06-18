@@ -150,3 +150,30 @@ Finding Closure Matrix:
 - `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。
 - `git diff --check`: 成功。
 - `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/StarredViewModelTests test`: 実行不可。`xcode-select` の active developer directory が `/Library/Developer/CommandLineTools` で、Xcode 本体ではないため。
+
+### Task 6
+
+採用方針: Search / ArticleDetail の production 実装は既に shared primitive と feature-local state に沿っていたため、挙動変更ではなく `GlobalSearchViewModelTests` と `ArticleDetailViewModelTests` の不足 assertion を追加して regression を固定した。
+
+重要な判断:
+
+- Search は suggestions / loading / empty / failed retry / auth-required / stale response が既存 coverage 済みだったため、retry 時の query 保持と、選択した detail load が失敗しても search results を empty に戻さないことを追加で固定した。
+- ArticleDetail は summary 付き loading を pending repository で確認し、detail read/star mutation failure が `.loaded` state と sheet-local feedback を維持する assertion を追加した。
+- original-link open は invalid URL の feedback までは既存テストで固定済みだが、`SFSafariViewController` presentation 後の表示失敗は現行 `ArticleDetailSafariView` 境界では検知できないため production 変更しない。
+
+残存課題: `SFSafariViewController` 側の表示失敗検知が必要になった場合は presenter 境界の redesign が必要。Task 6 範囲ではなし。
+
+Finding Closure Matrix:
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| review-notes.md | review | 現行 review は task 5 approve / 追加 finding なしのため、reject finding の修正は不要。 | なし | なし | 追加 finding なしを確認。 | Task 6 learning として reject finding なしを記録した。 |
+| Search retry / detail failure preservation | coverage | Search retry が最後に submit 済みの query を維持し、detail error が search results を empty に戻さないことを固定する。 | `test(search): cover search detail polish preservation` | `testFailureStateIsDistinctFromEmptyAndRetryUsesSameQuery` の query assertion と `testSelectedDetailFailureDoesNotClearSearchResults`。 | `plutil` / `git diff --check` は成功。`xcodebuild` は CommandLineTools active directory のため実行不可。 | production 実装は `GlobalSearchViewState.activeQuery` と search/detail の独立 ViewModel state を継続利用。 |
+| ArticleDetail loading / mutation preservation | coverage | summary loading と read/star mutation failure 後の loaded sheet state 保持を固定する。 | `test(search): cover search detail polish preservation` | `testOpenShowsSummaryLoadingWhileDetailRequestIsInFlight`、`testReadMarkingFailureDoesNotBlockLoadedDetail`、`testStarFailureKeepsDeterministicFinalStateAndSurfacesMessage`。 | `plutil` / `git diff --check` は成功。`xcodebuild` は CommandLineTools active directory のため実行不可。 | production 実装は `ArticleDetailViewState.loading(summary:)`、`FeedmanBannerView`、`ItemStateCoordinator` rollback を継続利用。 |
+| ArticleDetail original-link failure | boundary | 現行 presenter で検知可能な invalid URL feedback を確認し、Safari 表示後 failure は follow-up として記録する。 | なし | 既存 `testOpenOriginalWithInvalidURLReturnsNilAndDoesNotMarkRead`。 | `plutil` / `git diff --check` は成功。`xcodebuild` は CommandLineTools active directory のため実行不可。 | `SFSafariViewController` presentation failure を返す IF がないため、Task 6 では doc-only follow-up とした。 |
+
+検証:
+
+- `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。
+- `git diff --check`: 成功。
+- `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/GlobalSearchViewModelTests -only-testing:FeedmanTests/ArticleDetailViewModelTests test`: 実行不可。`xcode-select` の active developer directory が `/Library/Developer/CommandLineTools` で、Xcode 本体ではないため。
