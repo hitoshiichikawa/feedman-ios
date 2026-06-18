@@ -83,7 +83,12 @@ struct SearchResultRowDescriptor: Equatable {
             return nil
         }
 
-        return SearchResultOpenLinkRequest(itemID: hit.id, url: linkURL)
+        return SearchResultOpenLinkRequest(
+            itemID: hit.id,
+            url: linkURL,
+            isRead: hit.isRead,
+            isStarred: hit.isStarred
+        )
     }
 
     func select(_ action: (ArticleDetailSheetInput) -> Void) {
@@ -116,6 +121,20 @@ struct SearchResultRowDescriptor: Equatable {
 struct SearchResultOpenLinkRequest: Equatable {
     let itemID: String
     let url: URL
+    let isRead: Bool?
+    let isStarred: Bool?
+
+    init(
+        itemID: String,
+        url: URL,
+        isRead: Bool? = nil,
+        isStarred: Bool? = nil
+    ) {
+        self.itemID = itemID
+        self.url = url
+        self.isRead = isRead
+        self.isStarred = isStarred
+    }
 }
 
 @MainActor
@@ -126,20 +145,25 @@ final class GlobalSearchViewModel: ObservableObject {
     @Published private(set) var state: GlobalSearchViewState
 
     private let repository: any SearchRepository
+    private let itemStateCoordinator: ItemStateCoordinator?
     private let onAuthRequired: () -> Void
     private var currentRequestID: UUID?
     private var activeSearchTask: Task<Result<[ItemSearchHit], Error>, Never>?
+    private var cancellables: Set<AnyCancellable> = []
 
     init(
         query: String = "",
         state: GlobalSearchViewState = .suggestions,
         repository: any SearchRepository,
+        itemStateCoordinator: ItemStateCoordinator? = nil,
         onAuthRequired: @escaping () -> Void = {}
     ) {
         self.query = query
         self.state = state
         self.repository = repository
+        self.itemStateCoordinator = itemStateCoordinator
         self.onAuthRequired = onAuthRequired
+        observeItemStateCoordinator()
     }
 
     deinit {
@@ -188,7 +212,8 @@ final class GlobalSearchViewModel: ObservableObject {
         activeSearchTask = nil
         switch result {
         case .success(let hits):
-            state = hits.isEmpty ? .empty(query: submittedQuery) : .results(query: submittedQuery, hits: hits)
+            let effectiveHits = hits.map(effectiveHit(_:))
+            state = effectiveHits.isEmpty ? .empty(query: submittedQuery) : .results(query: submittedQuery, hits: effectiveHits)
         case .failure(let error):
             applyFailure(error, query: submittedQuery)
         }
@@ -225,6 +250,28 @@ final class GlobalSearchViewModel: ObservableObject {
         if didChange {
             state = .results(query: query, hits: updatedHits)
         }
+    }
+
+    private func observeItemStateCoordinator() {
+        itemStateCoordinator?.objectWillChange
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.applyEffectiveStateToVisibleHits()
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func applyEffectiveStateToVisibleHits() {
+        guard case let .results(query, hits) = state else {
+            return
+        }
+
+        state = .results(query: query, hits: hits.map(effectiveHit(_:)))
+    }
+
+    private func effectiveHit(_ hit: ItemSearchHit) -> ItemSearchHit {
+        itemStateCoordinator?.effectiveSearchHit(hit) ?? hit
     }
 
     private func clearActiveSearch() {

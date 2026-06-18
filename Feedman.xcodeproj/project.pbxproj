@@ -83,6 +83,8 @@
 		100000000000000000000173 /* SubscriptionSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000276 /* SubscriptionSettingsSheet.swift */; };
 		100000000000000000000174 /* SubscriptionActionRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000277 /* SubscriptionActionRepositoryTests.swift */; };
 		100000000000000000000175 /* SubscriptionSettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000278 /* SubscriptionSettingsViewModelTests.swift */; };
+		100000000000000000000181 /* ItemStateCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000280 /* ItemStateCoordinator.swift */; };
+		100000000000000000000182 /* ItemStateCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000281 /* ItemStateCoordinatorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -175,6 +177,8 @@
 		100000000000000000000276 /* SubscriptionSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionSettingsSheet.swift; sourceTree = "<group>"; };
 		100000000000000000000277 /* SubscriptionActionRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionActionRepositoryTests.swift; sourceTree = "<group>"; };
 		100000000000000000000278 /* SubscriptionSettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionSettingsViewModelTests.swift; sourceTree = "<group>"; };
+		100000000000000000000280 /* ItemStateCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemStateCoordinator.swift; sourceTree = "<group>"; };
+		100000000000000000000281 /* ItemStateCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemStateCoordinatorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -238,6 +242,7 @@
 				100000000000000000000260 /* GlobalSearchViewModelTests.swift */,
 				100000000000000000000264 /* FeedRegistrationRepositoryTests.swift */,
 				100000000000000000000265 /* RegisterFeedViewModelTests.swift */,
+				100000000000000000000281 /* ItemStateCoordinatorTests.swift */,
 				100000000000000000000268 /* TimelineViewModelTests.swift */,
 				100000000000000000000271 /* FeedViewModelTests.swift */,
 				100000000000000000000274 /* ArticleDetailViewModelTests.swift */,
@@ -272,6 +277,7 @@
 				100000000000000000000227 /* APIError.swift */,
 				100000000000000000000229 /* APIClient.swift */,
 				100000000000000000000612 /* Pagination */,
+				100000000000000000000621 /* State */,
 				100000000000000000000611 /* Auth */,
 				100000000000000000000204 /* FeedRepository.swift */,
 				100000000000000000000252 /* AccountRepository.swift */,
@@ -432,6 +438,14 @@
 			path = Subscriptions;
 			sourceTree = "<group>";
 		};
+		100000000000000000000621 /* State */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000280 /* ItemStateCoordinator.swift */,
+			);
+			path = State;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -547,6 +561,7 @@
 				100000000000000000000125 /* APIError.swift in Sources */,
 				100000000000000000000127 /* APIClient.swift in Sources */,
 				100000000000000000000129 /* CursorPaginationState.swift in Sources */,
+				100000000000000000000181 /* ItemStateCoordinator.swift in Sources */,
 				100000000000000000000119 /* PKCE.swift in Sources */,
 				100000000000000000000120 /* AuthCallbackParser.swift in Sources */,
 				100000000000000000000123 /* TokenStore.swift in Sources */,
@@ -609,6 +624,7 @@
 				100000000000000000000157 /* GlobalSearchViewModelTests.swift in Sources */,
 				100000000000000000000161 /* FeedRegistrationRepositoryTests.swift in Sources */,
 				100000000000000000000162 /* RegisterFeedViewModelTests.swift in Sources */,
+				100000000000000000000182 /* ItemStateCoordinatorTests.swift in Sources */,
 				100000000000000000000165 /* TimelineViewModelTests.swift in Sources */,
 				100000000000000000000168 /* FeedViewModelTests.swift in Sources */,
 				100000000000000000000171 /* ArticleDetailViewModelTests.swift in Sources */,

@@ -405,21 +405,55 @@ final class FeedViewModelTests: XCTestCase {
         XCTAssertEqual(openedURLs, [try XCTUnwrap(URL(string: "https://example.com/action"))])
     }
 
-    func testLocalStarToggleDoesNotCallRepositoryMutation() async throws {
+    func testStarToggleCallsRepositoryMutationAndUpdatesEffectiveState() async throws {
         let repository = RecordingFeedItemsRepository(
             firstPageResults: [
                 .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "target", isStarred: false)], canLoadMore: false))
             ]
         )
-        let viewModel = FeedViewModel(repository: repository)
+        let itemRepository = MockItemRepository()
+        let viewModel = FeedViewModel(
+            repository: repository,
+            itemRepository: itemRepository,
+            accessToken: "test-access-token"
+        )
 
         await viewModel.loadInitialIfNeeded(feedID: "feed-1")
-        viewModel.toggleStar(id: "target")
+        await viewModel.toggleStar(id: "target")
 
         let firstItem = try XCTUnwrap(viewModel.items.first)
-        XCTAssertTrue(firstItem.isStarred)
+        XCTAssertTrue(viewModel.descriptor(for: firstItem).isStarred)
         let calls = await repository.calls()
         XCTAssertEqual(calls, [.firstPage(feedID: "feed-1", filter: .all, limit: nil)])
+        XCTAssertEqual(
+            itemRepository.stateUpdates,
+            [
+                MockItemStateUpdate(
+                    itemID: "target",
+                    request: ItemStateUpdateRequest(isRead: nil, isStarred: true)
+                )
+            ]
+        )
+    }
+
+    func testStarToggleFailureRollsBackEffectiveStateAndShowsError() async throws {
+        let repository = RecordingFeedItemsRepository(
+            firstPageResults: [
+                .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "target", isStarred: false)], canLoadMore: false))
+            ]
+        )
+        let viewModel = FeedViewModel(
+            repository: repository,
+            itemRepository: MockItemRepository(stateUpdateFailure: FeedViewModelTestError.transport),
+            accessToken: "test-access-token"
+        )
+
+        await viewModel.loadInitialIfNeeded(feedID: "feed-1")
+        await viewModel.toggleStar(id: "target")
+
+        let firstItem = try XCTUnwrap(viewModel.items.first)
+        XCTAssertFalse(viewModel.descriptor(for: firstItem).isStarred)
+        XCTAssertEqual(viewModel.starMutationErrorMessage, "スターを更新できませんでした。")
     }
 
     func testManualRefreshSuccessFetchesBeforeReloadAndPreservesFilter() async {

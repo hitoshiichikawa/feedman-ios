@@ -5,11 +5,24 @@ struct RootView: View {
     @Environment(\.openURL) private var openURL
     @State private var shellState = AppShellState()
     @StateObject private var drawerFeedViewModel = AppShellDrawerFeedViewModel()
-    @StateObject private var timelineViewModel = TimelineViewModel()
-    @StateObject private var feedViewModel = FeedViewModel()
+    @StateObject private var timelineViewModel: TimelineViewModel
+    @StateObject private var feedViewModel: FeedViewModel
+    @StateObject private var itemStateCoordinator: ItemStateCoordinator
     @StateObject private var toastCenter = FeedmanToastCenter()
 
     private let drawerWidth: CGFloat = 280
+
+    @MainActor
+    init() {
+        let itemStateCoordinator = ItemStateCoordinator()
+        _itemStateCoordinator = StateObject(wrappedValue: itemStateCoordinator)
+        _timelineViewModel = StateObject(
+            wrappedValue: TimelineViewModel(itemStateCoordinator: itemStateCoordinator)
+        )
+        _feedViewModel = StateObject(
+            wrappedValue: FeedViewModel(itemStateCoordinator: itemStateCoordinator)
+        )
+    }
 
     var body: some View {
         Group {
@@ -146,7 +159,11 @@ struct RootView: View {
             TimelineView(
                 viewModel: timelineViewModel,
                 repository: environment.feedRepository,
-                onSelectItem: { _ in },
+                itemRepository: environment.itemRepository,
+                accessToken: environment.currentAccessToken,
+                onSelectItem: { input in
+                    presentArticleDetail(input)
+                },
                 onOpenLink: { url in
                     openURL(url)
                 }
@@ -163,6 +180,7 @@ struct RootView: View {
             GlobalSearchView(
                 repository: environment.makeSearchRepository(),
                 itemStateChange: shellState.itemStateChange,
+                itemStateCoordinator: itemStateCoordinator,
                 onSelectItem: { input in
                     presentArticleDetail(input)
                 },
@@ -189,7 +207,11 @@ struct RootView: View {
                 viewModel: feedViewModel,
                 feed: feed,
                 repository: environment.feedRepository,
-                onSelectItem: { _ in },
+                itemRepository: environment.itemRepository,
+                accessToken: environment.currentAccessToken,
+                onSelectItem: { input in
+                    presentArticleDetail(input)
+                },
                 onOpenLink: { url in
                     openURL(url)
                 },
@@ -253,6 +275,7 @@ struct RootView: View {
                 input: input,
                 repository: environment.itemRepository,
                 accessToken: environment.currentAccessToken,
+                itemStateCoordinator: itemStateCoordinator,
                 onDismiss: {
                     shellState.dismissPresentation()
                 },
@@ -345,6 +368,7 @@ struct RootView: View {
             await AppShellSearchResultOpenLinkCoordinator(
                 itemRepository: environment.itemRepository,
                 accessToken: environment.currentAccessToken,
+                itemStateCoordinator: itemStateCoordinator,
                 openURL: { url in
                     openURL(url)
                 },

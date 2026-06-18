@@ -103,7 +103,7 @@ enum AppShellSearchResultOpenLinkFailure: Equatable {
         case .authRequired:
             return "再ログインが必要です。"
         case .readMarkingFailed:
-            return "既読状態を保存できませんでした。"
+            return "既読状態を更新できませんでした。"
         }
     }
 }
@@ -112,9 +112,26 @@ enum AppShellSearchResultOpenLinkFailure: Equatable {
 struct AppShellSearchResultOpenLinkCoordinator {
     let itemRepository: any ItemRepository
     let accessToken: String?
+    let itemStateCoordinator: ItemStateCoordinator
     let openURL: (URL) -> Void
     let onItemStateChange: (ItemStateChange) -> Void
     let onFailure: (AppShellSearchResultOpenLinkFailure) -> Void
+
+    init(
+        itemRepository: any ItemRepository,
+        accessToken: String?,
+        itemStateCoordinator: ItemStateCoordinator? = nil,
+        openURL: @escaping (URL) -> Void,
+        onItemStateChange: @escaping (ItemStateChange) -> Void,
+        onFailure: @escaping (AppShellSearchResultOpenLinkFailure) -> Void
+    ) {
+        self.itemRepository = itemRepository
+        self.accessToken = accessToken
+        self.itemStateCoordinator = itemStateCoordinator ?? ItemStateCoordinator()
+        self.openURL = openURL
+        self.onItemStateChange = onItemStateChange
+        self.onFailure = onFailure
+    }
 
     func open(_ request: SearchResultOpenLinkRequest) async {
         openURL(request.url)
@@ -126,14 +143,35 @@ struct AppShellSearchResultOpenLinkCoordinator {
             return
         }
 
+        let baseRead = request.isRead ?? false
+        let baseStarred = request.isStarred ?? false
+        guard !itemStateCoordinator.effectiveState(
+            itemID: request.itemID,
+            baseRead: baseRead,
+            baseStarred: baseStarred
+        ).isRead else {
+            return
+        }
+
+        guard let token = itemStateCoordinator.beginMutation(
+            itemID: request.itemID,
+            baseRead: baseRead,
+            baseStarred: baseStarred,
+            isRead: true
+        ) else {
+            return
+        }
+
         do {
             try await itemRepository.updateItemState(
                 id: request.itemID,
                 request: ItemStateUpdateRequest(isRead: true, isStarred: nil),
                 accessToken: accessToken
             )
+            itemStateCoordinator.commitMutation(token)
             onItemStateChange(ItemStateChange(itemID: request.itemID, isRead: true, isStarred: nil))
         } catch {
+            itemStateCoordinator.rollbackMutation(token)
             if case FeedmanAPIError.authRequired = error {
                 onFailure(.authRequired)
             } else {

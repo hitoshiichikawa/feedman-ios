@@ -7,10 +7,12 @@ struct ArticleDetailSheet: View {
     private let input: ArticleDetailSheetInput
     private let onDismiss: () -> Void
 
+    @MainActor
     init(
         input: ArticleDetailSheetInput,
         repository: any ItemRepository,
         accessToken: String?,
+        itemStateCoordinator: ItemStateCoordinator? = nil,
         onDismiss: @escaping () -> Void,
         onAuthRequired: @escaping () -> Void = {},
         onItemStateChange: @escaping (ItemStateChange) -> Void = { _ in }
@@ -23,6 +25,7 @@ struct ArticleDetailSheet: View {
                 summary: input.summary,
                 repository: repository,
                 accessToken: accessToken,
+                itemStateCoordinator: itemStateCoordinator,
                 onAuthRequired: onAuthRequired,
                 onItemStateChange: onItemStateChange
             )

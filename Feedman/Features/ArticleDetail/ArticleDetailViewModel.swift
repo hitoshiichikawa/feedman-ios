@@ -30,6 +30,7 @@ struct ArticleDetailSummary: Equatable {
     let link: String?
     let publishedAt: String?
     let isDateEstimated: Bool?
+    let isRead: Bool?
     let isStarred: Bool?
     let hatebuCount: Int?
     let hatebuFetchedAt: String?
@@ -44,6 +45,7 @@ struct ArticleDetailSummary: Equatable {
         link: String? = nil,
         publishedAt: String? = nil,
         isDateEstimated: Bool? = nil,
+        isRead: Bool? = nil,
         isStarred: Bool? = nil,
         hatebuCount: Int? = nil,
         hatebuFetchedAt: String? = nil,
@@ -57,6 +59,7 @@ struct ArticleDetailSummary: Equatable {
         self.link = link
         self.publishedAt = publishedAt
         self.isDateEstimated = isDateEstimated
+        self.isRead = isRead
         self.isStarred = isStarred
         self.hatebuCount = hatebuCount
         self.hatebuFetchedAt = hatebuFetchedAt
@@ -71,8 +74,27 @@ struct ArticleDetailSummary: Equatable {
             summary: item.summary,
             link: item.link.absoluteString,
             publishedAt: item.publishedAt,
+            isRead: item.isRead,
             isStarred: item.isStarred,
             hatebuCount: item.hatebuCount
+        )
+    }
+
+    init(item: ItemSummary) {
+        self.init(
+            id: item.id,
+            feedTitle: item.feedTitle,
+            feedFaviconURL: item.feedFaviconURL,
+            title: item.title,
+            summary: item.summary,
+            link: item.link,
+            publishedAt: item.publishedAt,
+            isDateEstimated: item.isDateEstimated,
+            isRead: item.isRead,
+            isStarred: item.isStarred,
+            hatebuCount: item.hatebuCount,
+            hatebuFetchedAt: item.hatebuFetchedAt,
+            author: item.author
         )
     }
 
@@ -86,6 +108,7 @@ struct ArticleDetailSummary: Equatable {
             link: searchHit.link,
             publishedAt: searchHit.publishedAt,
             isDateEstimated: searchHit.isDateEstimated,
+            isRead: searchHit.isRead,
             isStarred: searchHit.isStarred,
             hatebuCount: searchHit.hatebuCount,
             hatebuFetchedAt: nil,
@@ -257,12 +280,12 @@ struct ArticleDetailMutationMessage: Equatable, Identifiable {
 
     static let readFailure = ArticleDetailMutationMessage(
         kind: .read,
-        message: "既読状態を保存できませんでした。"
+        message: "既読状態を更新できませんでした。"
     )
 
     static let starFailure = ArticleDetailMutationMessage(
         kind: .star,
-        message: "スター状態を保存できませんでした。"
+        message: "スターを更新できませんでした。"
     )
 
     static let openOriginalInvalidURL = ArticleDetailMutationMessage(
@@ -281,17 +304,20 @@ final class ArticleDetailViewModel: ObservableObject {
     private let summary: ArticleDetailSummary?
     private let repository: any ItemRepository
     private let accessToken: String?
+    private let itemStateCoordinator: ItemStateCoordinator
     private let onAuthRequired: () -> Void
     private let onItemStateChange: (ItemStateChange) -> Void
     private var hasOpened = false
     private var didMarkReadOnOpen = false
     private var detail: ItemDetail?
+    private var cancellables: Set<AnyCancellable> = []
 
     init(
         itemID: String,
         summary: ArticleDetailSummary? = nil,
         repository: any ItemRepository,
         accessToken: String?,
+        itemStateCoordinator: ItemStateCoordinator? = nil,
         onAuthRequired: @escaping () -> Void = {},
         onItemStateChange: @escaping (ItemStateChange) -> Void = { _ in }
     ) {
@@ -299,9 +325,11 @@ final class ArticleDetailViewModel: ObservableObject {
         self.summary = summary
         self.repository = repository
         self.accessToken = accessToken
+        self.itemStateCoordinator = itemStateCoordinator ?? ItemStateCoordinator()
         self.onAuthRequired = onAuthRequired
         self.onItemStateChange = onItemStateChange
         self.state = .idle
+        observeItemStateCoordinator()
     }
 
     var loadedPresentation: ArticleDetailPresentation? {
@@ -333,7 +361,22 @@ final class ArticleDetailViewModel: ObservableObject {
             return
         }
 
-        let targetValue = !detail.isStarred
+        let snapshot = itemStateCoordinator.effectiveState(
+            itemID: itemID,
+            baseRead: detail.isRead,
+            baseStarred: detail.isStarred
+        )
+        let targetValue = !snapshot.isStarred
+        guard let token = itemStateCoordinator.beginMutation(
+            itemID: itemID,
+            baseRead: detail.isRead,
+            baseStarred: detail.isStarred,
+            isStarred: targetValue
+        ) else {
+            return
+        }
+
+        refreshLoadedPresentation()
         isStarUpdateInFlight = true
         defer {
             isStarUpdateInFlight = false
@@ -345,12 +388,15 @@ final class ArticleDetailViewModel: ObservableObject {
                 request: ItemStateUpdateRequest(isRead: nil, isStarred: targetValue),
                 accessToken: accessToken
             )
-            applyDetail(detail.updating(isStarred: targetValue))
+            itemStateCoordinator.commitMutation(token)
+            refreshLoadedPresentation()
             mutationMessage = nil
             onItemStateChange(
                 ItemStateChange(itemID: itemID, isRead: nil, isStarred: targetValue)
             )
         } catch {
+            itemStateCoordinator.rollbackMutation(token)
+            refreshLoadedPresentation()
             applyMutationFailure(.starFailure, error: error)
         }
     }
@@ -402,29 +448,77 @@ final class ArticleDetailViewModel: ObservableObject {
             return
         }
 
+        let baseline = readStarBaseline()
+        let snapshot = itemStateCoordinator.effectiveState(
+            itemID: itemID,
+            baseRead: baseline.isRead,
+            baseStarred: baseline.isStarred
+        )
+        guard !snapshot.isRead else {
+            didMarkReadOnOpen = true
+            return
+        }
+
+        guard let token = itemStateCoordinator.beginMutation(
+            itemID: itemID,
+            baseRead: baseline.isRead,
+            baseStarred: baseline.isStarred,
+            isRead: true
+        ) else {
+            return
+        }
+
+        refreshLoadedPresentation()
+
         do {
             try await repository.updateItemState(
                 id: itemID,
                 request: ItemStateUpdateRequest(isRead: true, isStarred: nil),
                 accessToken: accessToken
             )
+            itemStateCoordinator.commitMutation(token)
             didMarkReadOnOpen = true
+            refreshLoadedPresentation()
             onItemStateChange(
                 ItemStateChange(itemID: itemID, isRead: true, isStarred: nil)
             )
-
-            if let detail {
-                applyDetail(detail.updating(isRead: true))
-            }
+            mutationMessage = nil
         } catch {
+            itemStateCoordinator.rollbackMutation(token)
+            refreshLoadedPresentation()
             applyMutationFailure(.readFailure, error: error)
         }
     }
 
     private func applyDetail(_ detail: ItemDetail) {
-        let displayDetail = didMarkReadOnOpen ? detail.updating(isRead: true) : detail
-        self.detail = displayDetail
-        state = .loaded(ArticleDetailPresentation(detail: displayDetail))
+        self.detail = detail
+        state = .loaded(ArticleDetailPresentation(detail: itemStateCoordinator.effectiveDetail(detail)))
+    }
+
+    private func refreshLoadedPresentation() {
+        guard let detail else {
+            return
+        }
+
+        state = .loaded(ArticleDetailPresentation(detail: itemStateCoordinator.effectiveDetail(detail)))
+    }
+
+    private func readStarBaseline() -> (isRead: Bool, isStarred: Bool) {
+        if let detail {
+            return (detail.isRead, detail.isStarred)
+        }
+
+        return (summary?.isRead ?? false, summary?.isStarred ?? false)
+    }
+
+    private func observeItemStateCoordinator() {
+        itemStateCoordinator.objectWillChange
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.refreshLoadedPresentation()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     private func applyFailure(_ error: Error) {

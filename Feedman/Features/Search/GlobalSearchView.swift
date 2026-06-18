@@ -11,6 +11,7 @@ struct GlobalSearchView: View {
     init(
         repository: any SearchRepository,
         itemStateChange: ItemStateChange? = nil,
+        itemStateCoordinator: ItemStateCoordinator? = nil,
         onSelectItem: @escaping (ArticleDetailSheetInput) -> Void,
         onOpenLink: @escaping (SearchResultOpenLinkRequest) -> Void,
         onAuthRequired: @escaping () -> Void = {}
@@ -18,6 +19,7 @@ struct GlobalSearchView: View {
         _viewModel = StateObject(
             wrappedValue: GlobalSearchViewModel(
                 repository: repository,
+                itemStateCoordinator: itemStateCoordinator,
                 onAuthRequired: onAuthRequired
             )
         )
