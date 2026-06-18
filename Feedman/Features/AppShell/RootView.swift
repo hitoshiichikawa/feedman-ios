@@ -7,6 +7,7 @@ struct RootView: View {
     @StateObject private var drawerFeedViewModel = AppShellDrawerFeedViewModel()
     @StateObject private var timelineViewModel: TimelineViewModel
     @StateObject private var feedViewModel: FeedViewModel
+    @StateObject private var starredViewModel: StarredViewModel
     @StateObject private var itemStateCoordinator: ItemStateCoordinator
     @StateObject private var toastCenter = FeedmanToastCenter()
 
@@ -21,6 +22,9 @@ struct RootView: View {
         )
         _feedViewModel = StateObject(
             wrappedValue: FeedViewModel(itemStateCoordinator: itemStateCoordinator)
+        )
+        _starredViewModel = StateObject(
+            wrappedValue: StarredViewModel(itemStateCoordinator: itemStateCoordinator)
         )
     }
 
@@ -169,10 +173,18 @@ struct RootView: View {
                 }
             )
         case .starred:
-            placeholderContent(
-                systemImage: "star",
-                title: "お気に入り",
-                subtitle: "スター一覧は後続 Issue で追加します。"
+            StarredView(
+                viewModel: starredViewModel,
+                repository: environment.feedRepository,
+                itemRepository: environment.itemRepository,
+                accessToken: environment.currentAccessToken,
+                itemStateChange: shellState.itemStateChange,
+                onSelectItem: { input in
+                    presentArticleDetail(input)
+                },
+                onOpenLink: { url in
+                    openURL(url)
+                }
             )
         case let .feed(id, title):
             feedContent(feedID: id, routeTitle: title)

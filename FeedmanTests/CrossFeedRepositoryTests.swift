@@ -357,6 +357,68 @@ final class CrossFeedRepositoryTests: XCTestCase {
         }
     }
 
+    func testStarredItemsFirstPageRequestsStarredEndpointWithLimitOnly() async throws {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueue(response: feedItemPage(ids: ["starred-1"], nextCursor: "cursor-2", hasMore: true))
+        let repository = makeStarredItemsRepository(transport: transport)
+
+        let snapshot = try await repository.loadStarredItemsFirstPage(limit: nil)
+
+        let request = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(request.url?.path, "/api/feeds/starred/items")
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
+        XCTAssertEqual(queryValue("limit", in: request), "50")
+        XCTAssertNil(queryValue("cursor", in: request))
+        XCTAssertEqual(snapshot.items.map(\.id), ["starred-1"])
+        XCTAssertEqual(snapshot.nextCursor, "cursor-2")
+        XCTAssertTrue(snapshot.canLoadMore)
+    }
+
+    func testStarredItemsNextPageSendsStoredCursorAndAppendsItems() async throws {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueue(response: feedItemPage(ids: ["starred-1"], nextCursor: "cursor-2", hasMore: true))
+        transport.enqueue(response: feedItemPage(ids: ["starred-2"], nextCursor: nil, hasMore: false))
+        let repository = makeStarredItemsRepository(transport: transport)
+
+        _ = try await repository.loadStarredItemsFirstPage(limit: 25)
+        let snapshot = try await repository.loadStarredItemsNextPage()
+
+        let request = try XCTUnwrap(transport.requests.last)
+        XCTAssertEqual(request.url?.path, "/api/feeds/starred/items")
+        XCTAssertEqual(queryValue("limit", in: request), "25")
+        XCTAssertEqual(queryValue("cursor", in: request), "cursor-2")
+        XCTAssertEqual(snapshot.items.map(\.id), ["starred-1", "starred-2"])
+        XCTAssertFalse(snapshot.canLoadMore)
+    }
+
+    func testTerminalStarredItemsPageDoesNotRequestAnotherNextPage() async throws {
+        let transport = RecordingFeedItemsTransport()
+        transport.enqueue(response: feedItemPage(ids: ["starred-1"], nextCursor: "ignored", hasMore: false))
+        let repository = makeStarredItemsRepository(transport: transport)
+
+        let firstSnapshot = try await repository.loadStarredItemsFirstPage(limit: nil)
+        let nextSnapshot = try await repository.loadStarredItemsNextPage()
+
+        XCTAssertEqual(transport.requests.count, 1)
+        XCTAssertEqual(nextSnapshot, firstSnapshot)
+        XCTAssertFalse(nextSnapshot.canLoadMore)
+    }
+
+    func testStarredItemsNextPageBeforeFirstPageFailsWithoutNetworkRequest() async {
+        let transport = RecordingFeedItemsTransport()
+        let repository = makeStarredItemsRepository(transport: transport)
+
+        do {
+            _ = try await repository.loadStarredItemsNextPage()
+            XCTFail("Expected nextPageRequestedBeforeFirstPage")
+        } catch StarredItemRepositoryError.nextPageRequestedBeforeFirstPage {
+            XCTAssertTrue(transport.requests.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testMockFeedItemsFilterAndPaginateDeterministically() async throws {
         let repository = MockFeedRepository()
 
@@ -563,6 +625,15 @@ final class CrossFeedRepositoryTests: XCTestCase {
     }
 
     private func makeFeedItemsRepository(transport: RecordingFeedItemsTransport) -> APIClientFeedRepository {
+        APIClientFeedRepository(
+            apiClient: APIClient(baseURL: baseURL, transport: transport),
+            accessTokenProvider: {
+                "access-token"
+            }
+        )
+    }
+
+    private func makeStarredItemsRepository(transport: RecordingFeedItemsTransport) -> APIClientFeedRepository {
         APIClientFeedRepository(
             apiClient: APIClient(baseURL: baseURL, transport: transport),
             accessTokenProvider: {
