@@ -93,3 +93,30 @@ Finding Closure Matrix:
 - `git diff --check`: 成功。
 - `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/TimelineViewModelTests test`: 実行不可。`xcode-select` の active developer directory が `/Library/Developer/CommandLineTools` で、Xcode 本体ではないため。
 - `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: 実行不可。理由は同上。
+
+### Task 4
+
+採用方針: Feed list の production 実装は既に shared primitive と feature-local feedback に沿っていたため、挙動変更ではなく `FeedViewModelTests` の不足 assertion を追加して regression を固定した。
+
+重要な判断:
+
+- filter 別 empty state は `FeedViewModel.emptySubtitle` と `.empty` state の組み合わせで表示しているため、未読 / スター filter の空結果と文言を同一テストで固定した。
+- `retryNextPage()` は first-page reload を行わず `.nextPage` だけを再実行し、既存 items / `canLoadMore` / `.loaded` state を保持することを call sequence で明示した。
+- manual refresh generic failure と star mutation failure は、既存 list、pagination state、selected item を保持し、`FeedmanBannerView` に渡る feature-local message を出す既存方針を継続した。
+
+残存課題: Task 4 範囲ではなし。Feed の `FeedmanAPIError.authRequired` boundary 整理は task 8 の scope として扱う。
+
+Finding Closure Matrix:
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| review-notes.md | review | 現行 review は task 3 approve / reject finding なしのため、task 4 で修正すべき前回 finding はない。 | なし | なし | 追加 finding なしを確認。 | Task 4 learning として reject finding なしを記録した。 |
+| Feed filter empty state | coverage | filter 別 empty state の文言と表示条件を固定する。 | `test(feed): cover feed list polish preservation` | `testFilterSpecificEmptyStateUsesSelectedFilterCopy` で unread / starred の `.empty` state と subtitle を確認。 | `plutil` / `git diff --check` は成功。`xcodebuild` は CommandLineTools active directory のため実行不可。 | production 実装は `FeedmanEmptyStateView` と `emptySubtitle` を継続利用。 |
+| Feed next-page retry semantics | coverage | next-page failure retry が first-page session を reset せず next-page のみを再実行することを明示する。 | `test(feed): cover feed list polish preservation` | `testNextPageFailurePreservesExistingItemsAndShowsRetryableError` の `.loaded` / `canLoadMore` / call sequence assertion。 | `plutil` / `git diff --check` は成功。`xcodebuild` は CommandLineTools active directory のため実行不可。 | production 実装は `retryNextPage()` -> `loadNextPageIfNeeded()` を継続利用。 |
+| Feed mutation and refresh preservation | coverage | manual refresh generic failure と star mutation failure が navigation/list state を失わないことを明示する。 | `test(feed): cover feed list polish preservation` | `testManualRefreshGenericErrorPreservesItemsAndShowsFailureGuidance` の `.loaded` / `canLoadMore` assertion と `testStarToggleFailureRollsBackEffectiveStateAndShowsError` の `selectedItemID` assertion。 | `plutil` / `git diff --check` は成功。`xcodebuild` は CommandLineTools active directory のため実行不可。 | `FeedStatusBannerDescriptor` と cooldown retry-after coverage は既存テストで確認済みのため production 変更なし。 |
+
+検証:
+
+- `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功。
+- `git diff --check`: 成功。
+- `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/FeedViewModelTests test`: 実行不可。`xcode-select` の active developer directory が `/Library/Developer/CommandLineTools` で、Xcode 本体ではないため。

@@ -32,6 +32,38 @@ final class FeedViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.canLoadMore)
     }
 
+    func testFilterSpecificEmptyStateUsesSelectedFilterCopy() async {
+        let repository = RecordingFeedItemsRepository(
+            firstPageResults: [
+                .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "all")], canLoadMore: false)),
+                .success(snapshot(feedID: "feed-1", filter: .unread, items: [], canLoadMore: false)),
+                .success(snapshot(feedID: "feed-1", filter: .starred, items: [], canLoadMore: false))
+            ]
+        )
+        let viewModel = FeedViewModel(repository: repository)
+
+        await viewModel.loadInitialIfNeeded(feedID: "feed-1")
+        await viewModel.selectFilter(.unread, feedID: "feed-1")
+
+        XCTAssertEqual(viewModel.state, .empty)
+        XCTAssertEqual(viewModel.filter, .unread)
+        XCTAssertEqual(viewModel.items, [])
+        XCTAssertEqual(
+            viewModel.emptySubtitle,
+            "未読の記事はありません。フィルターを切り替えると既読の記事も確認できます。"
+        )
+
+        await viewModel.selectFilter(.starred, feedID: "feed-1")
+
+        XCTAssertEqual(viewModel.state, .empty)
+        XCTAssertEqual(viewModel.filter, .starred)
+        XCTAssertEqual(viewModel.items, [])
+        XCTAssertEqual(
+            viewModel.emptySubtitle,
+            "スター付きの記事はありません。フィルターを切り替えると他の記事を確認できます。"
+        )
+    }
+
     func testInitialLoadFailureCanRetryFirstPage() async {
         let repository = RecordingFeedItemsRepository(
             firstPageResults: [
@@ -191,11 +223,22 @@ final class FeedViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.items.map(\.id), ["first"])
         XCTAssertEqual(viewModel.nextPageErrorMessage, "続きを読み込めませんでした。")
+        XCTAssertEqual(viewModel.state, .loaded)
+        XCTAssertTrue(viewModel.canLoadMore)
 
         await viewModel.retryNextPage()
 
         XCTAssertEqual(viewModel.items.map(\.id), ["first", "second"])
         XCTAssertNil(viewModel.nextPageErrorMessage)
+        let calls = await repository.calls()
+        XCTAssertEqual(
+            calls,
+            [
+                .firstPage(feedID: "feed-1", filter: .all, limit: nil),
+                .nextPage,
+                .nextPage
+            ]
+        )
     }
 
     func testFilterChangeDuringNextPageQueuesFirstPageUntilNextPageCompletes() async {
@@ -449,10 +492,13 @@ final class FeedViewModelTests: XCTestCase {
         )
 
         await viewModel.loadInitialIfNeeded(feedID: "feed-1")
+        viewModel.selectItem(id: "target")
         await viewModel.toggleStar(id: "target")
 
         let firstItem = try XCTUnwrap(viewModel.items.first)
         XCTAssertFalse(viewModel.descriptor(for: firstItem).isStarred)
+        XCTAssertEqual(viewModel.items.map(\.id), ["target"])
+        XCTAssertEqual(viewModel.selectedItemID, "target")
         XCTAssertEqual(viewModel.starMutationErrorMessage, "スターを更新できませんでした。")
     }
 
@@ -541,7 +587,7 @@ final class FeedViewModelTests: XCTestCase {
     func testManualRefreshGenericErrorPreservesItemsAndShowsFailureGuidance() async {
         let repository = RecordingFeedItemsRepository(
             firstPageResults: [
-                .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "existing")], canLoadMore: false))
+                .success(snapshot(feedID: "feed-1", filter: .all, items: [item(id: "existing")], canLoadMore: true))
             ],
             manualFetchResults: [.failure(FeedViewModelTestError.transport)]
         )
@@ -550,7 +596,9 @@ final class FeedViewModelTests: XCTestCase {
         await viewModel.loadInitialIfNeeded(feedID: "feed-1")
         await viewModel.refreshFeed(feedID: "feed-1", subscriptionID: "sub-feed-1")
 
+        XCTAssertEqual(viewModel.state, .loaded)
         XCTAssertEqual(viewModel.items.map(\.id), ["existing"])
+        XCTAssertTrue(viewModel.canLoadMore)
         XCTAssertEqual(
             viewModel.refreshFeedback?.message,
             "フィードを更新できませんでした。しばらく待ってからもう一度お試しください。"
