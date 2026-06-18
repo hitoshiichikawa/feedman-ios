@@ -585,6 +585,7 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertEqual(descriptor.relativeDate, "2時間前")
         XCTAssertEqual(descriptor.summary, "Summary")
         XCTAssertEqual(descriptor.opacity, 1)
+        XCTAssertEqual(descriptor.accessibilityValue, "未読")
         XCTAssertTrue(descriptor.isStarred)
         XCTAssertEqual(descriptor.hatebuState, .available(12))
         XCTAssertEqual(descriptor.linkURL, URL(string: "https://example.com/unread"))
@@ -610,6 +611,7 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertEqual(descriptor.relativeDate, "推定 10分前")
         XCTAssertNil(descriptor.summary)
         XCTAssertEqual(descriptor.opacity, 0.55)
+        XCTAssertEqual(descriptor.accessibilityValue, "既読")
         XCTAssertEqual(descriptor.hatebuState, .unavailable)
         XCTAssertNil(descriptor.linkURL)
     }

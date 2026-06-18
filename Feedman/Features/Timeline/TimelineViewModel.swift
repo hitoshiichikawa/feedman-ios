@@ -85,6 +85,10 @@ struct TimelineCardDescriptor: Equatable {
             .joined(separator: "、")
     }
 
+    var accessibilityValue: String {
+        item.isRead ? "既読" : "未読"
+    }
+
     func select(_ action: (String) -> Void) {
         action(item.id)
     }

@@ -19,6 +19,7 @@
 - `RegisterFeedSheet` と `SubscriptionSettingsSheet` の primary / resume action text は 1 行固定を避け、折り返し可能にした。
 - `SearchResultRowDescriptor.detailAccessibilityLabel` を追加し、検索結果の detail tap area が action、title、feed、published time、read state を読み上げられるようにした。
 - `GlobalSearchView` は検索結果の detail tap area に descriptor の accessibility label を接続した。
+- `TimelineCardDescriptor.accessibilityValue` を追加し、Timeline card が SwiftUI の `accessibilityValue` で既読 / 未読を露出するようにした。
 - `ArticleOpenLinkControlDescriptor` の enabled state が「元記事をブラウザで開く」semantics を持つことを test で固定した。
 
 ## Tests
@@ -31,6 +32,8 @@
   - open-original icon-only control の label / symbol / enabled / visible state。
 - `GlobalSearchViewModelTests`
   - search result detail accessibility label が action、article title、feed title、published time、read state を含むこと。
+- `TimelineViewModelTests`
+  - Timeline card descriptor の read / unread 代表ケースで `accessibilityValue` が「既読」/「未読」になること。
 
 検証:
 
@@ -54,3 +57,9 @@
 
 - VoiceOver の実機 / Simulator 手動確認はこの Stage A では未実施。Reviewer または後続 QA で上記手動確認観点を確認する。
 - larger Dynamic Type の必須確認カテゴリは requirements の未確定事項どおり未決。実装は `.accessibility1` 以上を stacked layout の対象にした。
+
+## Reviewer Round 1 是正
+
+- Timeline card に `TimelineCardDescriptor.accessibilityValue` を追加し、SwiftUI の `.accessibilityValue` で既読なら「既読」、未読なら「未読」を露出するようにした。
+- `TimelineViewModelTests` の descriptor 代表ケースに read / unread の `accessibilityValue` assertion を追加し、Requirement 2.3 / 7.3 の Timeline read-state coverage を固定した。
+- 検証: `git diff --check` 成功。`DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/TimelineViewModelTests test` 成功。
