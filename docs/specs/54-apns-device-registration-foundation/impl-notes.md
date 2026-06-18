@@ -54,3 +54,9 @@ xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS
 - APNs token の canonical string は lowercase hexadecimal とした。サーバー側が別形式を要求する場合は `APNsDeviceTokenFormatter` を調整する。
 - 通知許可要求の常設 UI 導線は未実装。今 Issue は foundation のみで、keyword notification drawer / sheet はスコープ外。
 - 許可要求 option は `.alert` と `.sound` にした。`.badge` が必要かは後続の通知 UI / product 判断で確認する。
+
+## Reviewer reject 是正
+
+- `AppEnvironment` に `pendingDeviceRegistrationRetryError` を追加し、`completeLogin(with:)` と `restoreSessionAtLaunch()` からの pending APNs device registration retry 失敗を握りつぶさず、owning flow が観測できる retryable error state として保持するようにした。
+- pending retry 成功時、logout、退会後 local clear、session restore 失敗時は `pendingDeviceRegistrationRetryError` を clear し、古い retry error が残らないようにした。
+- `AppEnvironmentSessionRestoreTests` に login 後 retry と session restore 後 retry の失敗ケースを追加し、retry 失敗が `AppEnvironment` から観測できること、失敗後も `APNsDeviceRegistrationService` が APNs token を保持して同じ token で再 retry できることを検証した。

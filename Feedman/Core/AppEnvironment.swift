@@ -61,6 +61,7 @@ final class AppEnvironment: ObservableObject {
     private let accessTokenStore: AppAccessTokenStore
 
     @Published private(set) var authenticationState: AppAuthenticationState
+    @Published private(set) var pendingDeviceRegistrationRetryError: Error?
 
     init(
         feedRepository: FeedRepository,
@@ -110,7 +111,7 @@ final class AppEnvironment: ObservableObject {
         accessTokenStore.update(accessToken: credentials.accessToken)
         authenticationState = .authenticated(accessToken: credentials.accessToken)
         Task {
-            try? await deviceRegistrationService.retryPendingRegistrationIfPossible()
+            await retryPendingDeviceRegistrationIfPossible()
         }
     }
 
@@ -118,6 +119,7 @@ final class AppEnvironment: ObservableObject {
         try? authRepository.clearLocalCredentials()
         accessTokenStore.update(accessToken: nil)
         await deviceRegistrationService.clearLocalState()
+        pendingDeviceRegistrationRetryError = nil
         authenticationState = .unauthenticated
     }
 
@@ -137,6 +139,7 @@ final class AppEnvironment: ObservableObject {
         }
 
         accessTokenStore.update(accessToken: nil)
+        pendingDeviceRegistrationRetryError = nil
         authenticationState = .unauthenticated
 
         return AppLogoutResult(
@@ -156,11 +159,12 @@ final class AppEnvironment: ObservableObject {
             let credentials = try await authRepository.refreshTokens()
             accessTokenStore.update(accessToken: credentials.accessToken)
             authenticationState = .authenticated(accessToken: credentials.accessToken)
-            try? await deviceRegistrationService.retryPendingRegistrationIfPossible()
+            await retryPendingDeviceRegistrationIfPossible()
         } catch AuthRepositoryError.missingRefreshToken {
             // 保存 token がなければ消すものもないため、そのまま未認証へ。
             accessTokenStore.update(accessToken: nil)
             await deviceRegistrationService.clearLocalState()
+            pendingDeviceRegistrationRetryError = nil
             authenticationState = .unauthenticated
         } catch {
             // 保存 token があるのに refresh が拒否された場合は失効済みとして
@@ -168,7 +172,17 @@ final class AppEnvironment: ObservableObject {
             try? authRepository.clearLocalCredentials()
             accessTokenStore.update(accessToken: nil)
             await deviceRegistrationService.clearLocalState()
+            pendingDeviceRegistrationRetryError = nil
             authenticationState = .unauthenticated
+        }
+    }
+
+    private func retryPendingDeviceRegistrationIfPossible() async {
+        do {
+            _ = try await deviceRegistrationService.retryPendingRegistrationIfPossible()
+            pendingDeviceRegistrationRetryError = nil
+        } catch {
+            pendingDeviceRegistrationRetryError = error
         }
     }
 
