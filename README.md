@@ -20,12 +20,81 @@ Feedman RSS reader の iOS client です。
 ## Development
 
 Open `Feedman.xcodeproj` in Xcode and run the `Feedman` scheme on an iOS Simulator.
+ローカルの build / test は macOS + Xcode 環境を前提にします。
 
-Linux 上では Xcode build は実行できません。macOS では以下を使います。
+Canonical test command:
 
 ```bash
 xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test
 ```
+
+`iPhone 16` simulator がローカルに無い場合は、利用可能な iPhone simulator を確認して
+`name=` の値を読み替えます。
+
+```bash
+xcrun simctl list devices available
+```
+
+Linux / non-Xcode 環境では Xcode build/test は実行できません。canonical test は macOS +
+Xcode で確認します。
+
+## Configuration
+
+### API base URL
+
+アプリ側の現在の設定境界は `AppEnvironment.production(apiBaseURL:)` と
+`APIClient(baseURL:)` です。app entry point が明示的な URL を渡さない場合、
+実装上の default は `http://localhost:3000` です。これはローカル開発向けの実装 default であり、
+production endpoint の確定値ではありません。
+
+Debug / Release / Staging / Local の正式な API base URL 文字列は未決です。release
+configuration として扱う前に、server / release 方針で確定してください。
+
+API path と response contract は `design/SPEC-iOS.md` と `design/SERVER.md` を正本にします。
+README では endpoint table を重複管理しません。セットアップ履歴の背景は
+`design/ZERO-TO-IDD-CODEX-NOTES.md` も参照できますが、API / auth contract の正本ではありません。
+
+### Native auth callback
+
+iOS v1 の Google login は `ASWebAuthenticationSession` + PKCE token auth を使います。
+`ASWebAuthenticationSession` の `callbackURLScheme` は `feedman` です。
+
+Expected callback shape:
+
+```text
+feedman://auth/callback?auth_code=...
+```
+
+アプリは受け取った `auth_code` と PKCE `code_verifier` を `POST /api/auth/token` で交換し、
+以後は Bearer token、refresh、revoke を `design/SERVER.md` の契約に従って扱います。
+Universal Links は後続 Issue で方針変更されない限り、v1 の README / smoke test では
+custom scheme `feedman://auth/callback` を対象にします。WebView Cookie login fallback は
+v1 の supported path ではありません。
+
+### Mock and preview data
+
+Mock repositories と preview data は SwiftUI preview と unit test 用です。mock data や prototype
+JSON の形は authoritative API contract として扱いません。API contract の確認は
+`design/SPEC-iOS.md` と `design/SERVER.md` を参照してください。
+
+Unit test は mock repositories を使える範囲では real network、real Keychain、real OAuth に依存させません。
+一方、real v1 smoke test は native token auth と v1 API contract を実装した server が必要です。
+
+## v1 Smoke Test Checklist
+
+Release 前や大きな merge 後に、以下の最小導線を実機または iOS Simulator で確認します。
+
+1. Google login を開始し、`feedman://auth/callback?auth_code=...` から token exchange が完了する。
+   必要に応じてアプリ再起動後の session restore も確認し、横断タイムラインが表示される。
+2. 横断タイムラインの記事を開き、記事詳細 sheet が表示される。
+3. 記事詳細から元記事を開き、`SFSafariViewController` で外部記事が表示される。
+4. 一覧または詳細で star / unstar し、Starred list に変更が反映される。
+5. drawer から feed を開き、all / unread / starred filter を切り替えられる。
+6. feed URL を登録し、subscriptions / drawer refresh 後に新しい購読が確認できる。
+7. non-empty query で global search を実行し、検索結果の詳細を開ける。
+8. account を表示し、logout 後に unauthenticated login state へ戻る。
+9. Account deletion は破壊的操作のため default smoke checklist には含めません。必要な場合だけ
+   destructive manual-only check として別途確認します。
 
 ## CI
 
