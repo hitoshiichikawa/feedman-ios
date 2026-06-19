@@ -131,16 +131,19 @@ final class APNsDeviceRegistrationBridge {
 
     private var service: APNsDeviceRegistrationService?
     private var registrationErrorHandler: (@MainActor (APNsDeviceRegistrationError?) -> Void)?
+    private var deviceRegistrationRetryErrorHandler: (@MainActor (Error?) -> Void)?
     private(set) var lastRegistrationFailure: APNsDeviceRegistrationError?
 
     private init() {}
 
     func configure(
         service: APNsDeviceRegistrationService,
-        registrationErrorHandler: (@MainActor (APNsDeviceRegistrationError?) -> Void)? = nil
+        registrationErrorHandler: (@MainActor (APNsDeviceRegistrationError?) -> Void)? = nil,
+        deviceRegistrationRetryErrorHandler: (@MainActor (Error?) -> Void)? = nil
     ) {
         self.service = service
         self.registrationErrorHandler = registrationErrorHandler
+        self.deviceRegistrationRetryErrorHandler = deviceRegistrationRetryErrorHandler
     }
 
     func clearRegistrationFailure() {
@@ -148,8 +151,13 @@ final class APNsDeviceRegistrationBridge {
         registrationErrorHandler?(nil)
     }
 
+    func clearDeviceRegistrationRetryFailure() {
+        deviceRegistrationRetryErrorHandler?(nil)
+    }
+
     func handleDeviceToken(_ deviceToken: Data) {
         clearRegistrationFailure()
+        clearDeviceRegistrationRetryFailure()
 
         guard let service else {
             return
@@ -160,10 +168,12 @@ final class APNsDeviceRegistrationBridge {
                 _ = try await service.registerDeviceToken(deviceToken)
                 await MainActor.run {
                     self.clearRegistrationFailure()
+                    self.clearDeviceRegistrationRetryFailure()
                 }
             } catch {
                 await MainActor.run {
                     self.clearRegistrationFailure()
+                    self.deviceRegistrationRetryErrorHandler?(error)
                 }
             }
         }

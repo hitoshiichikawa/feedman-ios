@@ -83,8 +83,9 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
 
         let retryResult = try await deviceRegistrationService.retryPendingRegistrationIfPossible()
         XCTAssertEqual(retryResult, .registered(deviceID: "device-1"))
+        let requests = await deviceRepository.registerRequests
         XCTAssertEqual(
-            await deviceRepository.registerRequests,
+            requests,
             [
                 DeviceRegisterRequest(pushToken: "ab", accessToken: "restored-access"),
                 DeviceRegisterRequest(pushToken: "ab", accessToken: "restored-access")
@@ -203,8 +204,9 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
 
         let retryResult = try await deviceRegistrationService.retryPendingRegistrationIfPossible()
         XCTAssertEqual(retryResult, .registered(deviceID: "device-1"))
+        let requests = await deviceRepository.registerRequests
         XCTAssertEqual(
-            await deviceRepository.registerRequests,
+            requests,
             [
                 DeviceRegisterRequest(pushToken: "ab", accessToken: "login-access"),
                 DeviceRegisterRequest(pushToken: "ab", accessToken: "login-access")
@@ -243,7 +245,8 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
             APNsDeviceRegistrationBridge.shared.lastRegistrationFailure,
             .remoteNotificationRegistrationFailed
         )
-        XCTAssertEqual(await deviceRepository.registerRequests, [])
+        let requests = await deviceRepository.registerRequests
+        XCTAssertEqual(requests, [])
     }
 
     func testAPNsDeviceTokenSuccessClearsPublishedRegistrationFailure() async {
@@ -278,9 +281,67 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
 
         XCTAssertNil(environment.apnsRegistrationError)
         XCTAssertNil(APNsDeviceRegistrationBridge.shared.lastRegistrationFailure)
+        let requests = await deviceRepository.registerRequests
         XCTAssertEqual(
-            await deviceRepository.registerRequests,
+            requests,
             [DeviceRegisterRequest(pushToken: "cafe", accessToken: "access-1")]
+        )
+    }
+
+    func testAPNsDeviceTokenRegistrationFailurePublishesRetryErrorAndKeepsTokenForRetry() async {
+        let repository = SessionRestoreAuthRepositoryMock(
+            refreshResult: .failure(AuthRepositoryError.missingRefreshToken)
+        )
+        let deviceStateStore = InMemoryDeviceRegistrationStateStore()
+        let deviceRepository = SessionRestoreDeviceRegistrationRepository(
+            registerResults: [
+                .failure(SessionRestoreTestError.deviceRegistrationRejected),
+                .success(DeviceRegistrationResponse(id: "device-1"))
+            ]
+        )
+        let deviceRegistrationService = APNsDeviceRegistrationService(
+            repository: deviceRepository,
+            stateStore: deviceStateStore,
+            accessTokenProvider: {
+                "access-1"
+            }
+        )
+        let environment = makeEnvironment(
+            repository: repository,
+            state: .authenticated(accessToken: "access-1"),
+            deviceRegistrationService: deviceRegistrationService
+        )
+        environment.configureAPNsDeviceRegistrationBridge()
+        defer {
+            resetAPNsDeviceRegistrationBridge()
+        }
+
+        APNsDeviceRegistrationBridge.shared.handleDeviceToken(Data([0xAB]))
+        let retryError = await waitForPendingDeviceRegistrationRetryError(environment)
+
+        XCTAssertEqual(retryError as? SessionRestoreTestError, .deviceRegistrationRejected)
+        XCTAssertNil(environment.apnsRegistrationError)
+        XCTAssertNil(APNsDeviceRegistrationBridge.shared.lastRegistrationFailure)
+        XCTAssertNil(deviceStateStore.load())
+        let failedRequests = await deviceRepository.registerRequests
+        XCTAssertEqual(
+            failedRequests,
+            [DeviceRegisterRequest(pushToken: "ab", accessToken: "access-1")]
+        )
+
+        APNsDeviceRegistrationBridge.shared.handleDeviceToken(Data([0xAB]))
+        await waitForDeviceRegistrationRequestCount(deviceRepository, count: 2)
+        await waitForPendingDeviceRegistrationRetryErrorClear(environment)
+
+        XCTAssertNil(environment.pendingDeviceRegistrationRetryError)
+        XCTAssertEqual(deviceStateStore.load(), DeviceRegistrationState(deviceID: "device-1"))
+        let retriedRequests = await deviceRepository.registerRequests
+        XCTAssertEqual(
+            retriedRequests,
+            [
+                DeviceRegisterRequest(pushToken: "ab", accessToken: "access-1"),
+                DeviceRegisterRequest(pushToken: "ab", accessToken: "access-1")
+            ]
         )
     }
 
@@ -420,13 +481,38 @@ private func waitForDeviceRegistrationRequest(
     file: StaticString = #filePath,
     line: UInt = #line
 ) async {
+    await waitForDeviceRegistrationRequestCount(repository, count: 1, file: file, line: line)
+}
+
+@MainActor
+private func waitForDeviceRegistrationRequestCount(
+    _ repository: SessionRestoreDeviceRegistrationRepository,
+    count: Int,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) async {
     for _ in 0..<50 {
-        if await repository.registerRequests.count == 1 {
+        if await repository.registerRequests.count == count {
             return
         }
         try? await Task.sleep(nanoseconds: 1_000_000)
     }
     XCTFail("Timed out waiting for device registration request", file: file, line: line)
+}
+
+@MainActor
+private func waitForPendingDeviceRegistrationRetryErrorClear(
+    _ environment: AppEnvironment,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) async {
+    for _ in 0..<50 {
+        if environment.pendingDeviceRegistrationRetryError == nil {
+            return
+        }
+        try? await Task.sleep(nanoseconds: 1_000_000)
+    }
+    XCTFail("Timed out waiting for pending device registration retry error clear", file: file, line: line)
 }
 
 @MainActor
@@ -441,4 +527,5 @@ private func resetAPNsDeviceRegistrationBridge() {
         )
     )
     APNsDeviceRegistrationBridge.shared.clearRegistrationFailure()
+    APNsDeviceRegistrationBridge.shared.clearDeviceRegistrationRetryFailure()
 }

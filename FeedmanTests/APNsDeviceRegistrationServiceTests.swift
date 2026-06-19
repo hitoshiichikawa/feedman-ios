@@ -23,7 +23,8 @@ final class APNsDeviceRegistrationServiceTests: XCTestCase {
         let result = try await service.registerDeviceToken(Data([0x00, 0xFF]))
 
         XCTAssertEqual(result, .deferredUntilAuthenticated)
-        XCTAssertEqual(await repository.registerRequests, [])
+        let requests = await repository.registerRequests
+        XCTAssertEqual(requests, [])
         XCTAssertNil(store.load())
     }
 
@@ -43,8 +44,9 @@ final class APNsDeviceRegistrationServiceTests: XCTestCase {
         let result = try await service.registerDeviceToken(Data([0x00, 0xFF, 0x10]))
 
         XCTAssertEqual(result, .registered(deviceID: "device-1"))
+        let requests = await repository.registerRequests
         XCTAssertEqual(
-            await repository.registerRequests,
+            requests,
             [DeviceRegisterRequest(pushToken: "00ff10", accessToken: "access-1")]
         )
         XCTAssertEqual(store.load(), DeviceRegistrationState(deviceID: "device-1"))
@@ -68,7 +70,8 @@ final class APNsDeviceRegistrationServiceTests: XCTestCase {
 
         let duplicateResult = try await service.registerDeviceToken(Data([0xAA]))
         XCTAssertEqual(duplicateResult, .alreadyInFlight)
-        XCTAssertEqual(await repository.registerRequests.count, 1)
+        let requests = await repository.registerRequests
+        XCTAssertEqual(requests.count, 1)
 
         await repository.succeed(with: DeviceRegistrationResponse(id: "device-1"))
         let firstResult = try await firstTask.value
@@ -104,8 +107,9 @@ final class APNsDeviceRegistrationServiceTests: XCTestCase {
         let retryResult = try await service.retryPendingRegistrationIfPossible()
 
         XCTAssertEqual(retryResult, .registered(deviceID: "device-1"))
+        let requests = await repository.registerRequests
         XCTAssertEqual(
-            await repository.registerRequests,
+            requests,
             [
                 DeviceRegisterRequest(pushToken: "ab", accessToken: "access-1"),
                 DeviceRegisterRequest(pushToken: "ab", accessToken: "access-1")
@@ -129,8 +133,9 @@ final class APNsDeviceRegistrationServiceTests: XCTestCase {
         let result = await service.unregisterKnownDeviceForLogout(accessToken: "access-1")
 
         XCTAssertEqual(try? result.get(), .unregistered(deviceID: "device-1"))
+        let unregisterRequests = await repository.unregisterRequests
         XCTAssertEqual(
-            await repository.unregisterRequests,
+            unregisterRequests,
             [DeviceUnregisterRequest(deviceID: "device-1", accessToken: "access-1")]
         )
         XCTAssertNil(store.load())
@@ -160,7 +165,8 @@ final class APNsDeviceRegistrationServiceTests: XCTestCase {
             XCTAssertTrue(error is DeviceRegistrationTestError)
         }
         XCTAssertNil(store.load())
-        XCTAssertEqual(await repository.unregisterRequests.count, 1)
+        let unregisterRequests = await repository.unregisterRequests
+        XCTAssertEqual(unregisterRequests.count, 1)
     }
 
     private func waitForRegisterRequest(

@@ -41,10 +41,11 @@ git diff --check
 - 成功。
 
 ```bash
-xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test
 ```
 
-- 未実行。`xcode-select` の active developer directory が `/Library/Developer/CommandLineTools` で、Xcode ではないため `xcodebuild requires Xcode` エラーになった。
+- 成功。405 tests, 0 failures。
+- `xcode-select` の active developer directory は `/Library/Developer/CommandLineTools` のままだったため、ローカル検証では `DEVELOPER_DIR` で `/Applications/Xcode.app` を指定した。
 
 ## 確認事項
 
@@ -67,3 +68,10 @@ xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS
 - `APNsDeviceRegistrationBridge` から MainActor closure で `AppEnvironment.apnsRegistrationError` へ通知し、`didFailToRegisterForRemoteNotificationsWithError` 相当の失敗を owning flow から観測可能にした。APNs device token 成功 callback では古い APNs registration failure state を clear する。
 - logout、退会後 local clear、session restore failure、APNs device token 成功 callback 時に `apnsRegistrationError` を clear し、`pendingDeviceRegistrationRetryError` は `/api/devices` retry 専用 state のまま分離した。
 - `AppEnvironmentSessionRestoreTests` に APNs registration failure が `/api/devices` mock を呼ばず domain error を publish するケースと、成功 token callback 後に古い APNs registration failure state が clear されるケースを追加した。
+
+## Reviewer reject 是正 3
+
+- `APNsDeviceRegistrationBridge.handleDeviceToken(_:)` からの `/api/devices` 登録失敗を `AppEnvironment.pendingDeviceRegistrationRetryError` に publish するようにし、APNs token 取得失敗用の `apnsRegistrationError` と device 登録 retry 用 state を分離したまま owning flow から観測可能にした。
+- APNs device token callback での登録成功時は `pendingDeviceRegistrationRetryError` も clear し、古い retry error が成功後に残らないようにした。
+- `AppEnvironmentSessionRestoreTests` に認証済み APNs token callback で `/api/devices` が失敗する本番経路のテストを追加し、local registered state が作られないこと、同じ token で再登録できること、成功後に retry error が clear されることを検証した。
+- actor mock の request 配列 assertion は `XCTAssertEqual(await actor.property, ...)` ではなく、先に local 変数へ取り出す形へ揃え、Swift の autoclosure と `await` の衝突でテスト target がビルド失敗しないようにした。

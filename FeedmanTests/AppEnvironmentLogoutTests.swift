@@ -28,8 +28,9 @@ final class AppEnvironmentLogoutTests: XCTestCase {
         XCTAssertNil(environment.apnsRegistrationError)
         XCTAssertNil(environment.currentAccessToken)
         XCTAssertNil(stateStore.load())
+        let unregisterRequests = await deviceRepository.unregisterRequests
         XCTAssertEqual(
-            await deviceRepository.unregisterRequests,
+            unregisterRequests,
             [EnvironmentDeviceUnregisterRequest(deviceID: "device-1", accessToken: "access-1")]
         )
         XCTAssertEqual(authRepository.revokeAccessTokens, ["access-1"])
@@ -50,7 +51,8 @@ final class AppEnvironmentLogoutTests: XCTestCase {
         let result = await environment.logout()
 
         XCTAssertEqual(environment.authenticationState, .unauthenticated)
-        XCTAssertEqual(await deviceRepository.unregisterRequests, [])
+        let unregisterRequests = await deviceRepository.unregisterRequests
+        XCTAssertEqual(unregisterRequests, [])
         XCTAssertEqual(try? result.deviceUnregisterResult.get(), .skippedNoKnownDevice)
     }
 

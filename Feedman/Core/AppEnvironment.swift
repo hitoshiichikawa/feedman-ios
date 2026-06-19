@@ -196,6 +196,9 @@ final class AppEnvironment: ObservableObject {
             service: deviceRegistrationService,
             registrationErrorHandler: { [weak self] error in
                 self?.apnsRegistrationError = error
+            },
+            deviceRegistrationRetryErrorHandler: { [weak self] error in
+                self?.pendingDeviceRegistrationRetryError = error
             }
         )
     }
