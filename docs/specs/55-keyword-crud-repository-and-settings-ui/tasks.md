@@ -26,7 +26,7 @@
   - _Boundary: KeywordSettingsViewModel_
   - _Depends: 1_
 
-- [ ] 4. KeywordSettingsSheet UI を追加する
+- [x] 4. KeywordSettingsSheet UI を追加する
   - `Feedman/Features/Notifications/KeywordSettingsSheet.swift` を追加し、`FeedmanSheetShell`、`FeedmanTheme`、loading/empty/error/banner primitives を再利用する。
   - Keyword term、enabled toggle、hits count、add/edit/delete controls を ViewModel に接続する。
   - Operation in-flight 中の control disabled/progress 表示、long keyword、Dynamic Type、VoiceOver label を実装する。
