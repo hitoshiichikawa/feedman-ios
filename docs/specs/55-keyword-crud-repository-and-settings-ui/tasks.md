@@ -53,7 +53,7 @@
   - _Boundary: AppShellKeywordSettingsPresentation, KeywordSettingsViewModel_
   - _Depends: 5_
 
-- [ ] 7. 最終検証を実行し、未確認 API 契約を PR で報告する
+- [x] 7. 最終検証を実行し、未確認 API 契約を PR で報告する
   - `plutil -lint Feedman.xcodeproj/project.pbxproj` を実行する。
   - `git diff --check` を実行する。
   - macOS/Xcode 環境で `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` を実行する。実行できない場合は理由を PR に記載する。
