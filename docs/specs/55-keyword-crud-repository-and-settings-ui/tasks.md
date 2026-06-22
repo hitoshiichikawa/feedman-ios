@@ -35,7 +35,7 @@
   - _Boundary: KeywordSettingsSheet_
   - _Depends: 3_
 
-- [ ] 5. AppShell から keyword settings sheet を開く
+- [x] 5. AppShell から keyword settings sheet を開く
   - `AppShellPresentation.keywordSettings` と `presentKeywordSettings()` を追加する。
   - Drawer/footer に既存 visual pattern と整合する「キーワード通知」entry point を追加し、tap で drawer を閉じて sheet を表示する。
   - `RootView.sheetContent` に `KeywordSettingsSheet` を接続し、`environment.keywordRepository` と `environment.currentAccessToken` を渡す。
