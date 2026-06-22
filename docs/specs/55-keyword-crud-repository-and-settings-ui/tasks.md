@@ -17,7 +17,7 @@
   - _Boundary: KeywordRepository, AppShellKeywordSettingsPresentation_
   - _Depends: 1_
 
-- [ ] 3. KeywordSettingsViewModel の state machine と error mapping を実装する
+- [x] 3. KeywordSettingsViewModel の state machine と error mapping を実装する
   - `Feedman/Features/Notifications/KeywordSettingsViewModel.swift` を追加し、initial load、retry、create、edit、toggle、delete confirmation を扱う。
   - Empty/whitespace term の repository call 抑止、trim、duplicate in-flight guard を実装する。
   - Duplicate / rate-limit / auth-required / network / generic error presentation を feature-local に実装する。
