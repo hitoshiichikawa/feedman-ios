@@ -261,6 +261,15 @@ final class KeywordSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(authRequiredCallCount, 1)
     }
 
+    func testKeywordRowPresentationIncludesTermEnabledStateAndHitsForAccessibility() {
+        let presentation = KeywordSettingsRowPresentation(keyword: Self.swiftUIKeyword)
+
+        XCTAssertEqual(presentation.term, "SwiftUI")
+        XCTAssertEqual(presentation.hitsText, "3 件")
+        XCTAssertEqual(presentation.enabledText, "有効")
+        XCTAssertEqual(presentation.accessibilityLabel, "SwiftUI、有効、過去の一致数 3 件")
+    }
+
     private static let swiftUIKeyword = KeywordResponse(
         id: "keyword-1",
         term: "SwiftUI",

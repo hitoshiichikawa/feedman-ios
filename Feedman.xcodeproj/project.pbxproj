@@ -99,6 +99,7 @@
 		100000000000000000000194 /* KeywordRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000293 /* KeywordRepositoryTests.swift */; };
 		100000000000000000000195 /* KeywordSettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000294 /* KeywordSettingsViewModel.swift */; };
 		100000000000000000000196 /* KeywordSettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000295 /* KeywordSettingsViewModelTests.swift */; };
+		100000000000000000000197 /* KeywordSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000296 /* KeywordSettingsSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -207,6 +208,7 @@
 		100000000000000000000293 /* KeywordRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeywordRepositoryTests.swift; sourceTree = "<group>"; };
 		100000000000000000000294 /* KeywordSettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeywordSettingsViewModel.swift; sourceTree = "<group>"; };
 		100000000000000000000295 /* KeywordSettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeywordSettingsViewModelTests.swift; sourceTree = "<group>"; };
+		100000000000000000000296 /* KeywordSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeywordSettingsSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -500,6 +502,7 @@
 				100000000000000000000286 /* NotificationPermissionCoordinator.swift */,
 				100000000000000000000287 /* APNsDeviceRegistrationService.swift */,
 				100000000000000000000294 /* KeywordSettingsViewModel.swift */,
+				100000000000000000000296 /* KeywordSettingsSheet.swift */,
 			);
 			path = Notifications;
 			sourceTree = "<group>";
@@ -659,6 +662,7 @@
 				100000000000000000000188 /* APNsDeviceRegistrationService.swift in Sources */,
 				100000000000000000000193 /* KeywordRepository.swift in Sources */,
 				100000000000000000000195 /* KeywordSettingsViewModel.swift in Sources */,
+				100000000000000000000197 /* KeywordSettingsSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
