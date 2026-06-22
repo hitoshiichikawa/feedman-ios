@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Keyword API model と repository contract を追加する
+- [x] 1. Keyword API model と repository contract を追加する
   - `Feedman/Core/APIModels.swift` に `KeywordResponse`、`KeywordCreateRequest`、`KeywordUpdateRequest` を追加する。
   - `Feedman/Core/KeywordRepository.swift` に `KeywordRepository` protocol、`APIClientKeywordRepository`、`MockKeywordRepository` を追加する。
   - GET/POST/PATCH/DELETE の method/path/body/Bearer header と 401 refresh retry 委譲を `KeywordRepositoryTests` で検証する。
