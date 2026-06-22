@@ -92,7 +92,7 @@
 | 3.5 | visible list preservation | refresh / mutation after list visible | `testVisibleListRefreshFailurePreservesContentAndShowsMessage`, mutation failure tests | full XCTest pass | non-destructive guidance |
 | 3.6 | `operation` guards | duplicate load/create actions | `testConcurrentLoadPreventsDuplicateRepositoryCalls`, `testConcurrentCreatePreventsDuplicateRepositoryCalls` | full XCTest pass | duplicate in-flight 抑止 |
 | 3.7 | fresh ViewModel init | new sheet session | `testNewViewModelStartsWithoutStaleMessageOrConfirmation` | full XCTest pass | stale state leak なし |
-| 4.1 | term validation | create / edit action | `testCreateWithWhitespaceOnlyTermDoesNotCallRepository` | full XCTest pass | repository call 抑止 |
+| 4.1 | term validation | create / edit action | `testCreateWithWhitespaceOnlyTermDoesNotCallRepository`, `testUpdateWithWhitespaceOnlyTermDoesNotCallRepository` | full XCTest pass | create/edit 両方で whitespace-only の repository call 抑止を検証 |
 | 4.2 | trim before request | create / edit action | `testCreateTrimsTermAndAppendsServerConfirmedKeyword`, `testUpdateTrimsTermAndReplacesServerConfirmedKeyword` | full XCTest pass | leading/trailing trim |
 | 4.3 | duplicate error mapping | mutation failure banner | `testDuplicateRateLimitAuthAndNetworkErrorsMapToGuidance` | full XCTest pass | 登録済み guidance |
 | 4.4 | rate-limit mapping | mutation failure banner | `testDuplicateRateLimitAuthAndNetworkErrorsMapToGuidance` | full XCTest pass | retry_after_seconds 表示 |
@@ -146,5 +146,25 @@
 - `git diff --check`: pass
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/NotificationArticleNavigationTests test`: pass, 16 tests / 0 failures
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: pass, 453 tests / 0 failures
+
+STATUS: complete
+
+## Reviewer Round 2 / Debugger 是正
+
+- 採用方針: production 実装の `updateKeyword(id:term:)` には trim 後 empty guard が既にあるため、AC 4.1 の edit 側 validation を ViewModel test で直接固定した。
+- 実施内容: `testUpdateWithWhitespaceOnlyTermDoesNotCallRepository` を追加し、visible list がある状態で whitespace-only edit が `false` を返し、repository operation が initial load のみで止まり、`.emptyTerm` guidance と visible list preservation が維持されることを検証した。
+- 残存課題: なし。
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| 4.1 | missing test | edit/update で whitespace-only term を渡した場合に repository call を抑止し、`.emptyTerm` guidance を表示するテストを追加する | `42339d7 test(keyword): cover empty edit validation` | `testUpdateWithWhitespaceOnlyTermDoesNotCallRepository` | targeted ViewModel XCTest pass, full XCTest pass | production guard は既存実装で確認済みのため、実装変更なし |
+| 7.4 | missing test | ViewModel mutation validation coverage に edit whitespace-only case を追加する | `42339d7 test(keyword): cover empty edit validation` | repository operations が `[.list(accessToken: "access-1")]` のみで `.update` を含まない assertion | targeted ViewModel XCTest pass, full XCTest pass | mock repository の deterministic operation log で検証 |
+
+## Reviewer Round 2 Verification
+
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/KeywordSettingsViewModelTests test`: pass, 18 tests, 0 failures
+- `plutil -lint Feedman.xcodeproj/project.pbxproj`: pass (`Feedman.xcodeproj/project.pbxproj: OK`)
+- `git diff --check`: pass
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: pass, 454 tests, 0 failures
 
 STATUS: complete
