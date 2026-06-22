@@ -51,6 +51,7 @@ final class AppEnvironment: ObservableObject {
 
     let feedRepository: FeedRepository
     let itemRepository: any ItemRepository
+    let keywordRepository: any KeywordRepository
     let authRepository: any AuthRepository
     let accountRepository: any AccountRepository
     let notificationPermissionCoordinator: NotificationPermissionCoordinator
@@ -67,6 +68,7 @@ final class AppEnvironment: ObservableObject {
     init(
         feedRepository: FeedRepository,
         itemRepository: any ItemRepository = MockItemRepository(),
+        keywordRepository: any KeywordRepository = MockKeywordRepository(),
         authRepository: any AuthRepository,
         accountRepository: any AccountRepository,
         notificationPermissionCoordinator: NotificationPermissionCoordinator? = nil,
@@ -78,6 +80,7 @@ final class AppEnvironment: ObservableObject {
     ) {
         self.feedRepository = feedRepository
         self.itemRepository = itemRepository
+        self.keywordRepository = keywordRepository
         self.authRepository = authRepository
         self.accountRepository = accountRepository
         self.notificationPermissionCoordinator = notificationPermissionCoordinator ?? NotificationPermissionCoordinator(
@@ -237,6 +240,7 @@ final class AppEnvironment: ObservableObject {
                 }
             ),
             itemRepository: FeedmanItemRepository(apiClient: apiClient),
+            keywordRepository: APIClientKeywordRepository(apiClient: apiClient),
             authRepository: authRepository,
             accountRepository: FeedmanAccountRepository(apiClient: apiClient),
             authBaseURL: apiBaseURL,
@@ -258,6 +262,7 @@ final class AppEnvironment: ObservableObject {
     private convenience init(
         feedRepository: FeedRepository,
         itemRepository: any ItemRepository,
+        keywordRepository: any KeywordRepository,
         authRepository: any AuthRepository,
         accountRepository: any AccountRepository,
         authBaseURL: URL,
@@ -277,6 +282,7 @@ final class AppEnvironment: ObservableObject {
         self.init(
             feedRepository: feedRepository,
             itemRepository: itemRepository,
+            keywordRepository: keywordRepository,
             authRepository: authRepository,
             accountRepository: accountRepository,
             notificationPermissionCoordinator: NotificationPermissionCoordinator(
@@ -295,6 +301,7 @@ final class AppEnvironment: ObservableObject {
     static let preview = AppEnvironment(
         feedRepository: MockFeedRepository(),
         itemRepository: MockItemRepository(),
+        keywordRepository: MockKeywordRepository(),
         authRepository: UnavailableAuthRepository(),
         accountRepository: UnavailableAccountRepository(),
         notificationPermissionCoordinator: NotificationPermissionCoordinator(
