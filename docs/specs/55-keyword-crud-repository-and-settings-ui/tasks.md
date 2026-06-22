@@ -44,7 +44,7 @@
   - _Boundary: AppShellKeywordSettingsPresentation, KeywordSettingsSheet_
   - _Depends: 2, 4_
 
-- [ ] 6. Cross-boundary regression と scope guard を補強する
+- [x] 6. Cross-boundary regression と scope guard を補強する
   - Keyword settings の auth-required callback / toast guidance が silent failure にならないことをテストまたは既存 pattern で確認する。
   - Timeline、Feed、Starred、Search、ArticleDetail、Account、Subscription の既存 behavior を変更していないことを差分レビューで確認する。
   - `/api/devices`、APNs token、logout unregister policy に変更を入れていないことを確認する。
