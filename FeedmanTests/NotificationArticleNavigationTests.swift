@@ -166,6 +166,32 @@ final class NotificationArticleNavigationTests: XCTestCase {
     }
 
     @MainActor
+    func testBindingDismissOfNotificationLaunchedDetailClearsPendingTarget() {
+        let environment = makeEnvironment(state: .authenticated(accessToken: "access-1"))
+        var state = AppShellState()
+
+        environment.handleNotificationPayload(
+            [
+                "data": [
+                    "item_id": "item-47"
+                ]
+            ]
+        )
+        _ = state.presentNotificationArticleTarget(NotificationArticleTarget(itemID: "item-47"))
+
+        AppShellPresentationDismissalHandler.dismissActivePresentation(
+            shellState: &state,
+            clearPendingNotificationArticleTarget: {
+                environment.clearPendingNotificationArticleTarget()
+            }
+        )
+
+        XCTAssertNil(state.activePresentation)
+        XCTAssertFalse(state.isPresentingNotificationArticleDetail)
+        XCTAssertNil(environment.pendingNotificationArticleTarget)
+    }
+
+    @MainActor
     func testColdLaunchRetainsPendingArticleTargetDuringSessionRestoreAndConsumesAfterPresentation() {
         let environment = makeEnvironment(state: .restoring)
 

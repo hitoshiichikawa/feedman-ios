@@ -302,3 +302,16 @@ struct AppShellState: Equatable {
         themeOverride = themeOverride.next
     }
 }
+
+enum AppShellPresentationDismissalHandler {
+    static func dismissActivePresentation(
+        shellState: inout AppShellState,
+        clearPendingNotificationArticleTarget: () -> Void
+    ) {
+        let wasNotificationArticle = shellState.isPresentingNotificationArticleDetail
+        shellState.dismissPresentation()
+        if wasNotificationArticle {
+            clearPendingNotificationArticleTarget()
+        }
+    }
+}

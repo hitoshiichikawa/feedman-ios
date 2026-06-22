@@ -20,6 +20,16 @@
 - 環境修正再試行: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` を指定して同一対象テストを再実行し、15 tests / 0 failures。
 - 全体検証: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` は 420 tests / 0 failures。
 - `npm test` / `npm run lint` / `npm run build` は iOS Xcode project のため該当なし。build は上記 `xcodebuild ... test` 内で実行済み。
+- Reviewer round 1 是正 Red 確認: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/NotificationArticleNavigationTests test` は `AppShellPresentationDismissalHandler` 未実装のため compile failure。
+- Reviewer round 1 是正対象テスト: 同コマンド再実行で 16 tests / 0 failures。
+- Reviewer round 1 是正後全体検証: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` は 421 tests / 0 failures。
+
+## Reviewer Round 1 Finding Closure Matrix
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| 2.5 | AC 未カバー | sheet binding の nil set 経路でも通知起点 detail の pending target を clear する | `fix(notifications): clear pending target on sheet binding dismiss` | `testBindingDismissOfNotificationLaunchedDetailClearsPendingTarget` | 対象テスト 16 tests / 0 failures、全体 421 tests / 0 failures | `activePresentationBinding.set(nil)` と `ArticleDetailSheet.onDismiss` を `AppShellPresentationDismissalHandler.dismissActivePresentation` に統一し、dismiss 直前の marker で clear 判定する |
+| NFR 1.2 | missing test | binding dismiss 相当経路で `AppEnvironment.pendingNotificationArticleTarget` が nil になることを検証する | `fix(notifications): clear pending target on sheet binding dismiss` | `XCTAssertNil(environment.pendingNotificationArticleTarget)` in `testBindingDismissOfNotificationLaunchedDetailClearsPendingTarget` | 対象テスト 16 tests / 0 failures、全体 421 tests / 0 failures | AppShell marker だけでなく AppEnvironment の pending target clear を assertion に追加 |
 
 ## AC Coverage Matrix
 
@@ -35,7 +45,7 @@
 | 2.2 | `RootView.body`, `AppEnvironment.pendingNotificationArticleTarget` | restoring state view | `testColdLaunchRetainsPendingArticleTargetDuringSessionRestoreAndConsumesAfterPresentation` | 同上 | restoring 中は pending 保持のみで authenticated shell を出さない |
 | 2.3 | `AppEnvironment.handleNotificationPayload`, `RootView.presentPendingNotificationArticleIfPossible` | authenticated app notification response | `testAuthenticatedRoutingPresentsExistingArticleDetailSurfaceAndClosesDrawer` | 同上 | background/foreground tap は delegate から同じ bridge 経路 |
 | 2.4 | `AppShellState.presentNotificationArticleTarget` | app shell sheet presentation | `testAuthenticatedRoutingPresentsExistingArticleDetailSurfaceAndClosesDrawer` | 同上 | drawer を閉じ、`.articleDetail(ArticleDetailSheetInput)` を使う |
-| 2.5 | `RootView` article detail `onDismiss`, `AppShellState.dismissPresentation` | article detail sheet dismiss action | `testDismissingNotificationLaunchedDetailClearsPresentationMarker`, `testColdLaunchRetainsPendingArticleTargetDuringSessionRestoreAndConsumesAfterPresentation` | 同上 | dismiss で marker / pending を clear |
+| 2.5 | `RootView.dismissActivePresentation`, `AppShellPresentationDismissalHandler.dismissActivePresentation`, `AppShellState.dismissPresentation` | article detail sheet close action and SwiftUI sheet binding dismiss | `testDismissingNotificationLaunchedDetailClearsPresentationMarker`, `testBindingDismissOfNotificationLaunchedDetailClearsPendingTarget`, `testColdLaunchRetainsPendingArticleTargetDuringSessionRestoreAndConsumesAfterPresentation` | `xcodebuild ... test`: 421 tests / 0 failures | close button と binding dismiss の両方で marker / pending を clear |
 | 3.1 | `ArticleDetailSheet` existing access token injection via `RootView.sheetContent` | authenticated article detail sheet | `testAuthenticatedRoutingPresentsExistingArticleDetailSurfaceAndClosesDrawer`, existing `ArticleDetailViewModelTests.testOpenFetchesDetailAndMarksReadWithPartialRequest` | 同上 | current authenticated `environment.currentAccessToken` を既存 flow に渡す |
 | 3.2 | `RootView.presentPendingNotificationArticleIfPossible` guard | unauthenticated app state | `testUnauthenticatedNotificationTargetIsDeferredUntilLoginCompletes` | 同上 | unauthenticated では sheet を出さず fetch しない |
 | 3.3 | `RootView.body`, `AppEnvironment.restoreSessionAtLaunch` existing failure handling | session restoration failure -> login state | existing `AppEnvironmentSessionRestoreTests.testRestoreWithoutStoredTokenShowsLoginWithoutClearing`, `testRestoreWithRejectedRefreshClearsCredentialsAndShowsLogin` | 同上 | pending target は表示されず login state のまま |
@@ -53,7 +63,7 @@
 | 5.4 | Drawer routes unchanged | drawer rendering | existing drawer tests + diff review | 同上 | keyword notification settings drawer 追加なし |
 | 5.5 | `AppShellPresentation.articleDetail` reused | app shell sheet presentation | `testAuthenticatedRoutingPresentsExistingArticleDetailSurfaceAndClosesDrawer` | 同上 | separate article detail UI 追加なし |
 | NFR 1.1 | `NotificationArticleTargetParser` tests | parser unit boundary | parser tests for valid, invalid scheme/path, empty id, fallback, conflict | 同上 | required parsing coverage を追加 |
-| NFR 1.2 | `AppEnvironment`, `AppShellState`, bridge tests | routing state boundary | cold-launch retention, authenticated presentation, unauthenticated deferral, dismiss clear tests | 同上 | required routing coverage を追加 |
+| NFR 1.2 | `AppEnvironment`, `AppShellState`, `AppShellPresentationDismissalHandler`, bridge tests | routing state boundary including SwiftUI sheet binding dismiss | cold-launch retention, authenticated presentation, unauthenticated deferral, `testBindingDismissOfNotificationLaunchedDetailClearsPendingTarget` | `xcodebuild ... test`: 421 tests / 0 failures | pending target clearing after dismissal を AppEnvironment の assertion で確認 |
 | NFR 1.3 | `NotificationArticleTargetParser.resolve` | notification payload handling | `testMissingMalformedAndDuplicatedPayloadFieldsDoNotCrash` | 同上 | missing / malformed / duplicated shape で crash しない |
 | NFR 1.4 | No logging added | N/A (privacy boundary) | diff review | 同上 | token / keyword / article content logging なし |
 | NFR 2.1 | `RootView.sheetContent`, `AppShellState.presentNotificationArticleTarget` | app shell article detail sheet | `testAuthenticatedRoutingPresentsExistingArticleDetailSurfaceAndClosesDrawer` | 同上 | existing sheet behavior と互換 |

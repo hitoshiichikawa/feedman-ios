@@ -159,7 +159,7 @@ struct RootView: View {
             get: { shellState.activePresentation },
             set: { presentation in
                 if presentation == nil {
-                    shellState.dismissPresentation()
+                    dismissActivePresentation()
                 }
             }
         )
@@ -305,11 +305,7 @@ struct RootView: View {
                 accessToken: environment.currentAccessToken,
                 itemStateCoordinator: itemStateCoordinator,
                 onDismiss: {
-                    let wasNotificationArticle = shellState.isPresentingNotificationArticleDetail
-                    shellState.dismissPresentation()
-                    if wasNotificationArticle {
-                        environment.clearPendingNotificationArticleTarget()
-                    }
+                    dismissActivePresentation()
                 },
                 onAuthRequired: {
                     toastCenter.show("再ログインが必要です。", style: .warning)
@@ -341,6 +337,15 @@ struct RootView: View {
                 }
             )
         }
+    }
+
+    private func dismissActivePresentation() {
+        AppShellPresentationDismissalHandler.dismissActivePresentation(
+            shellState: &shellState,
+            clearPendingNotificationArticleTarget: {
+                environment.clearPendingNotificationArticleTarget()
+            }
+        )
     }
 
     private func presentPendingNotificationArticleIfPossible() {
