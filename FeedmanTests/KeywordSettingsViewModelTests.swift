@@ -99,6 +99,20 @@ final class KeywordSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.draftTerm, "")
     }
 
+    func testUpdateWithWhitespaceOnlyTermDoesNotCallRepository() async {
+        let repository = StubKeywordSettingsRepository()
+        repository.listResult = .success([Self.swiftUIKeyword])
+        let viewModel = makeViewModel(repository: repository)
+        await viewModel.loadKeywords()
+
+        let didUpdate = await viewModel.updateKeyword(id: "keyword-1", term: "   \n\t")
+
+        XCTAssertFalse(didUpdate)
+        XCTAssertEqual(repository.operations, [.list(accessToken: "access-1")])
+        XCTAssertEqual(viewModel.message, .failure(.emptyTerm))
+        XCTAssertEqual(viewModel.contentState, .loaded([Self.swiftUIKeyword]))
+    }
+
     func testUpdateTrimsTermAndReplacesServerConfirmedKeyword() async {
         let repository = StubKeywordSettingsRepository()
         repository.listResult = .success([Self.swiftUIKeyword])
