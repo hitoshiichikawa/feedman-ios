@@ -109,6 +109,21 @@ final class AppShellStateTests: XCTestCase {
         XCTAssertFalse(state.isDrawerOpen)
     }
 
+    func testPresentingKeywordSettingsClosesDrawerAndPreservesCurrentRoute() {
+        var state = AppShellState(currentRoute: .feed(id: "feed-a", title: "Feed A"), isDrawerOpen: true)
+
+        state.presentKeywordSettings()
+
+        XCTAssertEqual(state.currentRoute, .feed(id: "feed-a", title: "Feed A"))
+        XCTAssertEqual(state.activePresentation, .keywordSettings)
+        XCTAssertFalse(state.isDrawerOpen)
+
+        state.dismissPresentation()
+
+        XCTAssertEqual(state.currentRoute, .feed(id: "feed-a", title: "Feed A"))
+        XCTAssertNil(state.activePresentation)
+    }
+
     func testPresentingArticleDetailStoresSelectedInputAndClosesDrawer() {
         var state = AppShellState(currentRoute: .search, isDrawerOpen: true)
         let input = ArticleDetailSheetInput(
