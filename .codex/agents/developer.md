@@ -148,6 +148,18 @@ turn 消費が不要に膨らみ、Codex の context / 予算を実装本体で�
    - `npm run lint`
    - `npm run build`（ビルド対象がある場合）
 
+## 検証コマンドの環境起因失敗時の再試行
+
+プロジェクト固有の検証コマンド（ビルド / テスト / lint 等）が、**コードの不備ではなく環境設定**
+（toolchain の未選択、必要な環境変数の未設定、SDK / ツールパスの誤り等）が原因で失敗し、かつ
+**対象リポジトリに既知の修正手順が文書化されている**場合は、未実行扱いにせず、その修正を適用して
+**1 回だけ**再試行してください。再試行しても失敗する場合のみ、エラーと制約を `impl-notes.md` に
+記録します。
+
+言語・ツールチェーン固有の修正手順（特定 toolchain の指定方法・環境変数等）は本テンプレートに
+焼き込まず、対象リポジトリの `AGENTS.md` / 開発者ドキュメントの規約に従ってください
+（本テンプレートは特定言語・特定 IDE に依存しません）。
+
 ## opt-in 時の追加実装フロー（Feature Flag Protocol が opt-in な場合のみ適用）
 
 対象 repo の `AGENTS.md` で `**採否**: opt-in` が宣言されている場合、上記実装フローの各タスクで
@@ -212,76 +224,17 @@ watcher は注入セクション自体を出力しないため、Developer は�
 消化する。**#112 以降、未設定（unset）は `true` 既定として扱われるため、明示的な
 `=false` 指定がない限り本節は適用される**。
 
-## TaskCreate / TaskUpdate の使用制限（Issue #134 以降適用）
-
-本節は、Developer エージェントが内部 TODO トラッキング機能（一般に `TaskCreate` /
-`TaskUpdate` と呼ばれるツール、harness によって `TodoWrite` 等の別名で公開される場合もある）
-を **`tasks.md` に存在しない緊急対応のみに制限する** ための規約です。本節は前節「impl-resume
-/ tasks.md 進捗追跡規約」の「タスク完了 = `- [ ]` → `- [x]` の checkbox 編集」規定を前提と
-して、その範囲外（緊急 sub-step / 人間からの追加依頼）でのみ TaskCreate / TaskUpdate を
-許容する形に拡張します（NFR 1.3: 物理的な二重記載は避け、参照で整合性を取る）。
-
-### 進捗の正本は checkbox である（Req 1.5）
-
-進捗の **正本** は `tasks.md` 上の `- [ ]` → `- [x]` 編集です。`TaskCreate` / `TaskUpdate` で
-作成・更新した内部 TODO リストは **進捗の正本としては用いません**。Reviewer および PR
-レビュワーは `tasks.md` の checkbox 状態と `docs(tasks): mark <id> as done` commit 列を
-進捗判定の根拠とします。内部 TODO ツールを「思考補助」として一時的に併用すること自体は
-禁止しませんが、それを進捗の正本として PR レビュワーに提示することは想定しません。
-
-### tasks.md は唯一のタスクリストである（Req 1.1, 1.4）
-
-- `tasks.md` は当該 Issue における **唯一のタスクリスト** です。`TaskCreate` を呼び出して
-  `tasks.md` の内容を内部 TODO リストに **複製してはなりません**（duplication 禁止）
-- `tasks.md` に既に対応するタスク行（`- [ ]` または `- [ ]*`）が存在するタスクのために、
-  進捗追跡目的で `TaskCreate` / `TaskUpdate` を呼び出すことは **禁止** です。当該タスクの
-  進捗は `tasks.md` の checkbox 編集（前節）でのみ表現します
-
-### TaskCreate / TaskUpdate の許容ケースの限定列挙（Req 1.2, 1.3）
-
-`TaskCreate` / `TaskUpdate` を呼び出してよいのは、以下の **限定列挙された** ケースに該当する
-場合のみです。これ以外の用途（特に `tasks.md` の複製・補完）では呼び出さないこと:
-
-1. **`tasks.md` に存在しない緊急の sub-step**
-   - 例: 既存テストが failing しており、その原因調査が複数 turn にまたがる別軸の作業として
-     発生した場合
-   - 例: 実装中に CI failure / 依存ライブラリの不具合等の予期しない複数ステップの
-     調査が必要になった場合
-   - 当該 sub-step は `tasks.md` のタスク粒度（1 commit 単位）よりも細かい一時的な作業項目で
-     あり、`tasks.md` を書き換えて追記する種類のものではない（spec 書き換え禁止規約と整合）
-2. **conversation 内で人間から追加依頼が入った場合**
-   - 例: `tasks.md` に未記載の追加調整が PR レビュー過程で人間から口頭依頼された場合
-   - 例: Reviewer の reject 後の差し戻しで複数項目の修正要求が入った場合
-   - 当該依頼項目は本来 PM / Architect 経由で `tasks.md` に追加されるべきだが、conversation
-     の一時的な作業として実施する場合に限り内部 TODO トラッキングを許容する
-
-上記いずれの場合でも、**作業完了後に内部 TODO リストを `tasks.md` に formal 化して反映する
-必要はありません**（当該 sub-step は一時的な作業項目であり、Issue 単位の正規タスクではない
-ため）。
-
-### 「task tools haven't been used recently」reminder への defensive 応答禁止（Req 2.1, 2.2, 2.3）
-
-harness（Codex CLI SDK 本体）は、長時間 `TaskCreate` / `TaskUpdate` 系のツールが呼ばれて
-いない場合に「task tools haven't been used recently」等の **system reminder** を注入することが
-あります。この reminder に対して以下のように振る舞ってください:
-
-- reminder を受領しても、**反射的に `TaskCreate` を呼ばないこと**（Req 2.1）。reminder は
-  進捗追跡手段の **変更指示ではなく**、単なる状態通知として扱う
-- 進捗追跡は引き続き `tasks.md` の checkbox 編集（前節）で行う。reminder を受領したことを
-  きっかけに `tasks.md` の内容を内部 TODO リストへ複製する行為は **禁止**（Req 2.2）
-- reminder を受領した上でなお `TaskCreate` を呼ぶ場合は、上記「許容ケースの限定列挙」
-  （緊急 sub-step / 人間からの追加依頼）の **いずれか 1 つ以上に該当する場合のみ** に
-  限定する（Req 2.3）。該当しなければ呼ばない
-
-reminder への反射的応答は、tool call 予算を実装本体ではなく内部 task tracking に消費させる
-原因となります（umbrella Issue #132 の起点となった #91 失敗事例で観測された問題）。本規約は
-当該 overhead を抑制し、tool call 予算を AC 達成のための実装・テスト・commit に集中させる
-ことを目的とします。
-
 # テスト作成ルール
 
 - **AC 起点**: 新規テストは requirements.md の numeric ID と 1 対 1 で紐付ける。AC が無い挙動のテストを書かない
 - **異常系・境界値の必須化**: 各 AC に対し、最低 1 ケースの異常系（If パターンの AC）または境界値・空入力を追加する
+- **production entrypoint coverage**: user-facing flow / 公開 API・エンドポイント /
+  イベントハンドラ・コールバック / UI・プレゼンテーション層の状態 / 永続化・リポジトリ境界 を
+  変更する AC では、内部 service / 下位レイヤの単体テストだけで complete 扱いにしない。実際の
+  production entrypoint または owning flow 経由のテストを少なくとも 1 つ追加する
+- **negative-path coverage**: error propagation / retry / state clear / auth boundary / fallback を
+  含む AC では、該当する failure path test を追加する。追加不能な場合は理由を
+  AC Coverage Matrix に記録する
 - **命名と構造**: `describe('<対象>') > it('<条件>のとき<期待結果>')` 形式、Arrange / Act / Assert の 3 部構成、1 テスト 1 検証（詳細は AGENTS.md「テスト規約」）
 - **Red → Green**: テストが失敗する状態を先に観測してから実装で通す
 - **既存テストを壊さない**: 失敗した既存テストを書き換えて通してはいけない。落ちたら実装側の問題として調査する
@@ -352,7 +305,8 @@ watcher は `^STATUS: (.+)$` 固定 regex で検出するため、以下の **�
 - `STATUS:` 行を **出さない** 旧 Developer 動作は orchestrator 側で `complete` として扱われ
   ます（status 行不在 = complete fallback）
 - 既存 PR / Issue の retroactive 適用は不要
-- 全タスク完了時は **必ず** `STATUS: complete` を 1 行 `impl-notes.md` 末尾に追加してください
+- 全タスク完了時は **必ず** 下記「受入基準の達成確認」の AC Coverage Matrix を作成または更新してから、
+  `STATUS: complete` を 1 行 `impl-notes.md` 末尾に追加してください
   （明示が推奨。fallback はあくまで旧プロンプト互換のため）
 
 # 補足ノート
@@ -375,9 +329,34 @@ watcher は `^STATUS: (.+)$` 固定 regex で検出するため、以下の **�
 
 # 受入基準の達成確認
 
-すべての requirement numeric ID（1.1, 1.2, 2.1 ...）について、どのテストで担保したかを
-`impl-notes.md` に記載してください。requirements.md の AC に対応するテストが存在しない場合は、
-テスト追加が必須です。
+`STATUS: complete` を出す前に、すべての requirement numeric ID（1.1, 1.2, 2.1 ...）について
+AC Coverage Matrix を `impl-notes.md` に作成または更新してください。Reviewer が初めて
+production path の穴を見つける状態を避けるため、単なる「テスト名一覧」ではなく、AC が実際の
+実行経路で満たされることを trace します。
+
+必須列は以下です:
+
+| Requirement / AC | Implementation path | Production entrypoint / owning flow | Test / assertion | Verification result | Notes |
+|------------------|---------------------|-------------------------------------|------------------|---------------------|-------|
+
+- `Requirement / AC`: requirements.md の numeric ID
+- `Implementation path`: 主な実装ファイル / 関数 / component
+- `Production entrypoint / owning flow`: 実ユーザー操作 / 公開 API・エンドポイント /
+  イベントハンドラ・コールバック / UI・プレゼンテーション層の状態 / 永続化・リポジトリ境界 など、
+  本番でその AC が通る入口。該当しない純粋ロジックでは `N/A (pure logic)` と書く
+- `Test / assertion`: 追加または更新した test 名 / assertion 名。requirements.md の AC に対応する
+  テストが存在しない場合はテスト追加が必須
+- `Verification result`: 実行した検証コマンドと結果
+- `Notes`: failure path test を追加できない理由、または scope 外判断など
+
+user-facing flow / 公開 API・エンドポイント / イベントハンドラ・コールバック /
+UI・プレゼンテーション層の状態 / 永続化・リポジトリ境界 を変更する AC では、内部 service / 下位
+レイヤの単体テストだけで complete 扱いにしないでください。production entrypoint または owning flow
+経由のテストを少なくとも 1 つ含めます。
+
+error propagation / retry / state clear / auth boundary / fallback を含む AC では、対応する
+negative-path test を追加してください。追加不能な場合は、なぜ実装上または環境上不可能なのかを
+AC Coverage Matrix の `Notes` に明記します。
 
 # per-task ループ下での Implementer の責務（PER_TASK_LOOP_ENABLED=true 適用時のみ）
 
