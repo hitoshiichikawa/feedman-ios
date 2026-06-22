@@ -44,6 +44,12 @@ struct RootView: View {
                 authenticatedShell
             }
         }
+        .onChange(of: environment.authenticationState) { _ in
+            presentPendingNotificationArticleIfPossible()
+        }
+        .onChange(of: environment.pendingNotificationArticleTarget) { _ in
+            presentPendingNotificationArticleIfPossible()
+        }
     }
 
     private var sessionRestoringView: some View {
@@ -139,6 +145,9 @@ struct RootView: View {
             }
             .task {
                 await drawerFeedViewModel.loadSubscriptions(repository: environment.feedRepository)
+            }
+            .onAppear {
+                presentPendingNotificationArticleIfPossible()
             }
             .feedmanToastOverlay(toastCenter: toastCenter, edge: .top)
         }
@@ -296,7 +305,11 @@ struct RootView: View {
                 accessToken: environment.currentAccessToken,
                 itemStateCoordinator: itemStateCoordinator,
                 onDismiss: {
+                    let wasNotificationArticle = shellState.isPresentingNotificationArticleDetail
                     shellState.dismissPresentation()
+                    if wasNotificationArticle {
+                        environment.clearPendingNotificationArticleTarget()
+                    }
                 },
                 onAuthRequired: {
                     toastCenter.show("再ログインが必要です。", style: .warning)
@@ -327,6 +340,20 @@ struct RootView: View {
                     completeUnsubscribe(subscriptionID: subscriptionID)
                 }
             )
+        }
+    }
+
+    private func presentPendingNotificationArticleIfPossible() {
+        guard case .authenticated = environment.authenticationState,
+              let target = environment.pendingNotificationArticleTarget
+        else {
+            return
+        }
+
+        guard shellState.presentNotificationArticleTarget(target) else {
+            toastCenter.show("通知先の記事詳細を開けませんでした。", style: .warning)
+            environment.clearPendingNotificationArticleTarget()
+            return
         }
     }
 
