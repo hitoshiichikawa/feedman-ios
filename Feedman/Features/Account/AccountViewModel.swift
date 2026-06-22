@@ -62,6 +62,19 @@ enum AccountDeletionState: Equatable {
     }
 }
 
+enum AccountLogoutState: Equatable {
+    case idle
+    case loggingOut
+    case failed(AccountErrorViewState)
+
+    var isLoggingOut: Bool {
+        if case .loggingOut = self {
+            return true
+        }
+        return false
+    }
+}
+
 struct AccountErrorViewState: Equatable {
     let title: String
     let message: String
@@ -76,22 +89,27 @@ struct AccountActionNotice: Equatable, Identifiable {
 @MainActor
 final class AccountViewModel: ObservableObject {
     typealias AccountDeletionCompletion = @MainActor () async -> Void
+    typealias LogoutCompletion = @MainActor () async throws -> Void
 
     @Published private(set) var state: AccountViewState = .idle
+    @Published private(set) var logoutState: AccountLogoutState = .idle
     @Published private(set) var deletionState: AccountDeletionState = .idle
     @Published var actionNotice: AccountActionNotice?
 
     private let repository: any AccountRepository
     private let accessToken: String?
+    private let onLogout: LogoutCompletion
     private let onAccountDeleted: AccountDeletionCompletion
 
     init(
         repository: any AccountRepository,
         accessToken: String?,
+        onLogout: @escaping LogoutCompletion = {},
         onAccountDeleted: @escaping AccountDeletionCompletion = {}
     ) {
         self.repository = repository
         self.accessToken = accessToken
+        self.onLogout = onLogout
         self.onAccountDeleted = onAccountDeleted
     }
 
@@ -124,11 +142,19 @@ final class AccountViewModel: ObservableObject {
         await loadCurrentUser()
     }
 
-    func requestLogoutPlaceholder() {
-        actionNotice = AccountActionNotice(
-            title: "ログアウト",
-            message: "ログアウト処理は後続 Issue で接続します。この画面では認証情報の削除や通信は行いません。"
-        )
+    func logout() async {
+        guard !logoutState.isLoggingOut else {
+            return
+        }
+
+        logoutState = .loggingOut
+
+        do {
+            try await onLogout()
+            logoutState = .idle
+        } catch {
+            logoutState = .failed(Self.logoutErrorViewState(from: error))
+        }
     }
 
     func requestDeleteAccountConfirmation() {
@@ -280,6 +306,28 @@ final class AccountViewModel: ObservableObject {
         case .malformedErrorResponse, .successDecodingFailed, .invalidRequestURL, .nonHTTPResponse:
             return AccountErrorViewState(
                 title: "退会できませんでした",
+                message: "応答を処理できませんでした。しばらくしてから再試行してください。"
+            )
+        }
+    }
+
+    private static func logoutErrorViewState(from error: Error) -> AccountErrorViewState {
+        guard let apiError = error as? FeedmanAPIError else {
+            return AccountErrorViewState(
+                title: "ログアウトできませんでした",
+                message: "通信状況を確認してから再試行してください。"
+            )
+        }
+
+        switch apiError {
+        case .transportFailed:
+            return AccountErrorViewState(
+                title: "通信できません",
+                message: "ネットワーク接続を確認してから再試行してください。"
+            )
+        default:
+            return AccountErrorViewState(
+                title: "ログアウトできませんでした",
                 message: "応答を処理できませんでした。しばらくしてから再試行してください。"
             )
         }

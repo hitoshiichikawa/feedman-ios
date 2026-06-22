@@ -270,8 +270,12 @@ struct RootView: View {
                 onDismiss: {
                     shellState.dismissPresentation()
                 },
+                onLogout: {
+                    await environment.logout()
+                    shellState.dismissPresentation()
+                },
                 onAccountDeleted: {
-                    environment.clearLocalAuthenticationAfterAccountDeletion()
+                    await environment.clearLocalAuthenticationAfterAccountDeletion()
                     shellState.dismissPresentation()
                 }
             )
