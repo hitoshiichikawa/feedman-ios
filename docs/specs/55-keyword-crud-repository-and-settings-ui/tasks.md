@@ -8,7 +8,7 @@
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 7.1, 7.2, 7.3, 7.6_
   - _Boundary: KeywordAPIModels, KeywordRepository_
 
-- [ ] 2. AppEnvironment に keyword repository dependency を接続する
+- [x] 2. AppEnvironment に keyword repository dependency を接続する
   - `AppEnvironment` に `keywordRepository` を injectable dependency として追加する。
   - production wiring では既存 `APIClient` と access token refresh hook を共有する `APIClientKeywordRepository` を渡す。
   - preview/test wiring では `MockKeywordRepository` を渡し、既存 preview が実ネットワークへ依存しないことを保つ。
