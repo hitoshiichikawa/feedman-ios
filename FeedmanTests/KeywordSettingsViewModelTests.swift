@@ -261,6 +261,39 @@ final class KeywordSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(authRequiredCallCount, 1)
     }
 
+    func testAuthRequiredDuringVisibleMutationCallsHandlerAndPreservesContent() async {
+        let repository = StubKeywordSettingsRepository()
+        repository.listResult = .success([Self.swiftUIKeyword])
+        repository.updateResult = .failure(
+            FeedmanAPIError.authRequired(AuthRequiredContext(reason: .retryUnauthorized, statusCode: 401, underlyingError: nil))
+        )
+        var authRequiredCallCount = 0
+        let viewModel = KeywordSettingsViewModel(
+            repository: repository,
+            accessToken: "access-1",
+            authRequiredHandler: {
+                authRequiredCallCount += 1
+            }
+        )
+        await viewModel.loadKeywords()
+
+        let didToggle = await viewModel.setKeywordEnabled(id: "keyword-1", enabled: false)
+
+        XCTAssertFalse(didToggle)
+        XCTAssertEqual(authRequiredCallCount, 1)
+        XCTAssertEqual(viewModel.contentState, .loaded([Self.swiftUIKeyword]))
+        XCTAssertEqual(
+            viewModel.message,
+            .failure(
+                KeywordSettingsErrorPresentation(
+                    kind: .authRequired,
+                    title: "ログインが必要です",
+                    message: "認証の有効期限が切れています。再ログイン後にもう一度お試しください。"
+                )
+            )
+        )
+    }
+
     func testKeywordRowPresentationIncludesTermEnabledStateAndHitsForAccessibility() {
         let presentation = KeywordSettingsRowPresentation(keyword: Self.swiftUIKeyword)
 
