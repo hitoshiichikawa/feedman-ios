@@ -64,6 +64,8 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var authenticationState: AppAuthenticationState
     @Published private(set) var pendingDeviceRegistrationRetryError: Error?
     @Published private(set) var apnsRegistrationError: APNsDeviceRegistrationError?
+    @Published private(set) var pendingNotificationArticleTarget: NotificationArticleTarget?
+    @Published private(set) var notificationNavigationError: NotificationArticleTargetRejectionReason?
 
     init(
         feedRepository: FeedRepository,
@@ -125,6 +127,8 @@ final class AppEnvironment: ObservableObject {
         await deviceRegistrationService.clearLocalState()
         pendingDeviceRegistrationRetryError = nil
         apnsRegistrationError = nil
+        pendingNotificationArticleTarget = nil
+        notificationNavigationError = nil
         authenticationState = .unauthenticated
     }
 
@@ -146,6 +150,8 @@ final class AppEnvironment: ObservableObject {
         accessTokenStore.update(accessToken: nil)
         pendingDeviceRegistrationRetryError = nil
         apnsRegistrationError = nil
+        pendingNotificationArticleTarget = nil
+        notificationNavigationError = nil
         authenticationState = .unauthenticated
 
         return AppLogoutResult(
@@ -204,6 +210,33 @@ final class AppEnvironment: ObservableObject {
                 self?.pendingDeviceRegistrationRetryError = error
             }
         )
+    }
+
+    func configureNotificationArticleNavigationBridge() {
+        NotificationArticleNavigationBridge.shared.configure { [weak self] userInfo in
+            self?.handleNotificationPayload(userInfo)
+        }
+    }
+
+    func handleNotificationPayload(_ userInfo: [AnyHashable: Any]) {
+        switch NotificationArticleTargetParser().resolve(userInfo: userInfo) {
+        case let .target(target):
+            pendingNotificationArticleTarget = target
+            notificationNavigationError = nil
+        case let .rejected(reason):
+            pendingNotificationArticleTarget = nil
+            notificationNavigationError = reason
+        case .ignored:
+            break
+        }
+    }
+
+    func clearPendingNotificationArticleTarget() {
+        pendingNotificationArticleTarget = nil
+    }
+
+    func clearNotificationNavigationError() {
+        notificationNavigationError = nil
     }
 
     func makeSearchRepository() -> any SearchRepository {
@@ -296,6 +329,7 @@ final class AppEnvironment: ObservableObject {
             accessTokenStore: accessTokenStore
         )
         configureAPNsDeviceRegistrationBridge()
+        configureNotificationArticleNavigationBridge()
     }
 
     static let preview = AppEnvironment(

@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import UserNotifications
 
 struct APNsDeviceTokenFormatter {
     func string(from deviceToken: Data) -> String {
@@ -189,6 +190,14 @@ final class APNsDeviceRegistrationBridge {
 final class FeedmanAppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
+    func application(
+        _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
         Task { @MainActor in
@@ -202,6 +211,19 @@ final class FeedmanAppDelegate: NSObject, UIApplicationDelegate {
     ) {
         Task { @MainActor in
             APNsDeviceRegistrationBridge.shared.handleRegistrationFailure(error)
+        }
+    }
+}
+
+extension FeedmanAppDelegate: UNUserNotificationCenterDelegate {
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        await MainActor.run {
+            NotificationArticleNavigationBridge.shared.handle(
+                userInfo: response.notification.request.content.userInfo
+            )
         }
     }
 }

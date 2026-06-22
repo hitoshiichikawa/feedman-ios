@@ -128,4 +128,23 @@
 | 8.7 | English identifiers | Swift files | compile review | full XCTest pass | Swift type/file names English |
 | 8.8 | Xcode test execution | full test command | `xcodebuild ... test` | pass, 437 tests, 0 failures | `DEVELOPER_DIR` 指定で実行 |
 
+## Reviewer Round 1 是正
+
+- `Feedman/Features/Notifications/NotificationArticleNavigation.swift` と `FeedmanTests/NotificationArticleNavigationTests.swift` を develop と等価に復元し、#55 の keyword settings 追加と共存するよう `AppShellState` / `RootView` / `AppEnvironment` の notification article routing 接続を戻した。
+- `Feedman/Features/Notifications/APNsDeviceRegistrationService.swift` の `UNUserNotificationCenterDelegate` 設定と notification response handler を develop と等価に復元した。
+- `docs/specs/56-notification-deep-link-to-article-detail/*` を develop と等価に復元し、他 Issue spec の削除を差分から除外した。
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| boundary:NotificationDeepLinkRouting | boundary 逸脱 | #56 の notification article deep link routing code / tests / AppShell 接続を develop と等価に戻す | `fix(notifications): restore deep link routing boundary` | `NotificationArticleNavigationTests` 16 tests | `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/NotificationArticleNavigationTests test`: pass, 16 tests / 0 failures | #55 の `keywordSettings` presentation は維持し、notification article marker / pending target clear 経路を復元 |
+| boundary:APNsDeviceRegistrationFoundation | boundary 逸脱 | `FeedmanAppDelegate` の notification delegate 設定と response handling を develop と等価に戻す | `fix(notifications): restore deep link routing boundary` | `APNsDeviceRegistrationServiceTests`, full XCTest | `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: pass, 453 tests / 0 failures | `/api/devices` repository / logout unregister policy は変更していない |
+| boundary:OtherIssueSpecs | boundary 逸脱 | `docs/specs/56-notification-deep-link-to-article-detail/*` の削除を取り消す | `fix(notifications): restore deep link routing boundary` | diff review | `git diff --check`: pass | #55 の requirements/design/tasks は変更せず、#56 spec artifacts を develop 版へ復元 |
+
+## Reviewer Round 1 Verification
+
+- `plutil -lint Feedman.xcodeproj/project.pbxproj`: pass (`Feedman.xcodeproj/project.pbxproj: OK`)
+- `git diff --check`: pass
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/NotificationArticleNavigationTests test`: pass, 16 tests / 0 failures
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: pass, 453 tests / 0 failures
+
 STATUS: complete

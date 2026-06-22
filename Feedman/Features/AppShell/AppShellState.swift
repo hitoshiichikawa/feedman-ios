@@ -190,19 +190,22 @@ struct AppShellState: Equatable {
     private(set) var activePresentation: AppShellPresentation?
     private(set) var themeOverride: AppShellThemeOverride
     private(set) var itemStateChange: ItemStateChange?
+    private(set) var notificationArticleTargetInPresentation: NotificationArticleTarget?
 
     init(
         currentRoute: AppShellRoute = .timeline,
         isDrawerOpen: Bool = false,
         activePresentation: AppShellPresentation? = nil,
         themeOverride: AppShellThemeOverride = .system,
-        itemStateChange: ItemStateChange? = nil
+        itemStateChange: ItemStateChange? = nil,
+        notificationArticleTargetInPresentation: NotificationArticleTarget? = nil
     ) {
         self.currentRoute = currentRoute
         self.isDrawerOpen = isDrawerOpen
         self.activePresentation = activePresentation
         self.themeOverride = themeOverride
         self.itemStateChange = itemStateChange
+        self.notificationArticleTargetInPresentation = notificationArticleTargetInPresentation
     }
 
     var title: String {
@@ -211,6 +214,10 @@ struct AppShellState: Equatable {
 
     var drawerSelection: AppShellDrawerSelection {
         currentRoute.drawerSelection
+    }
+
+    var isPresentingNotificationArticleDetail: Bool {
+        notificationArticleTargetInPresentation != nil
     }
 
     mutating func openDrawer() {
@@ -230,6 +237,7 @@ struct AppShellState: Equatable {
             currentRoute = route
         }
         activePresentation = nil
+        notificationArticleTargetInPresentation = nil
         isDrawerOpen = false
     }
 
@@ -239,16 +247,19 @@ struct AppShellState: Equatable {
 
     mutating func presentAccount() {
         activePresentation = .account
+        notificationArticleTargetInPresentation = nil
         isDrawerOpen = false
     }
 
     mutating func presentFeedRegistration() {
         activePresentation = .feedRegistration
+        notificationArticleTargetInPresentation = nil
         isDrawerOpen = false
     }
 
     mutating func presentKeywordSettings() {
         activePresentation = .keywordSettings
+        notificationArticleTargetInPresentation = nil
         isDrawerOpen = false
     }
 
@@ -258,17 +269,30 @@ struct AppShellState: Equatable {
         }
 
         activePresentation = .articleDetail(input)
+        notificationArticleTargetInPresentation = nil
         isDrawerOpen = false
+        return true
+    }
+
+    mutating func presentNotificationArticleTarget(_ target: NotificationArticleTarget) -> Bool {
+        let input = ArticleDetailSheetInput(id: target.itemID)
+        guard presentArticleDetail(input) else {
+            return false
+        }
+
+        notificationArticleTargetInPresentation = target
         return true
     }
 
     mutating func presentSubscriptionSettings(feed: Feed) {
         activePresentation = .subscriptionSettings(feed)
+        notificationArticleTargetInPresentation = nil
         isDrawerOpen = false
     }
 
     mutating func dismissPresentation() {
         activePresentation = nil
+        notificationArticleTargetInPresentation = nil
     }
 
     mutating func applyItemStateChange(_ change: ItemStateChange) {
@@ -285,5 +309,18 @@ struct AppShellState: Equatable {
 
     mutating func toggleThemeOverride() {
         themeOverride = themeOverride.next
+    }
+}
+
+enum AppShellPresentationDismissalHandler {
+    static func dismissActivePresentation(
+        shellState: inout AppShellState,
+        clearPendingNotificationArticleTarget: () -> Void
+    ) {
+        let wasNotificationArticle = shellState.isPresentingNotificationArticleDetail
+        shellState.dismissPresentation()
+        if wasNotificationArticle {
+            clearPendingNotificationArticleTarget()
+        }
     }
 }

@@ -100,6 +100,8 @@
 		100000000000000000000195 /* KeywordSettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000294 /* KeywordSettingsViewModel.swift */; };
 		100000000000000000000196 /* KeywordSettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000295 /* KeywordSettingsViewModelTests.swift */; };
 		100000000000000000000197 /* KeywordSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000296 /* KeywordSettingsSheet.swift */; };
+		100000000000000000000198 /* NotificationArticleNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000297 /* NotificationArticleNavigation.swift */; };
+		100000000000000000000199 /* NotificationArticleNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000298 /* NotificationArticleNavigationTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -209,6 +211,8 @@
 		100000000000000000000294 /* KeywordSettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeywordSettingsViewModel.swift; sourceTree = "<group>"; };
 		100000000000000000000295 /* KeywordSettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeywordSettingsViewModelTests.swift; sourceTree = "<group>"; };
 		100000000000000000000296 /* KeywordSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeywordSettingsSheet.swift; sourceTree = "<group>"; };
+		100000000000000000000297 /* NotificationArticleNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationArticleNavigation.swift; sourceTree = "<group>"; };
+		100000000000000000000298 /* NotificationArticleNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationArticleNavigationTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -285,6 +289,7 @@
 				100000000000000000000295 /* KeywordSettingsViewModelTests.swift */,
 				100000000000000000000289 /* NotificationPermissionCoordinatorTests.swift */,
 				100000000000000000000290 /* APNsDeviceRegistrationServiceTests.swift */,
+				100000000000000000000298 /* NotificationArticleNavigationTests.swift */,
 				100000000000000000000232 /* CursorPaginationStateTests.swift */,
 				100000000000000000000234 /* FeedmanFaviconViewTests.swift */,
 				100000000000000000000237 /* ArticleMetadataControlsTests.swift */,
@@ -501,6 +506,7 @@
 			children = (
 				100000000000000000000286 /* NotificationPermissionCoordinator.swift */,
 				100000000000000000000287 /* APNsDeviceRegistrationService.swift */,
+				100000000000000000000297 /* NotificationArticleNavigation.swift */,
 				100000000000000000000294 /* KeywordSettingsViewModel.swift */,
 				100000000000000000000296 /* KeywordSettingsSheet.swift */,
 			);
@@ -660,6 +666,7 @@
 				100000000000000000000173 /* SubscriptionSettingsSheet.swift in Sources */,
 				100000000000000000000187 /* NotificationPermissionCoordinator.swift in Sources */,
 				100000000000000000000188 /* APNsDeviceRegistrationService.swift in Sources */,
+				100000000000000000000198 /* NotificationArticleNavigation.swift in Sources */,
 				100000000000000000000193 /* KeywordRepository.swift in Sources */,
 				100000000000000000000195 /* KeywordSettingsViewModel.swift in Sources */,
 				100000000000000000000197 /* KeywordSettingsSheet.swift in Sources */,
@@ -706,6 +713,7 @@
 				100000000000000000000190 /* NotificationPermissionCoordinatorTests.swift in Sources */,
 				100000000000000000000191 /* APNsDeviceRegistrationServiceTests.swift in Sources */,
 				100000000000000000000192 /* AppEnvironmentLogoutTests.swift in Sources */,
+				100000000000000000000199 /* NotificationArticleNavigationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
