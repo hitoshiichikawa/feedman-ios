@@ -313,7 +313,6 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
                 expiresIn: 900
             )
         )
-        await waitForAsyncEnvironmentWork()
 
         XCTAssertEqual(tokenResult, .skippedFeatureDisabled)
         XCTAssertEqual(environment.authenticationState, .authenticated(accessToken: "login-access"))
@@ -389,7 +388,7 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         }
 
         APNsDeviceRegistrationBridge.shared.handleDeviceToken(Data([0xCA, 0xFE]))
-        await waitForAsyncEnvironmentWork()
+        await waitForDeviceRegistrationStateClear(deviceStateStore)
 
         XCTAssertNil(environment.pendingDeviceRegistrationRetryError)
         XCTAssertNil(environment.apnsRegistrationError)
@@ -672,8 +671,18 @@ private func waitForPendingDeviceRegistrationRetryErrorClear(
     XCTFail("Timed out waiting for pending device registration retry error clear", file: file, line: line)
 }
 
-private func waitForAsyncEnvironmentWork() async {
-    try? await Task.sleep(nanoseconds: 10_000_000)
+private func waitForDeviceRegistrationStateClear(
+    _ stateStore: DeviceRegistrationStateStore,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) async {
+    for _ in 0..<50 {
+        if stateStore.load() == nil {
+            return
+        }
+        try? await Task.sleep(nanoseconds: 1_000_000)
+    }
+    XCTFail("Timed out waiting for device registration state clear", file: file, line: line)
 }
 
 @MainActor
