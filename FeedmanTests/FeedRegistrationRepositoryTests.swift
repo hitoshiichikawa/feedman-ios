@@ -21,7 +21,7 @@ final class FeedRegistrationRepositoryTests: XCTestCase {
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
         XCTAssertEqual(json, ["url": "https://example.com/feed.xml"])
 
-        XCTAssertEqual(registeredFeed.subscriptionID, "sub-registered")
+        XCTAssertNil(registeredFeed.subscriptionID)
         XCTAssertEqual(registeredFeed.feedID, "feed-registered")
         XCTAssertEqual(registeredFeed.title, "Registered Feed")
         XCTAssertEqual(registeredFeed.faviconURL, nil)
@@ -29,13 +29,27 @@ final class FeedRegistrationRepositoryTests: XCTestCase {
             registeredFeed.drawerFeed,
             Feed(
                 id: "feed-registered",
-                subscriptionID: "sub-registered",
+                subscriptionID: nil,
                 title: "Registered Feed",
                 unreadCount: 0,
                 status: .active,
-                fetchIntervalMinutes: 60
+                fetchIntervalMinutes: nil
             )
         )
+    }
+
+    func testRegisterFeedAcceptsSuccessfulNoContentResponse() async throws {
+        let transport = RecordingFeedRegistrationTransport()
+        transport.enqueueSuccess(data: Data(), statusCode: 204)
+        let repository = makeRepository(transport: transport)
+
+        let registeredFeed = try await repository.registerFeed(url: "https://example.com/feed.xml")
+
+        XCTAssertNil(registeredFeed.subscriptionID)
+        XCTAssertEqual(registeredFeed.feedID, "https://example.com/feed.xml")
+        XCTAssertEqual(registeredFeed.title, "https://example.com/feed.xml")
+        XCTAssertEqual(registeredFeed.feedURL, "https://example.com/feed.xml")
+        XCTAssertEqual(transport.requests.count, 1)
     }
 
     func testRegisterFeedPreservesDuplicateErrorContext() async throws {
@@ -121,15 +135,15 @@ final class FeedRegistrationRepositoryTests: XCTestCase {
 
 private final class RecordingFeedRegistrationTransport: APITransport, @unchecked Sendable {
     private enum Result {
-        case success(Data)
+        case success(Data, statusCode: Int)
         case feedmanError(statusCode: Int, code: String, category: String, retryAfterSeconds: Int?)
     }
 
     private(set) var requests: [URLRequest] = []
     private var results: [Result] = []
 
-    func enqueueSuccess(data: Data) {
-        results.append(.success(data))
+    func enqueueSuccess(data: Data, statusCode: Int = 200) {
+        results.append(.success(data, statusCode: statusCode))
     }
 
     func enqueueFeedmanError(
@@ -156,8 +170,8 @@ private final class RecordingFeedRegistrationTransport: APITransport, @unchecked
         }
 
         switch results.removeFirst() {
-        case .success(let data):
-            return (data, httpResponse(statusCode: 200, request: request))
+        case let .success(data, statusCode):
+            return (data, httpResponse(statusCode: statusCode, request: request))
         case let .feedmanError(statusCode, code, category, retryAfterSeconds):
             let data = Data(
                 """

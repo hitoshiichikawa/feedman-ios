@@ -4,17 +4,22 @@ import XCTest
 final class SearchRepositoryTests: XCTestCase {
     private let baseURL = URL(string: "https://api.example.com")!
 
-    func testGlobalSearchRequestsEndpointWithQueryScopeAndBearerToken() async throws {
+    func testGlobalSearchRequestsEndpointWithQueryLimitAndBearerTokenWithoutScope() async throws {
         let transport = RecordingSearchTransport()
-        transport.enqueue(hits: [
-            hit(id: "hit-1"),
-            hit(id: "hit-2")
-        ])
+        transport.enqueue(response: SearchItemsResponse(
+            items: [
+                hit(id: "hit-1"),
+                hit(id: "hit-2")
+            ],
+            nextCursor: "cursor-next",
+            hasMore: true
+        ))
         let repository = makeRepository(transport: transport)
 
-        let hits = try await repository.searchItems(
+        let response = try await repository.searchItemsPage(
             query: "SwiftUI | 日本語 next page",
-            scope: .global
+            cursor: "cursor-1",
+            limit: nil
         )
 
         let request = try XCTUnwrap(transport.requests.first)
@@ -22,10 +27,45 @@ final class SearchRepositoryTests: XCTestCase {
         XCTAssertEqual(request.httpMethod, "GET")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
         XCTAssertEqual(queryValue("q", in: request), "SwiftUI | 日本語 next page")
-        XCTAssertEqual(queryValue("scope", in: request), "global")
+        XCTAssertEqual(queryValue("cursor", in: request), "cursor-1")
+        XCTAssertEqual(queryValue("limit", in: request), "50")
+        XCTAssertNil(queryValue("scope", in: request))
         XCTAssertFalse(try XCTUnwrap(request.url?.absoluteString).contains(" "))
         XCTAssertTrue(try XCTUnwrap(request.url?.absoluteString).contains("%7C"))
-        XCTAssertEqual(hits.map(\.id), ["hit-1", "hit-2"])
+        XCTAssertEqual(response.items.map(\.id), ["hit-1", "hit-2"])
+        XCTAssertEqual(response.nextCursor, "cursor-next")
+        XCTAssertTrue(response.hasMore)
+    }
+
+    func testGlobalSearchItemsCompatibilityReturnsWrapperItemsInOrder() async throws {
+        let transport = RecordingSearchTransport()
+        transport.enqueue(response: SearchItemsResponse(
+            items: [hit(id: "first"), hit(id: "second")],
+            nextCursor: nil,
+            hasMore: false
+        ))
+        let repository = makeRepository(transport: transport)
+
+        let hits = try await repository.searchItems(query: "Swift", scope: .global)
+
+        XCTAssertEqual(hits.map(\.id), ["first", "second"])
+        let request = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(queryValue("q", in: request), "Swift")
+        XCTAssertEqual(queryValue("limit", in: request), "50")
+        XCTAssertNil(queryValue("scope", in: request))
+    }
+
+    func testFeedScopedSearchSendsFeedIDInsteadOfScope() async throws {
+        let transport = RecordingSearchTransport()
+        transport.enqueue(response: SearchItemsResponse(items: [hit(id: "feed-hit")], nextCursor: nil, hasMore: false))
+        let repository = makeRepository(transport: transport)
+
+        let hits = try await repository.searchItems(query: "Swift", scope: .feed(id: "feed-1"))
+
+        let request = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(queryValue("feed_id", in: request), "feed-1")
+        XCTAssertNil(queryValue("scope", in: request))
+        XCTAssertEqual(hits.map(\.id), ["feed-hit"])
     }
 
     func testAuthRequiredErrorPropagatesWithoutEmptyResult() async {
@@ -41,6 +81,14 @@ final class SearchRepositoryTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    func testTerminalSearchPageWhenHasMoreFalseOrCursorMissing() async throws {
+        let noMore = SearchItemsResponse(items: [hit(id: "terminal")], nextCursor: "ignored", hasMore: false)
+        let missingCursor = SearchItemsResponse(items: [hit(id: "missing-cursor")], nextCursor: nil, hasMore: true)
+
+        XCTAssertFalse(noMore.canLoadMore)
+        XCTAssertFalse(missingCursor.canLoadMore)
     }
 
     private func makeRepository(transport: RecordingSearchTransport) -> APIClientSearchRepository {
@@ -84,7 +132,7 @@ final class SearchRepositoryTests: XCTestCase {
 
 private final class RecordingSearchTransport: APITransport, @unchecked Sendable {
     private enum Result {
-        case response([ItemSearchHit])
+        case response(SearchItemsResponse)
         case errorResponse(statusCode: Int, code: String)
     }
 
@@ -92,8 +140,8 @@ private final class RecordingSearchTransport: APITransport, @unchecked Sendable 
     private var results: [Result] = []
     private let encoder = JSONEncoder()
 
-    func enqueue(hits: [ItemSearchHit]) {
-        results.append(.response(hits))
+    func enqueue(response: SearchItemsResponse) {
+        results.append(.response(response))
     }
 
     func enqueueErrorResponse(statusCode: Int, code: String) {
@@ -108,8 +156,8 @@ private final class RecordingSearchTransport: APITransport, @unchecked Sendable 
         }
 
         switch results.removeFirst() {
-        case .response(let hits):
-            return (try encoder.encode(hits), httpResponse(statusCode: 200, request: request))
+        case .response(let response):
+            return (try encoder.encode(response), httpResponse(statusCode: 200, request: request))
         case let .errorResponse(statusCode, code):
             let data = Data("""
             {

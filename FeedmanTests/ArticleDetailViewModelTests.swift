@@ -42,6 +42,42 @@ final class ArticleDetailViewModelTests: XCTestCase {
         XCTAssertEqual(stateChanges.map(\.isStarred), [nil])
     }
 
+    func testDetailPresentationUsesOriginatingSummaryMetadataWhenDetailOmitsFeedMetadata() async throws {
+        let repository = ArticleDetailRecordingRepository(
+            detailResults: [
+                .success(makeDetail(
+                    isRead: true,
+                    isStarred: false,
+                    feedTitle: "",
+                    feedFaviconURL: nil
+                ))
+            ],
+            stateUpdateResults: []
+        )
+        let viewModel = makeViewModel(repository: repository)
+
+        await viewModel.open()
+
+        let presentation = try XCTUnwrap(viewModel.loadedPresentation)
+        XCTAssertEqual(presentation.sourceMetadata.feedTitle, "Summary Feed")
+        XCTAssertNil(presentation.sourceMetadata.faviconURL)
+    }
+
+    func testDetailPresentationRendersNeutralSourceWhenNoFeedMetadataIsAvailable() throws {
+        let presentation = ArticleDetailPresentation(
+            detail: makeDetail(
+                isRead: true,
+                isStarred: false,
+                feedTitle: "",
+                feedFaviconURL: nil
+            ),
+            fallbackSummary: nil
+        )
+
+        XCTAssertEqual(presentation.sourceMetadata.feedTitle, "")
+        XCTAssertNil(presentation.sourceMetadata.faviconURL)
+    }
+
     func testDetailOpenReadSuccessSyncsVisibleListState() async throws {
         let coordinator = ItemStateCoordinator()
         let repository = ArticleDetailRecordingRepository(
@@ -599,13 +635,15 @@ final class ArticleDetailViewModelTests: XCTestCase {
         isRead: Bool,
         isStarred: Bool,
         content: String? = "<p>本文 <strong>HTML</strong></p>",
-        link: String = "https://example.com/articles/123"
+        link: String = "https://example.com/articles/123",
+        feedTitle: String = "Feed Title",
+        feedFaviconURL: String? = "data:image/png;base64,iVBORw0KGgo="
     ) -> ItemDetail {
         ItemDetail(
             id: "item-123",
             feedID: "feed-123",
-            feedTitle: "Feed Title",
-            feedFaviconURL: "data:image/png;base64,iVBORw0KGgo=",
+            feedTitle: feedTitle,
+            feedFaviconURL: feedFaviconURL,
             title: "Article Title",
             summary: "Summary",
             content: content,

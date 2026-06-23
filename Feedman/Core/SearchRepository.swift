@@ -1,8 +1,8 @@
 import Foundation
 
-enum SearchScope: String, Equatable {
+enum SearchScope: Equatable {
     case global
-    case feed
+    case feed(id: String)
 }
 
 protocol SearchRepository {
@@ -24,13 +24,46 @@ actor APIClientSearchRepository: SearchRepository {
     }
 
     func searchItems(query: String, scope: SearchScope) async throws -> [ItemSearchHit] {
-        try await apiClient.send(
-            [ItemSearchHit].self,
+        switch scope {
+        case .global:
+            return try await searchItemsPage(query: query).items
+        case .feed(let feedID):
+            return try await searchItemsPage(query: query, feedID: feedID).items
+        }
+    }
+
+    func searchItemsPage(
+        query: String,
+        cursor: String? = nil,
+        limit: Int? = nil
+    ) async throws -> SearchItemsResponse {
+        try await searchItemsPage(query: query, feedID: nil, cursor: cursor, limit: limit)
+    }
+
+    func searchItemsPage(
+        query: String,
+        feedID: String?,
+        cursor: String? = nil,
+        limit: Int? = nil
+    ) async throws -> SearchItemsResponse {
+        let normalizedLimit = CrossFeedPageLimit.normalized(limit)
+        var queryItems = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "limit", value: String(normalizedLimit))
+        ]
+
+        if let cursor {
+            queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+        }
+
+        if let feedID {
+            queryItems.append(URLQueryItem(name: "feed_id", value: feedID))
+        }
+
+        return try await apiClient.send(
+            SearchItemsResponse.self,
             path: "/api/items/search",
-            queryItems: [
-                URLQueryItem(name: "q", value: query),
-                URLQueryItem(name: "scope", value: scope.rawValue)
-            ],
+            queryItems: queryItems,
             accessToken: try await accessTokenProvider()
         )
     }

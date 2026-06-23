@@ -1,12 +1,7 @@
 {
-  "id": "sub-registered",
-  "feed_id": "feed-registered",
-  "feed_title": "Registered Feed",
+  "id": "feed-registered",
   "feed_url": "https://example.com/feed.xml",
   "site_url": "https://example.com",
-  "favicon_url": null,
-  "fetch_interval_minutes": 60,
-  "feed_status": "active",
-  "error_message": null,
-  "unread_count": 0
+  "title": "Registered Feed",
+  "fetch_status": "active"
 }

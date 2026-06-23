@@ -39,14 +39,20 @@ struct FeedItemCardDescriptor: Equatable {
     let item: ItemSummary
     let relativeDate: String
     let isStarMutationPending: Bool
+    private let fallbackFeedTitle: String?
+    private let fallbackFaviconURL: String?
 
     init(
         item: ItemSummary,
         isStarMutationPending: Bool = false,
-        now: Date = Date()
+        now: Date = Date(),
+        fallbackFeedTitle: String? = nil,
+        fallbackFaviconURL: String? = nil
     ) {
         self.item = item
         self.isStarMutationPending = isStarMutationPending
+        self.fallbackFeedTitle = fallbackFeedTitle
+        self.fallbackFaviconURL = fallbackFaviconURL
         relativeDate = TimelineRelativeDateFormatter.string(
             from: item.publishedAt,
             isEstimated: item.isDateEstimated,
@@ -68,8 +74,8 @@ struct FeedItemCardDescriptor: Equatable {
 
     var sourceMetadata: ArticleSourceMetadata {
         ArticleSourceMetadata(
-            feedTitle: item.feedTitle,
-            faviconURL: item.feedFaviconURL,
+            feedTitle: displayFeedTitle,
+            faviconURL: item.feedFaviconURL ?? fallbackFaviconURL,
             relativeDate: relativeDate
         )
     }
@@ -106,9 +112,13 @@ struct FeedItemCardDescriptor: Equatable {
     }
 
     var accessibilityLabel: String {
-        [item.feedTitle, item.title, relativeDate]
+        [displayFeedTitle, item.title, relativeDate]
             .filter { !$0.isEmpty }
             .joined(separator: "、")
+    }
+
+    private var displayFeedTitle: String {
+        item.feedTitle.nilIfBlank ?? fallbackFeedTitle?.nilIfBlank ?? ""
     }
 
     func select(_ action: (String) -> Void) {
@@ -150,6 +160,8 @@ final class FeedViewModel: ObservableObject {
     private var repository: (any FeedRepository)?
     private var itemRepository: (any ItemRepository)?
     private var accessToken: String?
+    private var selectedFeedTitle: String?
+    private var selectedFeedFaviconURL: String?
     private let itemStateCoordinator: ItemStateCoordinator
     private var isLoadingFirstPage = false
     private var loadingFirstPageSession: Session?
@@ -170,6 +182,8 @@ final class FeedViewModel: ObservableObject {
         self.repository = repository
         self.itemRepository = itemRepository
         self.accessToken = accessToken
+        self.selectedFeedTitle = nil
+        self.selectedFeedFaviconURL = nil
         self.itemStateCoordinator = itemStateCoordinator ?? ItemStateCoordinator()
         self.state = state
         self.items = items
@@ -189,7 +203,8 @@ final class FeedViewModel: ObservableObject {
     func configure(
         repository: any FeedRepository,
         itemRepository: (any ItemRepository)? = nil,
-        accessToken: String? = nil
+        accessToken: String? = nil,
+        selectedFeed: Feed? = nil
     ) {
         if self.repository == nil {
             self.repository = repository
@@ -198,6 +213,10 @@ final class FeedViewModel: ObservableObject {
             self.itemRepository = itemRepository
         }
         self.accessToken = accessToken
+        if let selectedFeed {
+            selectedFeedTitle = selectedFeed.title
+            selectedFeedFaviconURL = selectedFeed.faviconURL
+        }
     }
 
     func loadInitialIfNeeded(feedID: String) async {
@@ -281,7 +300,11 @@ final class FeedViewModel: ObservableObject {
         let effectiveItem = itemStateCoordinator.effectiveSummary(item)
         return ArticleDetailSheetInput(
             id: id,
-            summary: ArticleDetailSummary(item: effectiveItem)
+            summary: ArticleDetailSummary(
+                item: effectiveItem,
+                fallbackFeedTitle: selectedFeedTitle,
+                fallbackFaviconURL: selectedFeedFaviconURL
+            )
         )
     }
 
@@ -406,7 +429,9 @@ final class FeedViewModel: ObservableObject {
         FeedItemCardDescriptor(
             item: itemStateCoordinator.effectiveSummary(item),
             isStarMutationPending: itemStateCoordinator.isPending(itemID: item.id, field: .starred),
-            now: now
+            now: now,
+            fallbackFeedTitle: selectedFeedTitle,
+            fallbackFaviconURL: selectedFeedFaviconURL
         )
     }
 

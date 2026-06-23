@@ -427,6 +427,60 @@ final class FeedViewModelTests: XCTestCase {
         XCTAssertNil(descriptor.linkURL)
     }
 
+    func testDescriptorUsesSelectedFeedMetadataWhenFeedScopedItemOmitsMetadata() throws {
+        let viewModel = FeedViewModel()
+        viewModel.configure(
+            repository: RecordingFeedItemsRepository(firstPageResults: []),
+            selectedFeed: Feed(
+                id: "feed-1",
+                subscriptionID: "sub-1",
+                title: "Selected Feed",
+                unreadCount: 0,
+                status: .active,
+                faviconURL: "data:image/png;base64,iVBORw0KGgo="
+            )
+        )
+        let descriptor = viewModel.descriptor(
+            for: item(id: "missing-feed-metadata", feedTitle: "", feedFaviconURL: nil),
+            now: Date(timeIntervalSince1970: 0)
+        )
+
+        XCTAssertEqual(descriptor.sourceMetadata.feedTitle, "Selected Feed")
+        XCTAssertEqual(descriptor.sourceMetadata.faviconURL, "data:image/png;base64,iVBORw0KGgo=")
+        XCTAssertTrue(descriptor.accessibilityLabel.contains("Selected Feed"))
+    }
+
+    func testDetailInputUsesSelectedFeedMetadataWhenFeedScopedItemOmitsMetadata() async throws {
+        let repository = RecordingFeedItemsRepository(
+            firstPageResults: [
+                .success(snapshot(
+                    feedID: "feed-1",
+                    filter: .all,
+                    items: [item(id: "missing-feed-metadata", feedTitle: "", feedFaviconURL: nil)],
+                    canLoadMore: false
+                ))
+            ]
+        )
+        let viewModel = FeedViewModel(repository: repository)
+        viewModel.configure(
+            repository: repository,
+            selectedFeed: Feed(
+                id: "feed-1",
+                subscriptionID: "sub-1",
+                title: "Selected Feed",
+                unreadCount: 0,
+                status: .active,
+                faviconURL: "data:image/png;base64,iVBORw0KGgo="
+            )
+        )
+
+        await viewModel.loadInitialIfNeeded(feedID: "feed-1")
+
+        let input = viewModel.detailInput(for: "missing-feed-metadata")
+        XCTAssertEqual(input.summary?.feedTitle, "Selected Feed")
+        XCTAssertEqual(input.summary?.feedFaviconURL, "data:image/png;base64,iVBORw0KGgo=")
+    }
+
     func testDescriptorSeparatesSelectionStarAndOpenLinkIntents() throws {
         let descriptor = FeedItemCardDescriptor(item: item(id: "action"))
         var selectedIDs: [String] = []
@@ -694,6 +748,8 @@ final class FeedViewModelTests: XCTestCase {
     private func item(
         id: String,
         feedID: String = "feed-1",
+        feedTitle: String = "Feed",
+        feedFaviconURL: String? = nil,
         summary: String? = "Summary",
         link: String? = nil,
         publishedAt: String = "2026-06-08T08:30:00Z",
@@ -706,8 +762,8 @@ final class FeedViewModelTests: XCTestCase {
         ItemSummary(
             id: id,
             feedID: feedID,
-            feedTitle: "Feed",
-            feedFaviconURL: nil,
+            feedTitle: feedTitle,
+            feedFaviconURL: feedFaviconURL,
             title: "Title \(id)",
             summary: summary,
             link: link ?? "https://example.com/\(id)",
