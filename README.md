@@ -161,9 +161,11 @@ Per-repo env file path:
 ~/.idd-codex/hitoshiichikawa-feedman-ios.env
 ```
 
-Recommended env file contents for automatic development up to `develop`:
+Recommended idd-codex env-loader file contents for automatic development up to `develop`.
+This file is parsed by idd-codex's per-repo env-loader, not sourced as a shell script.
+For values containing spaces, write the raw value without shell quotes.
 
-```bash
+```text
 FULL_AUTO_ENABLED=true
 PR_REVIEWER_ENABLED=true
 PR_REVIEWER_TOOL=codex
@@ -176,7 +178,7 @@ STALE_PICKUP_REAPER_ENABLED=true
 
 AUTO_REBASE_MODE=codex
 AUTO_REBASE_SEMANTIC=on
-MECHANICAL_PATHS=.github/**,README.md
+MECHANICAL_PATHS=README.md
 
 DEPENDENCY_AUTO_UNBLOCK_ENABLED=true
 BLOCKED_CYCLE_DETECTION_ENABLED=true
@@ -204,7 +206,7 @@ STAGE_A_VERIFY_ENABLED=false
 PROMOTE_PIPELINE_ENABLED=false
 PROMOTION_TARGET_BRANCH=main
 PROMOTE_MODE=on-demand
-ST_CHECK_RUN_NAME="iOS Tests"
+ST_CHECK_RUN_NAME=iOS Tests
 ```
 
 Linux / WSL では cron で 2 分ごとに watcher を起動します。
