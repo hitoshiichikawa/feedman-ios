@@ -105,6 +105,9 @@
 - Issue 本文には `Depends on:` を明記し、依存 Issue が未完了なら実装へ進まない。
 - Developer は設計 PR で確定済みの `docs/specs/*` を実装 PR で勝手に書き換えない。
 - 不明点は推測で進めず、Issue comment で確認する。
+- Codex CLI には Claude Code の subagent 起動機構が無いため、`.codex/agents/*.md` は別 context へ
+  spawn されるのではなく、各 stage で watcher が役割定義として prompt 先頭へ注入する。
+  prompt 中の「サブエージェントを起動」は「そのロールとして振る舞う」と読み替える。
 
 ## 検証
 
