@@ -42,10 +42,21 @@ Xcode で確認します。
 
 ### API base URL
 
-アプリ側の現在の設定境界は `AppEnvironment.production(apiBaseURL:)` と
-`APIClient(baseURL:)` です。app entry point が明示的な URL を渡さない場合、
-実装上の default は `http://localhost:3000` です。これはローカル開発向けの実装 default であり、
-production endpoint の確定値ではありません。
+アプリの runtime API origin は `FEEDMAN_API_BASE_URL` で設定します。Scheme の
+Environment Variables、または build setting から `Info.plist` の `FeedmanAPIBaseURL` へ展開される
+値を使います。`AppEnvironment.production()` はこの設定を解決し、欠落・不正値・`localhost`
+指定を起動時に developer-observable な設定不備として扱います。
+
+Simulator から macOS 上の local server に接続する開発用途では、Scheme の Environment Variables に
+次のような origin を明示します。
+
+```text
+FEEDMAN_API_BASE_URL=http://127.0.0.1:3000
+```
+
+Release 相当の確認では local-development origin を使わず、server / release 方針で確定した origin を
+同じ `FEEDMAN_API_BASE_URL` として明示してください。正式な production / staging URL はこの
+README では未確定値として扱い、仮の endpoint は記載しません。
 
 Debug / Release / Staging / Local の正式な API base URL 文字列は未決です。release
 configuration として扱う前に、server / release 方針で確定してください。
@@ -87,14 +98,17 @@ v1 default では keyword notification feature は disabled です。`/api/devic
 `/api/keywords` は next phase API のため、この checklist の成功条件には含めません。
 
 1. Google login を開始し、`feedman://auth/callback?auth_code=...` から token exchange が完了する。
-   必要に応じてアプリ再起動後の session restore も確認し、横断タイムラインが表示される。
+   生成される native login URL が `flow=native`、`code_challenge`、
+   `code_challenge_method=S256` を含むことも確認する。必要に応じてアプリ再起動後の
+   session restore も確認し、横断タイムラインが表示される。
 2. 横断タイムラインの記事を開き、記事詳細 sheet が表示される。
 3. 記事詳細から元記事を開き、`SFSafariViewController` で外部記事が表示される。
 4. 一覧または詳細で star / unstar し、Starred list に変更が反映される。
 5. drawer から feed を開き、all / unread / starred filter を切り替えられる。
 6. feed URL を登録し、subscriptions / drawer refresh 後に新しい購読が確認できる。
 7. non-empty query で global search を実行し、検索結果の詳細を開ける。
-8. account を表示し、logout 後に unauthenticated login state へ戻る。
+8. account を表示し、mobile current user が `GET /api/users/me` で取得されることを確認する。
+   その後 logout し、unauthenticated login state へ戻る。
 9. Account deletion は破壊的操作のため default smoke checklist には含めません。必要な場合だけ
    destructive manual-only check として別途確認します。
 

@@ -11,7 +11,7 @@ struct FeedmanAccountRepository: AccountRepository {
     func currentUser(accessToken: String) async throws -> UserResponse {
         try await apiClient.send(
             UserResponse.self,
-            path: "/auth/me",
+            path: "/api/users/me",
             accessToken: accessToken
         )
     }

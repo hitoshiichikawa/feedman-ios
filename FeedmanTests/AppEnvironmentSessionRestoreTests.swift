@@ -228,6 +228,39 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         XCTAssertTrue(environment.deviceRegistrationRepository is APIClientDeviceRegistrationRepository)
     }
 
+    func testProductionEnvironmentUsesConfiguredOriginForNativeLoginBase() {
+        let environment = AppEnvironment.production(apiBaseURL: URL(string: "https://api.example.com")!)
+
+        XCTAssertEqual(environment.authBaseURL, URL(string: "https://api.example.com")!)
+    }
+
+    func testConfiguredProductionAPIBaseURLUsesEnvironmentOrigin() throws {
+        let url = try AppEnvironment.resolveProductionAPIBaseURL(
+            infoDictionary: [:],
+            environment: ["FEEDMAN_API_BASE_URL": "https://api.example.com"]
+        )
+
+        XCTAssertEqual(url, URL(string: "https://api.example.com")!)
+    }
+
+    func testConfiguredProductionAPIBaseURLRejectsMissingReleaseEquivalentOrigin() {
+        XCTAssertThrowsError(try AppEnvironment.resolveProductionAPIBaseURL(
+            infoDictionary: [:],
+            environment: [:]
+        )) { error in
+            XCTAssertEqual(error as? AppEnvironmentConfigurationError, .missingAPIBaseURL)
+        }
+    }
+
+    func testConfiguredProductionAPIBaseURLDoesNotUseLocalhostAsImplicitReleaseDefault() {
+        XCTAssertThrowsError(try AppEnvironment.resolveProductionAPIBaseURL(
+            infoDictionary: ["FeedmanAPIBaseURL": "http://localhost:3000"],
+            environment: [:]
+        )) { error in
+            XCTAssertEqual(error as? AppEnvironmentConfigurationError, .localhostAPIBaseURLNotAllowed)
+        }
+    }
+
     func testCompleteLoginPublishesPendingDeviceRegistrationRetryFailureAndKeepsTokenForRetry() async throws {
         let repository = SessionRestoreAuthRepositoryMock(
             refreshResult: .failure(AuthRepositoryError.missingRefreshToken)
