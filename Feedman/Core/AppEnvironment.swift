@@ -372,9 +372,19 @@ final class AppEnvironment: ObservableObject {
 
     private static func validatedAPIBaseURL(_ value: String) throws -> URL {
         guard let url = URL(string: value),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let scheme = url.scheme?.lowercased(),
               ["http", "https"].contains(scheme),
               url.host?.isEmpty == false else {
+            throw AppEnvironmentConfigurationError.invalidAPIBaseURL(value)
+        }
+
+        let path = components.percentEncodedPath
+        guard (path.isEmpty || path == "/"),
+              components.percentEncodedQuery == nil,
+              components.percentEncodedFragment == nil,
+              components.percentEncodedUser == nil,
+              components.percentEncodedPassword == nil else {
             throw AppEnvironmentConfigurationError.invalidAPIBaseURL(value)
         }
 

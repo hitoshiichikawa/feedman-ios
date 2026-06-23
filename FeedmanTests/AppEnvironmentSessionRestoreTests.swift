@@ -243,6 +243,15 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         XCTAssertEqual(url, URL(string: "https://api.example.com")!)
     }
 
+    func testConfiguredProductionAPIBaseURLUsesInfoPlistOrigin() throws {
+        let url = try AppEnvironment.resolveProductionAPIBaseURL(
+            infoDictionary: ["FeedmanAPIBaseURL": "https://api.example.com"],
+            environment: [:]
+        )
+
+        XCTAssertEqual(url, URL(string: "https://api.example.com")!)
+    }
+
     func testConfiguredProductionAPIBaseURLRejectsMissingReleaseEquivalentOrigin() {
         XCTAssertThrowsError(try AppEnvironment.resolveProductionAPIBaseURL(
             infoDictionary: [:],
@@ -269,6 +278,23 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
             environment: [:]
         )) { error in
             XCTAssertEqual(error as? AppEnvironmentConfigurationError, .invalidAPIBaseURL(configuredOrigin))
+        }
+    }
+
+    func testConfiguredProductionAPIBaseURLRejectsNonOriginURLShapes() {
+        let configuredOrigins = [
+            "https://api.example.com/v1",
+            "https://api.example.com?debug=1",
+            "https://api.example.com#debug"
+        ]
+
+        for configuredOrigin in configuredOrigins {
+            XCTAssertThrowsError(try AppEnvironment.resolveProductionAPIBaseURL(
+                infoDictionary: ["FeedmanAPIBaseURL": configuredOrigin],
+                environment: [:]
+            )) { error in
+                XCTAssertEqual(error as? AppEnvironmentConfigurationError, .invalidAPIBaseURL(configuredOrigin))
+            }
         }
     }
 
