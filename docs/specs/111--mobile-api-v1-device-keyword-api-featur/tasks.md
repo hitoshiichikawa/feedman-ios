@@ -16,7 +16,7 @@
   - _Boundary: APNsDeviceRegistrationServiceGate, AppEnvironmentNotificationGate, DisabledPathRegressionTests_
   - _Depends: 1_
 
-- [ ] 3. Notification permission から remote notification registration を disabled 時に起動しない
+- [x] 3. Notification permission から remote notification registration を disabled 時に起動しない
   - Disabled production wiring で `UIApplication.shared.registerForRemoteNotifications()` に到達しない構成にする。
   - Coordinator gate または unavailable registrar injection のどちらかを採用し、enabled path の authorization status handling は維持する。
   - `NotificationPermissionCoordinatorTests` に disabled 時は authorization が許可相当でも remote registrar call count が 0 である test を追加し、enabled 既存 tests は維持する。
