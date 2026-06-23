@@ -7,7 +7,7 @@
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 5.2_
   - _Boundary: NotificationFeatureFlags, AppEnvironmentNotificationGate, DisabledPathRegressionTests_
 
-- [ ] 2. APNs device registration service を disabled 時 no-network にする
+- [x] 2. APNs device registration service を disabled 時 no-network にする
   - `APNsDeviceRegistrationService` に feature gate を注入し、disabled 時の token registration / pending retry / logout unregister を repository call なしで short-circuit する。
   - Disabled logout / account deletion cleanup では stale local `DeviceRegistrationState` を clear し、network 成功に依存せず auth state transition を block しない。
   - `APNsDeviceRegistrationServiceTests` と `AppEnvironmentSessionRestoreTests` / `AppEnvironmentLogoutTests` に disabled token callback、login retry、session restore retry、logout unregister が recording repository を呼ばない regression test を追加する。
