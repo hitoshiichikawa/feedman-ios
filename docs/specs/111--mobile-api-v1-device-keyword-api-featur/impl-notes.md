@@ -142,3 +142,30 @@ STATUS: complete
 - `git diff --check`: 成功
 
 STATUS: complete
+
+### Task 6
+
+- 採用方針: README の v1 Smoke Test Checklist に、v1 default では keyword notification feature が disabled で `/api/devices` と `/api/keywords` は next phase API として成功条件に含めないことを明記した。
+- 重要な判断: task 6 は docs / verification scope のため production code と test code は変更せず、先行 task 1〜5 の disabled / enabled coverage を full `xcodebuild ... test` で再確認した。
+- 残存課題: なし。
+
+#### Task 6 AC Coverage Matrix
+
+| Requirement / AC | Implementation path | Production entrypoint / owning flow | Test / assertion | Verification result | Notes |
+|------------------|---------------------|-------------------------------------|------------------|---------------------|-------|
+| 5.1 | `README.md` の `v1 Smoke Test Checklist` | v1 手動 smoke test 手順 | README 差分で `/api/devices` と `/api/keywords` が v1 default checklist の成功条件外であることを確認 | `git diff --check` 成功 / full `xcodebuild ... test` 成功 | docs-only AC のため新規 XCTest なし |
+| 5.4 | 先行 task 1〜5 の実装と full test suite | macOS/Xcode verification flow | `FeedmanTests` full suite 468 tests / 0 failures | `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` 成功 | `plutil -lint Feedman.xcodeproj/project.pbxproj` も成功 |
+
+#### Finding Closure Matrix
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| N/A | Reviewer | 対応不要 | N/A | N/A | `review-notes.md` round 1 は `RESULT: approve` / Findings なし | task 6 着手前の review は task 5 approve のため corrective commit 不要 |
+
+#### Verification
+
+- `plutil -lint Feedman.xcodeproj/project.pbxproj`: 成功
+- `git diff --check`: 成功
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`: 成功（468 tests / 0 failures）
+
+STATUS: complete

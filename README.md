@@ -83,6 +83,8 @@ Unit test は mock repositories を使える範囲では real network、real Key
 ## v1 Smoke Test Checklist
 
 Release 前や大きな merge 後に、以下の最小導線を実機または iOS Simulator で確認します。
+v1 default では keyword notification feature は disabled です。`/api/devices` と
+`/api/keywords` は next phase API のため、この checklist の成功条件には含めません。
 
 1. Google login を開始し、`feedman://auth/callback?auth_code=...` から token exchange が完了する。
    必要に応じてアプリ再起動後の session restore も確認し、横断タイムラインが表示される。
