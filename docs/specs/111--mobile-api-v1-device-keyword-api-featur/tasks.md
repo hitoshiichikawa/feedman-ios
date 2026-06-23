@@ -34,7 +34,7 @@
   - _Boundary: KeywordSettingsRouteGate, DisabledKeywordRepository, DisabledPathRegressionTests_
   - _Depends: 1_
 
-- [ ] 5. Next phase enabled path の既存 repository / ViewModel / sheet coverage を維持する
+- [x] 5. Next phase enabled path の既存 repository / ViewModel / sheet coverage を維持する
   - `APIClientDeviceRegistrationRepository` の POST/DELETE path、Bearer header、refresh retry tests を削らずに通す。
   - `APIClientKeywordRepository` の GET/POST/PATCH/DELETE path、Bearer header、refresh retry tests を削らずに通す。
   - `KeywordSettingsViewModelTests` の loading / mutation / error mapping coverage を enabled path として維持する。
