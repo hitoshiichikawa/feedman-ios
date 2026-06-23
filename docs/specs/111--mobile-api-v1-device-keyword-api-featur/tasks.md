@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Production default の notification feature flag と dependency wiring を追加する (P)
+- [x] 1. Production default の notification feature flag と dependency wiring を追加する (P)
   - `NotificationFeatureFlags` を `AppEnvironment` が保持する value として追加し、`AppEnvironment.production()` の default を v1 disabled にする。
   - 明示 enabled 引数では既存 `APIClientDeviceRegistrationRepository` / `APIClientKeywordRepository` / permission coordinator を使う dependency graph を維持する。
   - `AppEnvironment.production()` default が disabled flags と disabled keyword repository を持つこと、enabled configuration が existing API repositories を使えることを unit test で確認する。
