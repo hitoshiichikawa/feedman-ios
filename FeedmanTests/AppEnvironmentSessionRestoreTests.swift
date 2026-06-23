@@ -93,6 +93,50 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         )
     }
 
+    func testDisabledRestoreRetryDoesNotPostDeviceRegistration() async throws {
+        let repository = SessionRestoreAuthRepositoryMock(
+            refreshResult: .success(
+                TokenCredentials(
+                    accessToken: "restored-access",
+                    refreshToken: "rotated-refresh",
+                    tokenType: "Bearer",
+                    expiresIn: 900
+                )
+            )
+        )
+        let accessTokenBox = SessionRestoreAccessTokenBox(
+            result: .success("restored-access")
+        )
+        let deviceRepository = SessionRestoreDeviceRegistrationRepository()
+        let deviceStateStore = InMemoryDeviceRegistrationStateStore(
+            state: DeviceRegistrationState(deviceID: "stale-device")
+        )
+        let deviceRegistrationService = APNsDeviceRegistrationService(
+            repository: deviceRepository,
+            stateStore: deviceStateStore,
+            featureFlags: .v1Default,
+            accessTokenProvider: {
+                try await accessTokenBox.currentAccessToken()
+            }
+        )
+        let environment = makeEnvironment(
+            repository: repository,
+            deviceRegistrationService: deviceRegistrationService
+        )
+
+        let tokenResult = try await deviceRegistrationService.registerDeviceToken(Data([0xAB]))
+        await environment.restoreSessionAtLaunch()
+
+        XCTAssertEqual(tokenResult, .skippedFeatureDisabled)
+        XCTAssertEqual(environment.authenticationState, .authenticated(accessToken: "restored-access"))
+        XCTAssertNil(environment.pendingDeviceRegistrationRetryError)
+        let requests = await deviceRepository.registerRequests
+        XCTAssertEqual(requests, [])
+        let callCount = await accessTokenBox.currentCallCount()
+        XCTAssertEqual(callCount, 0)
+        XCTAssertNil(deviceStateStore.load())
+    }
+
     func testRestoreWithoutStoredTokenShowsLoginWithoutClearing() async {
         let repository = SessionRestoreAuthRepositoryMock(
             refreshResult: .failure(AuthRepositoryError.missingRefreshToken)
@@ -238,6 +282,48 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         )
     }
 
+    func testDisabledCompleteLoginRetryDoesNotPostDeviceRegistration() async throws {
+        let repository = SessionRestoreAuthRepositoryMock(
+            refreshResult: .failure(AuthRepositoryError.missingRefreshToken)
+        )
+        let accessTokenBox = SessionRestoreAccessTokenBox(
+            result: .success("login-access")
+        )
+        let deviceRepository = SessionRestoreDeviceRegistrationRepository()
+        let deviceRegistrationService = APNsDeviceRegistrationService(
+            repository: deviceRepository,
+            stateStore: InMemoryDeviceRegistrationStateStore(),
+            featureFlags: .v1Default,
+            accessTokenProvider: {
+                try await accessTokenBox.currentAccessToken()
+            }
+        )
+        let environment = makeEnvironment(
+            repository: repository,
+            state: .unauthenticated,
+            deviceRegistrationService: deviceRegistrationService
+        )
+
+        let tokenResult = try await deviceRegistrationService.registerDeviceToken(Data([0xAB]))
+        environment.completeLogin(
+            with: TokenCredentials(
+                accessToken: "login-access",
+                refreshToken: "login-refresh",
+                tokenType: "Bearer",
+                expiresIn: 900
+            )
+        )
+        await waitForAsyncEnvironmentWork()
+
+        XCTAssertEqual(tokenResult, .skippedFeatureDisabled)
+        XCTAssertEqual(environment.authenticationState, .authenticated(accessToken: "login-access"))
+        XCTAssertNil(environment.pendingDeviceRegistrationRetryError)
+        let requests = await deviceRepository.registerRequests
+        XCTAssertEqual(requests, [])
+        let callCount = await accessTokenBox.currentCallCount()
+        XCTAssertEqual(callCount, 0)
+    }
+
     func testAPNsRegistrationFailurePublishesDomainErrorWithoutPostingDeviceRegistration() async {
         let repository = SessionRestoreAuthRepositoryMock(
             refreshResult: .failure(AuthRepositoryError.missingRefreshToken)
@@ -271,6 +357,47 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         )
         let requests = await deviceRepository.registerRequests
         XCTAssertEqual(requests, [])
+    }
+
+    func testDisabledAPNsDeviceTokenCallbackDoesNotPostDeviceRegistration() async {
+        let repository = SessionRestoreAuthRepositoryMock(
+            refreshResult: .failure(AuthRepositoryError.missingRefreshToken)
+        )
+        let accessTokenBox = SessionRestoreAccessTokenBox(
+            result: .success("access-1")
+        )
+        let deviceRepository = SessionRestoreDeviceRegistrationRepository()
+        let deviceStateStore = InMemoryDeviceRegistrationStateStore(
+            state: DeviceRegistrationState(deviceID: "stale-device")
+        )
+        let deviceRegistrationService = APNsDeviceRegistrationService(
+            repository: deviceRepository,
+            stateStore: deviceStateStore,
+            featureFlags: .v1Default,
+            accessTokenProvider: {
+                try await accessTokenBox.currentAccessToken()
+            }
+        )
+        let environment = makeEnvironment(
+            repository: repository,
+            state: .authenticated(accessToken: "access-1"),
+            deviceRegistrationService: deviceRegistrationService
+        )
+        environment.configureAPNsDeviceRegistrationBridge()
+        defer {
+            resetAPNsDeviceRegistrationBridge()
+        }
+
+        APNsDeviceRegistrationBridge.shared.handleDeviceToken(Data([0xCA, 0xFE]))
+        await waitForAsyncEnvironmentWork()
+
+        XCTAssertNil(environment.pendingDeviceRegistrationRetryError)
+        XCTAssertNil(environment.apnsRegistrationError)
+        let requests = await deviceRepository.registerRequests
+        XCTAssertEqual(requests, [])
+        let callCount = await accessTokenBox.currentCallCount()
+        XCTAssertEqual(callCount, 0)
+        XCTAssertNil(deviceStateStore.load())
     }
 
     func testAPNsDeviceTokenSuccessClearsPublishedRegistrationFailure() async {
@@ -420,6 +547,7 @@ private enum SessionRestoreTestError: Error, Equatable {
 
 private actor SessionRestoreAccessTokenBox {
     private var result: Result<String, Error>
+    private(set) var callCount = 0
 
     init(result: Result<String, Error>) {
         self.result = result
@@ -430,7 +558,12 @@ private actor SessionRestoreAccessTokenBox {
     }
 
     func currentAccessToken() throws -> String {
-        try result.get()
+        callCount += 1
+        return try result.get()
+    }
+
+    func currentCallCount() -> Int {
+        callCount
     }
 }
 
@@ -537,6 +670,10 @@ private func waitForPendingDeviceRegistrationRetryErrorClear(
         try? await Task.sleep(nanoseconds: 1_000_000)
     }
     XCTFail("Timed out waiting for pending device registration retry error clear", file: file, line: line)
+}
+
+private func waitForAsyncEnvironmentWork() async {
+    try? await Task.sleep(nanoseconds: 10_000_000)
 }
 
 @MainActor

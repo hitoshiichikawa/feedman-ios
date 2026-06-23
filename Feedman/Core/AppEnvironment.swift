@@ -104,6 +104,7 @@ final class AppEnvironment: ObservableObject {
         self.deviceRegistrationService = deviceRegistrationService ?? APNsDeviceRegistrationService(
             repository: UnavailableDeviceRegistrationRepository(),
             stateStore: InMemoryDeviceRegistrationStateStore(),
+            featureFlags: notificationFeatures,
             accessTokenProvider: {
                 throw AppEnvironmentError.missingAccessToken
             }
@@ -330,6 +331,7 @@ final class AppEnvironment: ObservableObject {
         let deviceRegistrationService = APNsDeviceRegistrationService(
             repository: deviceRegistrationRepository,
             stateStore: deviceRegistrationStateStore,
+            featureFlags: notificationFeatures,
             accessTokenProvider: {
                 try accessTokenStore.currentAccessToken()
             }

@@ -23,3 +23,31 @@
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/AppEnvironmentSessionRestoreTests/testProductionEnvironmentUsesV1DefaultDisabledNotificationDependencies -only-testing:FeedmanTests/AppEnvironmentSessionRestoreTests/testProductionEnvironmentCanEnableNotificationDependenciesExplicitly -only-testing:FeedmanTests/KeywordRepositoryTests/testDisabledKeywordRepositoryFailsWithoutNetworkDependency test`: 成功
 
 STATUS: complete
+
+### Task 2
+
+- 採用方針: `APNsDeviceRegistrationService` 自体に `NotificationFeatureFlags` を注入し、disabled 時は token registration / retry / logout unregister を repository と access token provider の手前で short-circuit する。
+- 重要な判断: disabled path は stale `DeviceRegistrationState` を `clearLocalState()` で best-effort cleanup し、logout は `.skippedFeatureDisabled` の success outcome として auth state transition を継続させる。enabled path の既存 initializer default は `.nextPhaseEnabled` に保ち、既存テストと next phase behavior を維持した。
+- 残存課題: permission coordinator の remote notification registration 抑止は task 3、AppShell drawer / keyword sheet gating は task 4、README smoke checklist は task 6 の scope。
+
+#### Task 2 AC Coverage Matrix
+
+| Requirement / AC | Implementation path | Production entrypoint / owning flow | Test / assertion | Verification result | Notes |
+|------------------|---------------------|-------------------------------------|------------------|---------------------|-------|
+| 3.1 | `APNsDeviceRegistrationService.registerPushToken(_:)` disabled guard | `APNsDeviceRegistrationBridge.handleDeviceToken(_:)` APNs callback | `testDisabledAPNsDeviceTokenCallbackDoesNotPostDeviceRegistration`, `testDisabledDeviceTokenRegistrationSkipsRepositoryAndClearsState` が repository call count 0 と access token provider call count 0 を検証 | `xcodebuild ... -only-testing:FeedmanTests/APNsDeviceRegistrationServiceTests -only-testing:FeedmanTests/AppEnvironmentSessionRestoreTests -only-testing:FeedmanTests/AppEnvironmentLogoutTests test` 成功 | 実 APNs / 実 network 不使用 |
+| 3.3 | `AppEnvironment.completeLogin(with:)` -> `retryPendingDeviceRegistrationIfPossible()` -> service disabled guard | Login completion flow | `testDisabledCompleteLoginRetryDoesNotPostDeviceRegistration` が login 後も `/api/devices` 相当 repository call 0 と retry error nil を検証 | 同上 成功 | disabled token callback は pending token を保持しない |
+| 3.4 | `AppEnvironment.restoreSessionAtLaunch()` -> `retryPendingDeviceRegistrationIfPossible()` -> service disabled guard | Session restore flow | `testDisabledRestoreRetryDoesNotPostDeviceRegistration` が restore success 後も repository call 0 と retry error nil を検証 | 同上 成功 | refresh token restore 自体は既存 flow を維持 |
+| 3.5 | `APNsDeviceRegistrationService.unregisterKnownDeviceForLogout(accessToken:)` disabled guard | `AppEnvironment.logout()` | `testDisabledLogoutSkipsDeviceUnregisterClearsStateAndShowsLogin`, `testDisabledLogoutUnregisterSkipsRepositoryAndClearsKnownDevice` が DELETE 相当 repository call 0 を検証 | 同上 成功 | auth revoke / unauthenticated transition は継続 |
+| 3.6 | `APNsDeviceRegistrationService.clearLocalState()` reused by disabled register / retry / logout | Disabled APNs callback and logout cleanup | `testDisabledDeviceTokenRegistrationSkipsRepositoryAndClearsState`, `testDisabledAPNsDeviceTokenCallbackDoesNotPostDeviceRegistration`, `testDisabledLogoutSkipsDeviceUnregisterClearsStateAndShowsLogin` が stale state clear を検証 | 同上 成功 | network 成功に依存しない cleanup |
+| 3.7 | service initializer default `.nextPhaseEnabled`; existing enabled repository path unchanged | Enabled APNs registration / retry / unregister flows | `testDeviceTokenRegistersWithHexTokenAndSavesDeviceID`, `testRegistrationFailureKeepsTokenAvailableForRetry`, `testLogoutUnregisterDeletesKnownDeviceAndClearsState`, existing AppEnvironment enabled retry tests | 同上 成功 | request contract tests は削除なし |
+| 5.2 | `AppEnvironment.production(notificationFeatures:)` passes flags to APNs service; service disabled guard | Production default runtime dependency / APNs service boundary | `testProductionEnvironmentUsesV1DefaultDisabledNotificationDependencies` と task 2 disabled runtime tests が no-network path を検証 | 同上 成功 / `git diff --check` 成功 | keyword repository no-network は task 1 で検証済み |
+| 5.3 | `.nextPhaseEnabled` and default service init preserve existing enabled behavior | Enabled configuration unit coverage | `testProductionEnvironmentCanEnableNotificationDependenciesExplicitly` と APNs enabled-path tests が既存 flow を検証 | 同上 成功 | task 5 で next phase repository / ViewModel coverage を最終確認予定 |
+
+#### Verification
+
+- Red 確認: 新規 disabled-path tests 追加直後の targeted `xcodebuild ... test` は `featureFlags` initializer / `.skippedFeatureDisabled` 未実装により compile failure（期待どおり）。
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/APNsDeviceRegistrationServiceTests -only-testing:FeedmanTests/AppEnvironmentSessionRestoreTests -only-testing:FeedmanTests/AppEnvironmentLogoutTests test`: 成功
+- `git diff --check`: 成功
+- Reviewer Findings: round 1 は task 1 approve / Findings なしのため closure 対応なし。
+
+STATUS: complete

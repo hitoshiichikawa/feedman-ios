@@ -84,15 +84,42 @@ final class AppEnvironmentLogoutTests: XCTestCase {
         }
     }
 
+    func testDisabledLogoutSkipsDeviceUnregisterClearsStateAndShowsLogin() async {
+        let authRepository = LogoutAuthRepositoryMock()
+        let deviceRepository = EnvironmentDeviceRegistrationRepositoryMock()
+        let stateStore = InMemoryDeviceRegistrationStateStore(
+            state: DeviceRegistrationState(deviceID: "device-1")
+        )
+        let environment = makeEnvironment(
+            authRepository: authRepository,
+            deviceRepository: deviceRepository,
+            stateStore: stateStore,
+            notificationFeatures: .v1Default
+        )
+
+        let result = await environment.logout()
+
+        XCTAssertEqual(environment.authenticationState, .unauthenticated)
+        XCTAssertNil(environment.currentAccessToken)
+        XCTAssertNil(stateStore.load())
+        let unregisterRequests = await deviceRepository.unregisterRequests
+        XCTAssertEqual(unregisterRequests, [])
+        XCTAssertEqual(authRepository.revokeAccessTokens, ["access-1"])
+        XCTAssertNil(result.authRevokeError)
+        XCTAssertEqual(try? result.deviceUnregisterResult.get(), .skippedFeatureDisabled(deviceID: "device-1"))
+    }
+
     private func makeEnvironment(
         authRepository: LogoutAuthRepositoryMock,
         deviceRepository: EnvironmentDeviceRegistrationRepositoryMock,
-        stateStore: InMemoryDeviceRegistrationStateStore
+        stateStore: InMemoryDeviceRegistrationStateStore,
+        notificationFeatures: NotificationFeatureFlags = .nextPhaseEnabled
     ) -> AppEnvironment {
         let accessTokenStore = AppAccessTokenStore(accessToken: "access-1")
         let service = APNsDeviceRegistrationService(
             repository: deviceRepository,
             stateStore: stateStore,
+            featureFlags: notificationFeatures,
             accessTokenProvider: {
                 try accessTokenStore.currentAccessToken()
             }
@@ -102,6 +129,7 @@ final class AppEnvironmentLogoutTests: XCTestCase {
             authRepository: authRepository,
             accountRepository: UnavailableAccountRepository(),
             deviceRegistrationService: service,
+            notificationFeatures: notificationFeatures,
             authBaseURL: URL(string: "https://api.example.com")!,
             authenticationState: .authenticated(accessToken: "access-1"),
             accessTokenStore: accessTokenStore
