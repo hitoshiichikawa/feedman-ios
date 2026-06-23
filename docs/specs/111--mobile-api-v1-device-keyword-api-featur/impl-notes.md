@@ -112,3 +112,33 @@ STATUS: complete
 - `git diff --check`: 成功
 
 STATUS: complete
+
+### Task 5
+
+- 採用方針: next phase enabled path の production code は変更せず、既存 request contract / ViewModel / notification article navigation tests を targeted 実行し、`KeywordSettingsSheet` の enabled repository 注入可能性を test で明示した。
+- 重要な判断: `APIClientDeviceRegistrationRepository` と `APIClientKeywordRepository` の POST/DELETE/GET/PATCH、Bearer header、refresh retry tests は既存 coverage を維持した。`KeywordSettingsSheet` は `KeywordSettingsViewModel` suite 内で構築 test を追加し、AppShell gate 後も next phase sheet source を削除していないことを reviewer が trace できるようにした。
+- 残存課題: README smoke checklist と full `xcodebuild ... test` は task 6 の scope。
+
+#### Task 5 AC Coverage Matrix
+
+| Requirement / AC | Implementation path | Production entrypoint / owning flow | Test / assertion | Verification result | Notes |
+|------------------|---------------------|-------------------------------------|------------------|---------------------|-------|
+| 4.1 | `APIClientDeviceRegistrationRepository.registerDevice`, `unregisterDevice` | Enabled APNs device registration repository boundary | `testRegisterDevicePostsIOSPlatformAndPushTokenWithBearer`, `testUnregisterDeviceDeletesDeviceWithBearer`, `testRegisterDeviceDelegatesExpiredTokenRefreshToAPIClient` | targeted `xcodebuild ... -only-testing:FeedmanTests/DeviceRegistrationRepositoryTests ... test` 成功 | source / request contract tests は削除なし |
+| 4.2 | `APIClientKeywordRepository.keywords/create/update/delete` | Enabled keyword settings repository boundary | `testKeywordsGetsBareArrayWithBearer`, `testCreateKeywordPostsRequestBodyWithBearer`, `testUpdateKeywordPatchesOnlyEditedTermWithBearer`, `testToggleKeywordPatchesOnlyEditedEnabledWithBearer`, `testDeleteKeywordDeletesWithBearer`, `testKeywordRepositoryDelegatesExpiredTokenRefreshToAPIClient` | 同上 成功 | disabled repository tests とは別に real APIClient path を維持 |
+| 4.3 | `KeywordSettingsViewModel.loadKeywords`, create/update/toggle/delete/error mapping | Enabled `KeywordSettingsSheet` owning ViewModel flow | `KeywordSettingsViewModelTests` の loading / mutation / error mapping tests 18 件 | 同上 成功 | access token と repository は enabled path として stub repository に注入 |
+| 4.4 | `KeywordSettingsSheet.init(repository:accessToken:onDismiss:onAuthRequired:)` | Enabled AppShell sheet construction path | `testEnabledKeywordSettingsSheetCanBeConstructedWithRepositoryAndAccessToken` | 同上 成功 | sheet source を削除せず、repository / access token 注入が残ることを compile/runtime construction で検証 |
+| 4.5 | `NotificationArticleNavigationBridge`, `NotificationArticleTargetParser`, `AppShellState.presentNotificationArticleTarget` | Notification article deep link owning flow | `NotificationArticleNavigationTests` 16 件 | 同上 成功 | 今回の task 5 差分は test-only。article navigation source は変更なし |
+| 5.3 | `.nextPhaseEnabled` enabled configuration と既存 next phase components | Enabled device / keyword repository, ViewModel, sheet, notification navigation tests | DeviceRegistration / KeywordRepository / KeywordSettingsViewModel / NotificationArticleNavigation targeted suite 53 tests | 同上 成功 / `git diff --check` 成功 | full xcodebuild は task 6 scope |
+
+#### Finding Closure Matrix
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| N/A | Reviewer | 対応不要 | N/A | N/A | `review-notes.md` round 1 は `RESULT: approve` / Findings なし | task 5 着手前の review は task 4 approve のため corrective commit 不要 |
+
+#### Verification
+
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/DeviceRegistrationRepositoryTests -only-testing:FeedmanTests/KeywordRepositoryTests -only-testing:FeedmanTests/KeywordSettingsViewModelTests -only-testing:FeedmanTests/NotificationArticleNavigationTests test`: 成功（53 tests / 0 failures）
+- `git diff --check`: 成功
+
+STATUS: complete

@@ -317,6 +317,28 @@ final class KeywordSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(presentation.accessibilityLabel, "SwiftUI、有効、過去の一致数 3 件")
     }
 
+    func testEnabledKeywordSettingsSheetCanBeConstructedWithRepositoryAndAccessToken() {
+        let repository = StubKeywordSettingsRepository()
+        var didDismiss = false
+        var didRequestAuth = false
+
+        let sheet = KeywordSettingsSheet(
+            repository: repository,
+            accessToken: "access-1",
+            onDismiss: {
+                didDismiss = true
+            },
+            onAuthRequired: {
+                didRequestAuth = true
+            }
+        )
+
+        XCTAssertEqual(String(describing: type(of: sheet)), "KeywordSettingsSheet")
+        XCTAssertFalse(didDismiss)
+        XCTAssertFalse(didRequestAuth)
+        XCTAssertTrue(repository.operations.isEmpty)
+    }
+
     private static let swiftUIKeyword = KeywordResponse(
         id: "keyword-1",
         term: "SwiftUI",
