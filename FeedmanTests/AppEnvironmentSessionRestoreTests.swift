@@ -261,6 +261,17 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         }
     }
 
+    func testConfiguredProductionAPIBaseURLRejectsInvalidOrigin() {
+        let configuredOrigin = "ftp://api.example.com"
+
+        XCTAssertThrowsError(try AppEnvironment.resolveProductionAPIBaseURL(
+            infoDictionary: ["FeedmanAPIBaseURL": configuredOrigin],
+            environment: [:]
+        )) { error in
+            XCTAssertEqual(error as? AppEnvironmentConfigurationError, .invalidAPIBaseURL(configuredOrigin))
+        }
+    }
+
     func testCompleteLoginPublishesPendingDeviceRegistrationRetryFailureAndKeepsTokenForRetry() async throws {
         let repository = SessionRestoreAuthRepositoryMock(
             refreshResult: .failure(AuthRepositoryError.missingRefreshToken)
