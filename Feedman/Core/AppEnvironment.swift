@@ -99,7 +99,8 @@ final class AppEnvironment: ObservableObject {
         self.accountRepository = accountRepository
         self.notificationPermissionCoordinator = notificationPermissionCoordinator ?? NotificationPermissionCoordinator(
             authorizationProvider: UnavailableNotificationAuthorizationProvider(),
-            remoteNotificationRegistrar: UnavailableRemoteNotificationRegistrar()
+            remoteNotificationRegistrar: UnavailableRemoteNotificationRegistrar(),
+            notificationFeatures: notificationFeatures
         )
         self.deviceRegistrationService = deviceRegistrationService ?? APNsDeviceRegistrationService(
             repository: UnavailableDeviceRegistrationRepository(),
@@ -345,7 +346,8 @@ final class AppEnvironment: ObservableObject {
             accountRepository: accountRepository,
             notificationPermissionCoordinator: NotificationPermissionCoordinator(
                 authorizationProvider: UserNotificationCenterAuthorizationProvider(),
-                remoteNotificationRegistrar: UIApplicationRemoteNotificationRegistrar()
+                remoteNotificationRegistrar: UIApplicationRemoteNotificationRegistrar(),
+                notificationFeatures: notificationFeatures
             ),
             deviceRegistrationService: deviceRegistrationService,
             notificationFeatures: notificationFeatures,

@@ -51,3 +51,32 @@ STATUS: complete
 - Reviewer Findings: round 1 は task 1 approve / Findings なしのため closure 対応なし。
 
 STATUS: complete
+
+### Task 3
+
+- 採用方針: `NotificationPermissionCoordinator` に `NotificationFeatureFlags` を注入し、disabled 時は authorization status が remote registration 可能でも registrar 呼び出しを短絡する。
+- 重要な判断: coordinator initializer の default は `.nextPhaseEnabled` に保ち、既存の enabled-path permission tests を変更せず維持した。`AppEnvironment.production(notificationFeatures:)` から同じ flag を coordinator に渡し、production default の source of truth を task 1/2 と揃えた。
+- 残存課題: AppShell drawer / keyword settings sheet gating は task 4、README smoke checklist は task 6 の scope。
+
+#### Task 3 AC Coverage Matrix
+
+| Requirement / AC | Implementation path | Production entrypoint / owning flow | Test / assertion | Verification result | Notes |
+|------------------|---------------------|-------------------------------------|------------------|---------------------|-------|
+| 3.2 | `NotificationPermissionCoordinator.requestPermissionAndRegisterIfAuthorized()` の `notificationFeatures.keywordNotificationsEnabled` guard / `AppEnvironment.production(notificationFeatures:)` coordinator wiring | Permission request flow -> `RemoteNotificationRegistering.registerForRemoteNotifications()` | `testDisabledFeatureDoesNotRegisterRemoteNotificationsWhenAuthorized` が authorized status でも registrar call count 0 を検証 | `xcodebuild ... -only-testing:FeedmanTests/NotificationPermissionCoordinatorTests test` 成功 | 実 `UIApplication.shared.registerForRemoteNotifications()` は呼ばず recording registrar で検証 |
+| 3.7 | `NotificationPermissionCoordinator` initializer default `.nextPhaseEnabled` | Enabled permission request flow | `testNotDeterminedPermissionRequestsAuthorizationAndRegistersWhenGranted`, `testExistingAuthorizedPermissionRegistersWithoutPromptingAgain` が enabled default の registrar call count 1 を維持 | 同上 成功 | APNs device registration service enabled coverage は task 2 で維持済み |
+| 5.2 | `AppEnvironment.production(notificationFeatures:)` が coordinator に feature flag を渡し、coordinator が disabled 時に registrar の手前で短絡 | Production default permission coordinator boundary | `testDisabledFeatureDoesNotRegisterRemoteNotificationsWhenAuthorized` と production wiring diff で disabled no-remote-registration path を確認 | 同上 成功 / `git diff --check` 成功 | production coordinator の実 UNUserNotificationCenter は unit test で直接叩かない |
+| 5.3 | `.nextPhaseEnabled` default と existing tests | Enabled configuration unit coverage | 既存 `NotificationPermissionCoordinatorTests` 4 件が authorization status handling と failure path を維持 | 同上 成功 | next phase repository / ViewModel coverage の最終確認は task 5 scope |
+
+#### Finding Closure Matrix
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| N/A | Reviewer | 対応不要 | N/A | N/A | `review-notes.md` round 1 は `RESULT: approve` / Findings なし | task 3 着手前の review は task 2 approve のため corrective commit 不要 |
+
+#### Verification
+
+- Red 確認: `testDisabledFeatureDoesNotRegisterRemoteNotificationsWhenAuthorized` 追加直後の targeted `xcodebuild ... test` は `notificationFeatures` initializer 未実装により compile failure（期待どおり）。
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/NotificationPermissionCoordinatorTests test`: 成功
+- `git diff --check`: 成功
+
+STATUS: complete
