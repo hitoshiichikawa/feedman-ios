@@ -236,6 +236,31 @@ struct DeviceRegistrationResponse: Codable, Equatable {
     let id: String
 }
 
+struct KeywordResponse: Codable, Equatable {
+    let id: String
+    let term: String
+    let scope: String
+    let enabled: Bool
+    let hits: Int
+}
+
+struct KeywordCreateRequest: Codable, Equatable {
+    let term: String
+    let scope: String
+    let enabled: Bool
+
+    init(term: String, scope: String = "title", enabled: Bool) {
+        self.term = term
+        self.scope = scope
+        self.enabled = enabled
+    }
+}
+
+struct KeywordUpdateRequest: Codable, Equatable {
+    let term: String?
+    let enabled: Bool?
+}
+
 struct AuthTokenExchangeRequest: Codable, Equatable {
     let authCode: String
     let codeVerifier: String

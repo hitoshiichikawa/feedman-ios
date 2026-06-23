@@ -160,6 +160,16 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         XCTAssertEqual(environment.authenticationState, .authenticated(accessToken: "login-access"))
     }
 
+    func testPreviewEnvironmentUsesMockKeywordRepository() {
+        XCTAssertTrue(AppEnvironment.preview.keywordRepository is MockKeywordRepository)
+    }
+
+    func testProductionEnvironmentUsesAPIClientKeywordRepository() {
+        let environment = AppEnvironment.production(apiBaseURL: URL(string: "https://api.example.com")!)
+
+        XCTAssertTrue(environment.keywordRepository is APIClientKeywordRepository)
+    }
+
     func testCompleteLoginPublishesPendingDeviceRegistrationRetryFailureAndKeepsTokenForRetry() async throws {
         let repository = SessionRestoreAuthRepositoryMock(
             refreshResult: .failure(AuthRepositoryError.missingRefreshToken)

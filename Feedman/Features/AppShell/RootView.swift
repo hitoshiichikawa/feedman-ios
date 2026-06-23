@@ -94,6 +94,9 @@ struct RootView: View {
                     onShowFeedRegistration: {
                         shellState.presentFeedRegistration()
                     },
+                    onShowKeywordSettings: {
+                        shellState.presentKeywordSettings()
+                    },
                     onShowFeedSettings: { feed in
                         shellState.presentSubscriptionSettings(feed: feed)
                     },
@@ -298,6 +301,17 @@ struct RootView: View {
                     completeFeedRegistration(registeredFeed)
                 }
             )
+        case .keywordSettings:
+            KeywordSettingsSheet(
+                repository: environment.keywordRepository,
+                accessToken: environment.currentAccessToken,
+                onDismiss: {
+                    shellState.dismissPresentation()
+                },
+                onAuthRequired: {
+                    toastCenter.show("再ログインが必要です。", style: .warning)
+                }
+            )
         case let .articleDetail(input):
             ArticleDetailSheet(
                 input: input,
@@ -453,6 +467,7 @@ private struct DrawerView: View {
     let onShowAccount: () -> Void
     let onToggleTheme: () -> Void
     let onShowFeedRegistration: () -> Void
+    let onShowKeywordSettings: () -> Void
     let onShowFeedSettings: (Feed) -> Void
     let onRetryFeeds: () -> Void
     let onDismiss: () -> Void
@@ -585,6 +600,13 @@ private struct DrawerView: View {
                 subtitle: "新しい購読を追加",
                 systemImage: "plus.circle",
                 onTap: onShowFeedRegistration
+            )
+
+            DrawerFooterActionButton(
+                title: "キーワード通知",
+                subtitle: "記事タイトルの通知条件",
+                systemImage: "bell.badge",
+                onTap: onShowKeywordSettings
             )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -858,6 +880,8 @@ private extension AppShellPresentation {
             return "アカウント"
         case .feedRegistration:
             return "フィードを登録"
+        case .keywordSettings:
+            return "キーワード通知"
         case .articleDetail:
             return "記事詳細"
         case .subscriptionSettings:
@@ -871,6 +895,8 @@ private extension AppShellPresentation {
             return "アカウント機能の入口"
         case .feedRegistration:
             return "サイト URL から購読を追加"
+        case .keywordSettings:
+            return "記事タイトルの通知条件"
         case .articleDetail:
             return "記事詳細"
         case .subscriptionSettings:
@@ -884,6 +910,8 @@ private extension AppShellPresentation {
             return "ログアウト、退会、ユーザー情報の表示は後続 Issue で実装します。この placeholder は実データや認証 API を使用しません。"
         case .feedRegistration:
             return "サイトの URL か RSS/Atom の URL を入力してフィードを登録します。"
+        case .keywordSettings:
+            return "記事タイトルに一致したキーワード通知の条件を管理します。"
         case .articleDetail:
             return "記事本文の詳細を表示します。"
         case .subscriptionSettings:
@@ -897,6 +925,8 @@ private extension AppShellPresentation {
             return "person.crop.circle"
         case .feedRegistration:
             return "plus.circle"
+        case .keywordSettings:
+            return "bell.badge"
         case .articleDetail:
             return "doc.text"
         case .subscriptionSettings:

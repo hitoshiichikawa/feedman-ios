@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Keyword API model と repository contract を追加する
+- [x] 1. Keyword API model と repository contract を追加する
   - `Feedman/Core/APIModels.swift` に `KeywordResponse`、`KeywordCreateRequest`、`KeywordUpdateRequest` を追加する。
   - `Feedman/Core/KeywordRepository.swift` に `KeywordRepository` protocol、`APIClientKeywordRepository`、`MockKeywordRepository` を追加する。
   - GET/POST/PATCH/DELETE の method/path/body/Bearer header と 401 refresh retry 委譲を `KeywordRepositoryTests` で検証する。
@@ -8,7 +8,7 @@
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 7.1, 7.2, 7.3, 7.6_
   - _Boundary: KeywordAPIModels, KeywordRepository_
 
-- [ ] 2. AppEnvironment に keyword repository dependency を接続する
+- [x] 2. AppEnvironment に keyword repository dependency を接続する
   - `AppEnvironment` に `keywordRepository` を injectable dependency として追加する。
   - production wiring では既存 `APIClient` と access token refresh hook を共有する `APIClientKeywordRepository` を渡す。
   - preview/test wiring では `MockKeywordRepository` を渡し、既存 preview が実ネットワークへ依存しないことを保つ。
@@ -17,7 +17,7 @@
   - _Boundary: KeywordRepository, AppShellKeywordSettingsPresentation_
   - _Depends: 1_
 
-- [ ] 3. KeywordSettingsViewModel の state machine と error mapping を実装する
+- [x] 3. KeywordSettingsViewModel の state machine と error mapping を実装する
   - `Feedman/Features/Notifications/KeywordSettingsViewModel.swift` を追加し、initial load、retry、create、edit、toggle、delete confirmation を扱う。
   - Empty/whitespace term の repository call 抑止、trim、duplicate in-flight guard を実装する。
   - Duplicate / rate-limit / auth-required / network / generic error presentation を feature-local に実装する。
@@ -26,7 +26,7 @@
   - _Boundary: KeywordSettingsViewModel_
   - _Depends: 1_
 
-- [ ] 4. KeywordSettingsSheet UI を追加する
+- [x] 4. KeywordSettingsSheet UI を追加する
   - `Feedman/Features/Notifications/KeywordSettingsSheet.swift` を追加し、`FeedmanSheetShell`、`FeedmanTheme`、loading/empty/error/banner primitives を再利用する。
   - Keyword term、enabled toggle、hits count、add/edit/delete controls を ViewModel に接続する。
   - Operation in-flight 中の control disabled/progress 表示、long keyword、Dynamic Type、VoiceOver label を実装する。
@@ -35,7 +35,7 @@
   - _Boundary: KeywordSettingsSheet_
   - _Depends: 3_
 
-- [ ] 5. AppShell から keyword settings sheet を開く
+- [x] 5. AppShell から keyword settings sheet を開く
   - `AppShellPresentation.keywordSettings` と `presentKeywordSettings()` を追加する。
   - Drawer/footer に既存 visual pattern と整合する「キーワード通知」entry point を追加し、tap で drawer を閉じて sheet を表示する。
   - `RootView.sheetContent` に `KeywordSettingsSheet` を接続し、`environment.keywordRepository` と `environment.currentAccessToken` を渡す。
@@ -44,7 +44,7 @@
   - _Boundary: AppShellKeywordSettingsPresentation, KeywordSettingsSheet_
   - _Depends: 2, 4_
 
-- [ ] 6. Cross-boundary regression と scope guard を補強する
+- [x] 6. Cross-boundary regression と scope guard を補強する
   - Keyword settings の auth-required callback / toast guidance が silent failure にならないことをテストまたは既存 pattern で確認する。
   - Timeline、Feed、Starred、Search、ArticleDetail、Account、Subscription の既存 behavior を変更していないことを差分レビューで確認する。
   - `/api/devices`、APNs token、logout unregister policy に変更を入れていないことを確認する。
@@ -53,7 +53,7 @@
   - _Boundary: AppShellKeywordSettingsPresentation, KeywordSettingsViewModel_
   - _Depends: 5_
 
-- [ ] 7. 最終検証を実行し、未確認 API 契約を PR で報告する
+- [x] 7. 最終検証を実行し、未確認 API 契約を PR で報告する
   - `plutil -lint Feedman.xcodeproj/project.pbxproj` を実行する。
   - `git diff --check` を実行する。
   - macOS/Xcode 環境で `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` を実行する。実行できない場合は理由を PR に記載する。

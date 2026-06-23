@@ -49,6 +49,7 @@ enum AppShellDrawerSelection: Equatable, Hashable {
 enum AppShellPresentation: Equatable, Identifiable {
     case account
     case feedRegistration
+    case keywordSettings
     case articleDetail(ArticleDetailSheetInput)
     case subscriptionSettings(Feed)
 
@@ -58,6 +59,8 @@ enum AppShellPresentation: Equatable, Identifiable {
             return "account"
         case .feedRegistration:
             return "feedRegistration"
+        case .keywordSettings:
+            return "keywordSettings"
         case let .articleDetail(input):
             return "articleDetail-\(input.id)"
         case let .subscriptionSettings(feed):
@@ -250,6 +253,12 @@ struct AppShellState: Equatable {
 
     mutating func presentFeedRegistration() {
         activePresentation = .feedRegistration
+        notificationArticleTargetInPresentation = nil
+        isDrawerOpen = false
+    }
+
+    mutating func presentKeywordSettings() {
+        activePresentation = .keywordSettings
         notificationArticleTargetInPresentation = nil
         isDrawerOpen = false
     }
