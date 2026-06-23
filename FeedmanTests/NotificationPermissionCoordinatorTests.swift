@@ -59,6 +59,26 @@ final class NotificationPermissionCoordinatorTests: XCTestCase {
         XCTAssertEqual(registrar.registerCallCount, 1)
     }
 
+    func testDisabledFeatureDoesNotRegisterRemoteNotificationsWhenAuthorized() async throws {
+        let authorizationProvider = RecordingNotificationAuthorizationProvider(
+            currentStatusResult: .success(.authorized),
+            requestStatusResult: .success(.denied)
+        )
+        let registrar = RecordingRemoteNotificationRegistrar()
+        let coordinator = NotificationPermissionCoordinator(
+            authorizationProvider: authorizationProvider,
+            remoteNotificationRegistrar: registrar,
+            notificationFeatures: .v1Default
+        )
+
+        let status = try await coordinator.requestPermissionAndRegisterIfAuthorized()
+
+        XCTAssertEqual(status, .authorized)
+        XCTAssertEqual(authorizationProvider.currentStatusCallCount, 1)
+        XCTAssertEqual(authorizationProvider.requestAuthorizationCallCount, 0)
+        XCTAssertEqual(registrar.registerCallCount, 0)
+    }
+
     func testPermissionRequestFailureSurfacesRetryableErrorWithoutRemoteRegistration() async {
         let authorizationProvider = RecordingNotificationAuthorizationProvider(
             currentStatusResult: .success(.notDetermined),

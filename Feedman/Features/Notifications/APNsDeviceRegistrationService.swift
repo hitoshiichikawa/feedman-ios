@@ -13,11 +13,13 @@ enum APNsDeviceRegistrationResult: Equatable {
     case deferredUntilAuthenticated
     case alreadyRegistered(deviceID: String)
     case alreadyInFlight
+    case skippedFeatureDisabled
 }
 
 enum DeviceUnregisterOutcome: Equatable {
     case skippedNoKnownDevice
     case skippedNoAuthenticatedSession(deviceID: String)
+    case skippedFeatureDisabled(deviceID: String?)
     case unregistered(deviceID: String)
 }
 
@@ -30,6 +32,7 @@ actor APNsDeviceRegistrationService {
 
     private let repository: any DeviceRegistrationRepository
     private let stateStore: any DeviceRegistrationStateStore
+    private let featureFlags: NotificationFeatureFlags
     private let tokenFormatter: APNsDeviceTokenFormatter
     private let accessTokenProvider: AccessTokenProvider
 
@@ -40,11 +43,13 @@ actor APNsDeviceRegistrationService {
     init(
         repository: any DeviceRegistrationRepository,
         stateStore: any DeviceRegistrationStateStore,
+        featureFlags: NotificationFeatureFlags = .nextPhaseEnabled,
         tokenFormatter: APNsDeviceTokenFormatter = APNsDeviceTokenFormatter(),
         accessTokenProvider: @escaping AccessTokenProvider
     ) {
         self.repository = repository
         self.stateStore = stateStore
+        self.featureFlags = featureFlags
         self.tokenFormatter = tokenFormatter
         self.accessTokenProvider = accessTokenProvider
     }
@@ -54,6 +59,11 @@ actor APNsDeviceRegistrationService {
     }
 
     func retryPendingRegistrationIfPossible() async throws -> APNsDeviceRegistrationResult? {
+        guard featureFlags.keywordNotificationsEnabled else {
+            clearLocalState()
+            return nil
+        }
+
         guard let pendingPushToken else {
             return nil
         }
@@ -61,6 +71,12 @@ actor APNsDeviceRegistrationService {
     }
 
     func unregisterKnownDeviceForLogout(accessToken: String?) async -> Result<DeviceUnregisterOutcome, Error> {
+        guard featureFlags.keywordNotificationsEnabled else {
+            let deviceID = stateStore.load()?.deviceID
+            clearLocalState()
+            return .success(.skippedFeatureDisabled(deviceID: deviceID))
+        }
+
         guard let deviceID = stateStore.load()?.deviceID else {
             clearLocalState()
             return .success(.skippedNoKnownDevice)
@@ -89,6 +105,11 @@ actor APNsDeviceRegistrationService {
     }
 
     private func registerPushToken(_ pushToken: String) async throws -> APNsDeviceRegistrationResult {
+        guard featureFlags.keywordNotificationsEnabled else {
+            clearLocalState()
+            return .skippedFeatureDisabled
+        }
+
         if inFlightPushToken == pushToken {
             return .alreadyInFlight
         }

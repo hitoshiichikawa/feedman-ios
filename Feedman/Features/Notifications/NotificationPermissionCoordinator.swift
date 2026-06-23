@@ -72,13 +72,16 @@ final class UIApplicationRemoteNotificationRegistrar: RemoteNotificationRegister
 final class NotificationPermissionCoordinator {
     private let authorizationProvider: any NotificationAuthorizationProviding
     private let remoteNotificationRegistrar: any RemoteNotificationRegistering
+    private let notificationFeatures: NotificationFeatureFlags
 
     init(
         authorizationProvider: any NotificationAuthorizationProviding,
-        remoteNotificationRegistrar: any RemoteNotificationRegistering
+        remoteNotificationRegistrar: any RemoteNotificationRegistering,
+        notificationFeatures: NotificationFeatureFlags = .nextPhaseEnabled
     ) {
         self.authorizationProvider = authorizationProvider
         self.remoteNotificationRegistrar = remoteNotificationRegistrar
+        self.notificationFeatures = notificationFeatures
     }
 
     @MainActor
@@ -92,7 +95,7 @@ final class NotificationPermissionCoordinator {
             resolvedStatus = currentStatus
         }
 
-        if resolvedStatus.allowsRemoteRegistration {
+        if notificationFeatures.keywordNotificationsEnabled, resolvedStatus.allowsRemoteRegistration {
             remoteNotificationRegistrar.registerForRemoteNotifications()
         }
 

@@ -52,6 +52,31 @@ final class APNsDeviceRegistrationServiceTests: XCTestCase {
         XCTAssertEqual(store.load(), DeviceRegistrationState(deviceID: "device-1"))
     }
 
+    func testDisabledDeviceTokenRegistrationSkipsRepositoryAndClearsState() async throws {
+        let repository = RecordingDeviceRegistrationRepository()
+        let accessTokenBox = AccessTokenBox(result: .success("access-1"))
+        let store = InMemoryDeviceRegistrationStateStore(
+            state: DeviceRegistrationState(deviceID: "stale-device")
+        )
+        let service = APNsDeviceRegistrationService(
+            repository: repository,
+            stateStore: store,
+            featureFlags: .v1Default,
+            accessTokenProvider: {
+                try await accessTokenBox.currentAccessToken()
+            }
+        )
+
+        let result = try await service.registerDeviceToken(Data([0x00, 0xFF, 0x10]))
+
+        XCTAssertEqual(result, .skippedFeatureDisabled)
+        let requests = await repository.registerRequests
+        XCTAssertEqual(requests, [])
+        let callCount = await accessTokenBox.currentCallCount()
+        XCTAssertEqual(callCount, 0)
+        XCTAssertNil(store.load())
+    }
+
     func testRepeatedSameTokenWhileInFlightAvoidsDuplicateRequest() async throws {
         let repository = BlockingDeviceRegistrationRepository()
         let store = InMemoryDeviceRegistrationStateStore()
@@ -138,6 +163,28 @@ final class APNsDeviceRegistrationServiceTests: XCTestCase {
             unregisterRequests,
             [DeviceUnregisterRequest(deviceID: "device-1", accessToken: "access-1")]
         )
+        XCTAssertNil(store.load())
+    }
+
+    func testDisabledLogoutUnregisterSkipsRepositoryAndClearsKnownDevice() async {
+        let repository = RecordingDeviceRegistrationRepository()
+        let store = InMemoryDeviceRegistrationStateStore(
+            state: DeviceRegistrationState(deviceID: "device-1")
+        )
+        let service = APNsDeviceRegistrationService(
+            repository: repository,
+            stateStore: store,
+            featureFlags: .v1Default,
+            accessTokenProvider: {
+                "access-1"
+            }
+        )
+
+        let result = await service.unregisterKnownDeviceForLogout(accessToken: "access-1")
+
+        XCTAssertEqual(try? result.get(), .skippedFeatureDisabled(deviceID: "device-1"))
+        let unregisterRequests = await repository.unregisterRequests
+        XCTAssertEqual(unregisterRequests, [])
         XCTAssertNil(store.load())
     }
 
@@ -246,13 +293,19 @@ private actor BlockingDeviceRegistrationRepository: DeviceRegistrationRepository
 
 private actor AccessTokenBox {
     private let result: Result<String, Error>
+    private(set) var callCount = 0
 
     init(result: Result<String, Error>) {
         self.result = result
     }
 
     func currentAccessToken() throws -> String {
-        try result.get()
+        callCount += 1
+        return try result.get()
+    }
+
+    func currentCallCount() -> Int {
+        callCount
     }
 }
 

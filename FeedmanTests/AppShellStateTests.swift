@@ -124,6 +124,39 @@ final class AppShellStateTests: XCTestCase {
         XCTAssertNil(state.activePresentation)
     }
 
+    func testDisabledKeywordSettingsRouteGateHidesEntryAndIgnoresPresentationRequest() {
+        let gate = AppShellKeywordSettingsRouteGate(notificationFeatures: .v1Default)
+        var state = AppShellState(currentRoute: .feed(id: "feed-a", title: "Feed A"), isDrawerOpen: true)
+
+        let didPresent = gate.presentKeywordSettings(on: &state)
+
+        XCTAssertFalse(gate.showsDrawerEntry)
+        XCTAssertFalse(didPresent)
+        XCTAssertEqual(state.currentRoute, .feed(id: "feed-a", title: "Feed A"))
+        XCTAssertNil(state.activePresentation)
+        XCTAssertFalse(state.isDrawerOpen)
+    }
+
+    func testDisabledKeywordSettingsRouteGateSuppressesDefensivePresentation() {
+        let gate = AppShellKeywordSettingsRouteGate(notificationFeatures: .v1Default)
+
+        let presentation = gate.visiblePresentation(from: .keywordSettings)
+
+        XCTAssertNil(presentation)
+    }
+
+    func testEnabledKeywordSettingsRouteGateKeepsExistingPresentationFlowReachable() {
+        let gate = AppShellKeywordSettingsRouteGate(notificationFeatures: .nextPhaseEnabled)
+        var state = AppShellState(currentRoute: .feed(id: "feed-a", title: "Feed A"), isDrawerOpen: true)
+
+        let didPresent = gate.presentKeywordSettings(on: &state)
+
+        XCTAssertTrue(gate.showsDrawerEntry)
+        XCTAssertTrue(didPresent)
+        XCTAssertEqual(state.activePresentation, .keywordSettings)
+        XCTAssertFalse(state.isDrawerOpen)
+    }
+
     func testPresentingArticleDetailStoresSelectedInputAndClosesDrawer() {
         var state = AppShellState(currentRoute: .search, isDrawerOpen: true)
         let input = ArticleDetailSheetInput(

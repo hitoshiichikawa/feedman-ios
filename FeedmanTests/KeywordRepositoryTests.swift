@@ -196,6 +196,53 @@ final class KeywordRepositoryTests: XCTestCase {
         }
     }
 
+    func testDisabledKeywordRepositoryFailsWithoutNetworkDependency() async throws {
+        let repository = DisabledKeywordRepository()
+
+        do {
+            _ = try await repository.keywords(accessToken: "access-1")
+            XCTFail("Expected keyword notifications disabled error")
+        } catch KeywordRepositoryError.keywordNotificationsDisabled {
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testDisabledKeywordRepositoryMutationsFailWithoutNetworkDependency() async throws {
+        let repository = DisabledKeywordRepository()
+
+        do {
+            _ = try await repository.createKeyword(
+                KeywordCreateRequest(term: "Swift", scope: "title", enabled: true),
+                accessToken: "access-1"
+            )
+            XCTFail("Expected keyword notifications disabled error")
+        } catch KeywordRepositoryError.keywordNotificationsDisabled {
+        } catch {
+            XCTFail("Unexpected create error: \(error)")
+        }
+
+        do {
+            _ = try await repository.updateKeyword(
+                id: "keyword-1",
+                request: KeywordUpdateRequest(term: "SwiftUI", enabled: nil),
+                accessToken: "access-1"
+            )
+            XCTFail("Expected keyword notifications disabled error")
+        } catch KeywordRepositoryError.keywordNotificationsDisabled {
+        } catch {
+            XCTFail("Unexpected update error: \(error)")
+        }
+
+        do {
+            try await repository.deleteKeyword(id: "keyword-1", accessToken: "access-1")
+            XCTFail("Expected keyword notifications disabled error")
+        } catch KeywordRepositoryError.keywordNotificationsDisabled {
+        } catch {
+            XCTFail("Unexpected delete error: \(error)")
+        }
+    }
+
     func testMockKeywordRepositoryMutatesDeterministically() async throws {
         let repository = MockKeywordRepository(keywords: [
             KeywordResponse(id: "keyword-1", term: "SwiftUI", scope: "title", enabled: true, hits: 3)

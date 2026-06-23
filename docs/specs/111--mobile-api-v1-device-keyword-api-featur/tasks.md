@@ -1,13 +1,13 @@
 # Implementation Plan
 
-- [ ] 1. Production default の notification feature flag と dependency wiring を追加する (P)
+- [x] 1. Production default の notification feature flag と dependency wiring を追加する (P)
   - `NotificationFeatureFlags` を `AppEnvironment` が保持する value として追加し、`AppEnvironment.production()` の default を v1 disabled にする。
   - 明示 enabled 引数では既存 `APIClientDeviceRegistrationRepository` / `APIClientKeywordRepository` / permission coordinator を使う dependency graph を維持する。
   - `AppEnvironment.production()` default が disabled flags と disabled keyword repository を持つこと、enabled configuration が existing API repositories を使えることを unit test で確認する。
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 5.2_
   - _Boundary: NotificationFeatureFlags, AppEnvironmentNotificationGate, DisabledPathRegressionTests_
 
-- [ ] 2. APNs device registration service を disabled 時 no-network にする
+- [x] 2. APNs device registration service を disabled 時 no-network にする
   - `APNsDeviceRegistrationService` に feature gate を注入し、disabled 時の token registration / pending retry / logout unregister を repository call なしで short-circuit する。
   - Disabled logout / account deletion cleanup では stale local `DeviceRegistrationState` を clear し、network 成功に依存せず auth state transition を block しない。
   - `APNsDeviceRegistrationServiceTests` と `AppEnvironmentSessionRestoreTests` / `AppEnvironmentLogoutTests` に disabled token callback、login retry、session restore retry、logout unregister が recording repository を呼ばない regression test を追加する。
@@ -16,7 +16,7 @@
   - _Boundary: APNsDeviceRegistrationServiceGate, AppEnvironmentNotificationGate, DisabledPathRegressionTests_
   - _Depends: 1_
 
-- [ ] 3. Notification permission から remote notification registration を disabled 時に起動しない
+- [x] 3. Notification permission から remote notification registration を disabled 時に起動しない
   - Disabled production wiring で `UIApplication.shared.registerForRemoteNotifications()` に到達しない構成にする。
   - Coordinator gate または unavailable registrar injection のどちらかを採用し、enabled path の authorization status handling は維持する。
   - `NotificationPermissionCoordinatorTests` に disabled 時は authorization が許可相当でも remote registrar call count が 0 である test を追加し、enabled 既存 tests は維持する。
@@ -24,7 +24,7 @@
   - _Boundary: NotificationPermissionCoordinator, DisabledPathRegressionTests_
   - _Depends: 1_
 
-- [ ] 4. Keyword settings の drawer 導線と repository 誤到達を feature gate する
+- [x] 4. Keyword settings の drawer 導線と repository 誤到達を feature gate する
   - `RootView` / `DrawerView` で disabled 時に「キーワード通知」footer action を表示しない。
   - Disabled 時に `KeywordSettingsSheet` と `KeywordSettingsViewModel.loadKeywords()` が AppShell の通常操作から開始されないようにする。
   - `DisabledKeywordRepository` を追加し、防御的に keyword repository method が呼ばれても `/api/keywords` へ到達しないようにする。
@@ -34,7 +34,7 @@
   - _Boundary: KeywordSettingsRouteGate, DisabledKeywordRepository, DisabledPathRegressionTests_
   - _Depends: 1_
 
-- [ ] 5. Next phase enabled path の既存 repository / ViewModel / sheet coverage を維持する
+- [x] 5. Next phase enabled path の既存 repository / ViewModel / sheet coverage を維持する
   - `APIClientDeviceRegistrationRepository` の POST/DELETE path、Bearer header、refresh retry tests を削らずに通す。
   - `APIClientKeywordRepository` の GET/POST/PATCH/DELETE path、Bearer header、refresh retry tests を削らずに通す。
   - `KeywordSettingsViewModelTests` の loading / mutation / error mapping coverage を enabled path として維持する。
@@ -43,7 +43,7 @@
   - _Boundary: ExistingNextPhaseComponents, APNsDeviceRegistrationServiceGate, DisabledKeywordRepository, KeywordSettingsRouteGate_
   - _Depends: 2, 4_
 
-- [ ] 6. v1 smoke checklist と最終検証を更新する
+- [x] 6. v1 smoke checklist と最終検証を更新する
   - `README.md` の v1 Smoke Test Checklist に `/api/devices` と `/api/keywords` は v1 default では対象外であり、keyword notification feature が disabled であることを明記する。
   - `plutil -lint Feedman.xcodeproj/project.pbxproj` と `git diff --check` を実行し、project file / whitespace の基本整合を確認する。
   - macOS/Xcode 環境で `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` を実行する。

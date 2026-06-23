@@ -20,6 +20,13 @@ enum AppEnvironmentError: Error, Equatable {
     case missingAccessToken
 }
 
+struct NotificationFeatureFlags: Equatable {
+    let keywordNotificationsEnabled: Bool
+
+    static let v1Default = NotificationFeatureFlags(keywordNotificationsEnabled: false)
+    static let nextPhaseEnabled = NotificationFeatureFlags(keywordNotificationsEnabled: true)
+}
+
 final class AppAccessTokenStore: @unchecked Sendable {
     private let lock = NSLock()
     private var accessToken: String?
@@ -52,10 +59,12 @@ final class AppEnvironment: ObservableObject {
     let feedRepository: FeedRepository
     let itemRepository: any ItemRepository
     let keywordRepository: any KeywordRepository
+    let deviceRegistrationRepository: any DeviceRegistrationRepository
     let authRepository: any AuthRepository
     let accountRepository: any AccountRepository
     let notificationPermissionCoordinator: NotificationPermissionCoordinator
     let deviceRegistrationService: APNsDeviceRegistrationService
+    let notificationFeatures: NotificationFeatureFlags
     let authBaseURL: URL
     private let searchRepositoryFactory: SearchRepositoryFactory
 
@@ -71,10 +80,12 @@ final class AppEnvironment: ObservableObject {
         feedRepository: FeedRepository,
         itemRepository: any ItemRepository = MockItemRepository(),
         keywordRepository: any KeywordRepository = MockKeywordRepository(),
+        deviceRegistrationRepository: any DeviceRegistrationRepository = UnavailableDeviceRegistrationRepository(),
         authRepository: any AuthRepository,
         accountRepository: any AccountRepository,
         notificationPermissionCoordinator: NotificationPermissionCoordinator? = nil,
         deviceRegistrationService: APNsDeviceRegistrationService? = nil,
+        notificationFeatures: NotificationFeatureFlags = .nextPhaseEnabled,
         authBaseURL: URL,
         searchRepositoryFactory: @escaping SearchRepositoryFactory = { _ in MockSearchRepository() },
         authenticationState: AppAuthenticationState = .unauthenticated,
@@ -83,19 +94,23 @@ final class AppEnvironment: ObservableObject {
         self.feedRepository = feedRepository
         self.itemRepository = itemRepository
         self.keywordRepository = keywordRepository
+        self.deviceRegistrationRepository = deviceRegistrationRepository
         self.authRepository = authRepository
         self.accountRepository = accountRepository
         self.notificationPermissionCoordinator = notificationPermissionCoordinator ?? NotificationPermissionCoordinator(
             authorizationProvider: UnavailableNotificationAuthorizationProvider(),
-            remoteNotificationRegistrar: UnavailableRemoteNotificationRegistrar()
+            remoteNotificationRegistrar: UnavailableRemoteNotificationRegistrar(),
+            notificationFeatures: notificationFeatures
         )
         self.deviceRegistrationService = deviceRegistrationService ?? APNsDeviceRegistrationService(
             repository: UnavailableDeviceRegistrationRepository(),
             stateStore: InMemoryDeviceRegistrationStateStore(),
+            featureFlags: notificationFeatures,
             accessTokenProvider: {
                 throw AppEnvironmentError.missingAccessToken
             }
         )
+        self.notificationFeatures = notificationFeatures
         self.authBaseURL = authBaseURL
         self.searchRepositoryFactory = searchRepositoryFactory
         self.accessTokenStore = accessTokenStore ?? AppAccessTokenStore(
@@ -248,7 +263,8 @@ final class AppEnvironment: ObservableObject {
     }
 
     static func production(
-        apiBaseURL: URL = URL(string: "http://localhost:3000")!
+        apiBaseURL: URL = URL(string: "http://localhost:3000")!,
+        notificationFeatures: NotificationFeatureFlags = .v1Default
     ) -> AppEnvironment {
         let accessTokenStore = AppAccessTokenStore()
         let authAPIClient = APIClient(baseURL: apiBaseURL)
@@ -265,6 +281,12 @@ final class AppEnvironment: ObservableObject {
                 return credentials.accessToken
             }
         )
+        let keywordRepository: any KeywordRepository = notificationFeatures.keywordNotificationsEnabled
+            ? APIClientKeywordRepository(apiClient: apiClient)
+            : DisabledKeywordRepository()
+        let deviceRegistrationRepository: any DeviceRegistrationRepository = notificationFeatures.keywordNotificationsEnabled
+            ? APIClientDeviceRegistrationRepository(apiClient: apiClient)
+            : UnavailableDeviceRegistrationRepository()
         return AppEnvironment(
             feedRepository: APIClientFeedRepository(
                 apiClient: apiClient,
@@ -273,7 +295,7 @@ final class AppEnvironment: ObservableObject {
                 }
             ),
             itemRepository: FeedmanItemRepository(apiClient: apiClient),
-            keywordRepository: APIClientKeywordRepository(apiClient: apiClient),
+            keywordRepository: keywordRepository,
             authRepository: authRepository,
             accountRepository: FeedmanAccountRepository(apiClient: apiClient),
             authBaseURL: apiBaseURL,
@@ -287,7 +309,8 @@ final class AppEnvironment: ObservableObject {
             },
             authenticationState: .restoring,
             accessTokenStore: accessTokenStore,
-            deviceRegistrationRepository: APIClientDeviceRegistrationRepository(apiClient: apiClient),
+            notificationFeatures: notificationFeatures,
+            deviceRegistrationRepository: deviceRegistrationRepository,
             deviceRegistrationStateStore: deviceRegistrationStateStore
         )
     }
@@ -302,12 +325,14 @@ final class AppEnvironment: ObservableObject {
         searchRepositoryFactory: @escaping SearchRepositoryFactory,
         authenticationState: AppAuthenticationState,
         accessTokenStore: AppAccessTokenStore,
+        notificationFeatures: NotificationFeatureFlags,
         deviceRegistrationRepository: any DeviceRegistrationRepository,
         deviceRegistrationStateStore: any DeviceRegistrationStateStore
     ) {
         let deviceRegistrationService = APNsDeviceRegistrationService(
             repository: deviceRegistrationRepository,
             stateStore: deviceRegistrationStateStore,
+            featureFlags: notificationFeatures,
             accessTokenProvider: {
                 try accessTokenStore.currentAccessToken()
             }
@@ -316,13 +341,16 @@ final class AppEnvironment: ObservableObject {
             feedRepository: feedRepository,
             itemRepository: itemRepository,
             keywordRepository: keywordRepository,
+            deviceRegistrationRepository: deviceRegistrationRepository,
             authRepository: authRepository,
             accountRepository: accountRepository,
             notificationPermissionCoordinator: NotificationPermissionCoordinator(
                 authorizationProvider: UserNotificationCenterAuthorizationProvider(),
-                remoteNotificationRegistrar: UIApplicationRemoteNotificationRegistrar()
+                remoteNotificationRegistrar: UIApplicationRemoteNotificationRegistrar(),
+                notificationFeatures: notificationFeatures
             ),
             deviceRegistrationService: deviceRegistrationService,
+            notificationFeatures: notificationFeatures,
             authBaseURL: authBaseURL,
             searchRepositoryFactory: searchRepositoryFactory,
             authenticationState: authenticationState,
