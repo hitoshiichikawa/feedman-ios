@@ -252,6 +252,15 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         XCTAssertEqual(url, URL(string: "https://api.example.com")!)
     }
 
+    func testConfiguredProductionAPIBaseURLTreatsUnresolvedInfoPlistPlaceholderAsMissing() {
+        XCTAssertThrowsError(try AppEnvironment.resolveProductionAPIBaseURL(
+            infoDictionary: ["FeedmanAPIBaseURL": "$(FEEDMAN_API_BASE_URL)"],
+            environment: [:]
+        )) { error in
+            XCTAssertEqual(error as? AppEnvironmentConfigurationError, .missingAPIBaseURL)
+        }
+    }
+
     func testConfiguredProductionAPIBaseURLRejectsMissingReleaseEquivalentOrigin() {
         XCTAssertThrowsError(try AppEnvironment.resolveProductionAPIBaseURL(
             infoDictionary: [:],

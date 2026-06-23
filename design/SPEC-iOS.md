@@ -74,7 +74,7 @@ Feedman は RSS/Atom フィードリーダー。Google OAuth、フィード横�
 ### 3.1 既存の認証フロー（Web）
 - `GET /auth/google/login` → Google 認可画面へリダイレクト
 - `GET /auth/google/callback` → セッション Cookie を発行し、フロントのオリジンへリダイレクト
-- `POST /auth/logout` / `GET /auth/me`（現在ユーザー）
+- `POST /auth/logout` / `GET /auth/me`（Web Cookie 用の現在ユーザー）
 - 以降の API は Cookie を自動送信
 
 > **確定（2026-06-08）: 方針 A（トークン認証）を v1 から採用。** サーバー側のトークン発行・検証エンドポイントを v1 のうちに新設する（`SERVER.md` §1）。
@@ -119,7 +119,8 @@ iOS 実装の要点:
 | 認証/ユーザー | GET | `/auth/google/login`（`flow=native` で iOS 用コールバック） |
 | | GET | `/auth/google/callback` |
 | | POST | `/auth/logout` |
-| | GET | `/auth/me` |
+| | GET | `/auth/me`（Web Cookie 用） |
+| | GET | `/api/users/me`（mobile current user） |
 | | DELETE | `/api/users/me`（退会） |
 | | PUT | `/api/users/me/cross-feed-last-seen` |
 | 横断新着 | GET | `/api/items/cross-feed`（50件/回・上限200・`since_time`付） |
@@ -189,7 +190,7 @@ TypeScript 型（`SPEC.md` §4）をそのまま `Codable` に写す。注意点
 
 ### 5.7 ログイン / アカウント
 - ログイン: §3 のフロー（`ASWebAuthenticationSession`）。Google ボタン1つ。
-- アカウント: `GET /auth/me` 表示、ログアウト（`revoke` + `POST /auth/logout`）、退会（`DELETE /api/users/me`、二段確認）。
+- アカウント: Bearer token 付き `GET /api/users/me` で mobile current user を表示し、ログアウト（`revoke` + `POST /auth/logout`）、退会（`DELETE /api/users/me`、二段確認）。
 
 ### 5.8 キーワードプッシュ通知設定 — **次フェーズ（v1 スコープ外）**
 - サーバー新設とセットで次バージョン対応。プロトに UI 案はあるが **v1 では実装しない**（ドロワーの導線も非表示）。詳細は §7 / `SERVER.md` §2。

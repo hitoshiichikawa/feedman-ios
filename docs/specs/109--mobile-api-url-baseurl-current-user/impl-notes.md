@@ -14,6 +14,8 @@
 - Canonical test: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` -> 460 tests passed.
 - Round 2 targeted test: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/AppEnvironmentSessionRestoreTests test` -> 18 tests passed.
 - Round 2 canonical test: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` -> 460 tests passed.
+- PR iteration round 2 targeted test: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/AppEnvironmentSessionRestoreTests test` -> 21 tests passed.
+- PR iteration round 2 canonical test: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` -> 463 tests passed.
 - `npm test` / `npm run lint` / `npm run build`: `package.json` が無い iOS Xcode project のため対象外。canonical `xcodebuild ... test` で build と XCTest を確認。
 
 ## Reviewer Round 1 Closure
@@ -21,6 +23,14 @@
 | Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
 |--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
 | 1.5 | missing test | invalid API origin が `AppEnvironmentConfigurationError.invalidAPIBaseURL` になる XCTest を追加する | `test(mobile-api): cover invalid api origin configuration` | `testConfiguredProductionAPIBaseURLRejectsInvalidOrigin` が `ftp://api.example.com` を渡して `.invalidAPIBaseURL(configuredOrigin)` を検証 | targeted: 18 tests passed / canonical: 460 tests passed | 実装分岐は既存 commit に存在していたため production code の変更は不要 |
+
+## Reviewer Round 2 Closure
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| 3.1, NFR 1.3 | spec consistency | 正本仕様 `design/SPEC-iOS.md` の current user endpoint を mobile contract に合わせる | `fix(mobile-api): align current user spec and placeholder test` | N/A (spec-only consistency) | canonical: 463 tests passed | `GET /auth/me` は Web Cookie 用として残し、mobile current user は Bearer token 付き `GET /api/users/me` と明記 |
+| 5.4, NFR 2.3 | missing test | unresolved `$(FEEDMAN_API_BASE_URL)` placeholder が missing config として扱われる XCTest を追加する | `fix(mobile-api): align current user spec and placeholder test` | `testConfiguredProductionAPIBaseURLTreatsUnresolvedInfoPlistPlaceholderAsMissing` | targeted: 21 tests passed / canonical: 463 tests passed | Release 相当で build setting 未設定の場合の回帰を固定 |
+| 4.1-4.5, 5.1-5.5 | traceability docs | `docs/specs/109--mobile-api-url-baseurl-current-user/design.md` / `tasks.md` の欠落について判断する | no code/doc change | N/A | canonical: 463 tests passed | PR Iteration 指示の禁止事項で `requirements.md` / `design.md` / `tasks.md` の書き換えが禁止されているため、この round では未生成。既存 `impl-notes.md` の AC Coverage Matrix で requirements -> implementation/test の trace は維持し、必要なら Architect/PM の design PR で追補する |
 
 ## 確認事項
 
