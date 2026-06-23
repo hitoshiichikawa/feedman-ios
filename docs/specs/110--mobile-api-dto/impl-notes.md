@@ -78,4 +78,14 @@
 
 - なし。
 
+## Reviewer Round 1 Corrective Action
+
+Round 1 reject の対象は実装コードではなく、境界判定の正本である `docs/specs/110--mobile-api-dto/tasks.md` の欠落だった。既存実装差分を Requirements 1-5 に沿って task 化し、各 task に `_Requirements:_` と `_Boundary:_` を付けた `tasks.md` を復元した。
+
+### Finding Closure Matrix
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| `boundary:docs/specs/110--mobile-api-dto/tasks.md` | boundary 逸脱 | 正本の `tasks.md` を復元し、各 task の `_Requirements:_` / `_Boundary:_` アノテーションで今回変更ファイルが許可範囲に入ることを確認できる状態にする | `docs(spec): restore mobile api dto task boundaries` | `test -f docs/specs/110--mobile-api-dto/tasks.md`; `rg -n "_Requirements:|_Boundary:" docs/specs/110--mobile-api-dto/tasks.md` | PASS | doc-only corrective action。実装コードと既存 test は変更していないため xcodebuild は前回 PASS 結果を維持する。 |
+
 STATUS: complete
