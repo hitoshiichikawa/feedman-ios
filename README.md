@@ -145,22 +145,82 @@ GitHub's default branch intentionally remains `main`. Closing keywords such as `
 
 ## idd-codex
 
-This repository is configured for idd-codex local watcher.
+This repository is configured for idd-codex local watcher. The current setup uses
+the idd-codex per-repo env file loader so the launchd / cron entry stays small
+and full-auto flags are managed in one local file.
+
+Required GitHub repository settings for automatic development:
+
+- Repository auto-merge: enabled.
+- `develop` branch protection required checks: `iOS Tests`, `codex-review`.
+- `develop` branch protection strict mode: enabled, so PR branches must be up to date.
+
+Per-repo env file path:
+
+```bash
+~/.idd-codex/hitoshiichikawa-feedman-ios.env
+```
+
+Recommended env file contents for automatic development up to `develop`:
+
+```bash
+FULL_AUTO_ENABLED=true
+PR_REVIEWER_ENABLED=true
+PR_REVIEWER_TOOL=codex
+PR_REVIEWER_STATUS_CHECK_ENABLED=true
+AUTO_MERGE_ENABLED=true
+AUTO_MERGE_DESIGN_ENABLED=true
+FAILED_RECOVERY_ENABLED=true
+NEEDS_DECISIONS_MODE=classified
+STALE_PICKUP_REAPER_ENABLED=true
+
+AUTO_REBASE_MODE=codex
+AUTO_REBASE_SEMANTIC=on
+MECHANICAL_PATHS=.github/**,docs/**,README.md,AGENTS.md,.codex/**,design/**
+
+DEPENDENCY_AUTO_UNBLOCK_ENABLED=true
+BLOCKED_CYCLE_DETECTION_ENABLED=true
+PATH_OVERLAP_CHECK=true
+
+MERGE_QUEUE_ENABLED=true
+MERGE_QUEUE_RECHECK_ENABLED=true
+PR_ITERATION_ENABLED=true
+PR_ITERATION_DESIGN_ENABLED=true
+DESIGN_REVIEW_RELEASE_ENABLED=true
+QUOTA_AWARE_ENABLED=true
+RUN_SUMMARY_ENABLED=true
+TC_ENABLED=true
+STAGE_CHECKPOINT_ENABLED=true
+PER_TASK_LOOP_ENABLED=true
+DEBUGGER_ENABLED=true
+IDD_CODEX_HOOKS_ENABLED=true
+SCAFFOLDING_HEALTH_HALT=on
+PARALLEL_SLOTS=4
+
+# iOS local verification is kept off in watcher; CI is the verification gate.
+STAGE_A_VERIFY_ENABLED=false
+
+# Release/promote automation is separate from automatic development.
+PROMOTE_PIPELINE_ENABLED=false
+PROMOTION_TARGET_BRANCH=main
+PROMOTE_MODE=on-demand
+ST_CHECK_RUN_NAME=iOS Tests
+```
 
 Linux / WSL では cron で 2 分ごとに watcher を起動します。
 
 ```cron
-*/2 * * * * BASE_BRANCH=develop PROMOTION_TARGET_BRANCH=main ST_CHECK_RUN_NAME="iOS Tests" REPO=hitoshiichikawa/feedman-ios REPO_DIR=/home/hitoshi/github/feedman-ios /home/hitoshi/bin/idd-codex-issue-watcher.sh >> /home/hitoshi/.idd-codex/issue-watcher/cron.log 2>&1
+*/2 * * * * BASE_BRANCH=develop REPO=hitoshiichikawa/feedman-ios REPO_DIR=/home/hitoshi/github/feedman-ios WATCHER_ENV_FILE=/home/hitoshi/.idd-codex/hitoshiichikawa-feedman-ios.env /home/hitoshi/bin/idd-codex-issue-watcher.sh >> /home/hitoshi/.idd-codex/issue-watcher/cron.log 2>&1
 ```
 
 macOS では cron ではなくユーザー LaunchAgent を使います。`~/Library/LaunchAgents/` に
 plist を置き、`EnvironmentVariables` で少なくとも以下を指定します。
 
 - `BASE_BRANCH=develop`
-- `PROMOTION_TARGET_BRANCH=main`
-- `ST_CHECK_RUN_NAME=iOS Tests` (値に空白を含むため plist では `<string>iOS Tests</string>` として指定)
 - `REPO=hitoshiichikawa/feedman-ios`
 - `REPO_DIR=/Users/<user>/github/github/feedman-ios`
+- `WATCHER_ENV_FILE=/Users/<user>/.idd-codex/hitoshiichikawa-feedman-ios.env`
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`
 
 登録と起動:
 
