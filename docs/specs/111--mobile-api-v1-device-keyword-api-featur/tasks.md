@@ -43,7 +43,7 @@
   - _Boundary: ExistingNextPhaseComponents, APNsDeviceRegistrationServiceGate, DisabledKeywordRepository, KeywordSettingsRouteGate_
   - _Depends: 2, 4_
 
-- [ ] 6. v1 smoke checklist と最終検証を更新する
+- [x] 6. v1 smoke checklist と最終検証を更新する
   - `README.md` の v1 Smoke Test Checklist に `/api/devices` と `/api/keywords` は v1 default では対象外であり、keyword notification feature が disabled であることを明記する。
   - `plutil -lint Feedman.xcodeproj/project.pbxproj` と `git diff --check` を実行し、project file / whitespace の基本整合を確認する。
   - macOS/Xcode 環境で `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` を実行する。
