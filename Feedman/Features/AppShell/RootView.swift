@@ -82,6 +82,7 @@ struct RootView: View {
                     feedSectionState: drawerFeedViewModel.sectionState,
                     selectedItem: shellState.drawerSelection,
                     themeOverride: shellState.themeOverride,
+                    showsKeywordSettingsAction: keywordSettingsRouteGate.showsDrawerEntry,
                     onSelectRoute: { route in
                         shellState.selectRoute(route)
                     },
@@ -95,7 +96,7 @@ struct RootView: View {
                         shellState.presentFeedRegistration()
                     },
                     onShowKeywordSettings: {
-                        shellState.presentKeywordSettings()
+                        _ = keywordSettingsRouteGate.presentKeywordSettings(on: &shellState)
                     },
                     onShowFeedSettings: { feed in
                         shellState.presentSubscriptionSettings(feed: feed)
@@ -159,7 +160,7 @@ struct RootView: View {
 
     private var activePresentationBinding: Binding<AppShellPresentation?> {
         Binding(
-            get: { shellState.activePresentation },
+            get: { keywordSettingsRouteGate.visiblePresentation(from: shellState.activePresentation) },
             set: { presentation in
                 if presentation == nil {
                     dismissActivePresentation()
@@ -302,16 +303,20 @@ struct RootView: View {
                 }
             )
         case .keywordSettings:
-            KeywordSettingsSheet(
-                repository: environment.keywordRepository,
-                accessToken: environment.currentAccessToken,
-                onDismiss: {
-                    shellState.dismissPresentation()
-                },
-                onAuthRequired: {
-                    toastCenter.show("再ログインが必要です。", style: .warning)
-                }
-            )
+            if keywordSettingsRouteGate.showsDrawerEntry {
+                KeywordSettingsSheet(
+                    repository: environment.keywordRepository,
+                    accessToken: environment.currentAccessToken,
+                    onDismiss: {
+                        shellState.dismissPresentation()
+                    },
+                    onAuthRequired: {
+                        toastCenter.show("再ログインが必要です。", style: .warning)
+                    }
+                )
+            } else {
+                EmptyView()
+            }
         case let .articleDetail(input):
             ArticleDetailSheet(
                 input: input,
@@ -360,6 +365,10 @@ struct RootView: View {
                 environment.clearPendingNotificationArticleTarget()
             }
         )
+    }
+
+    private var keywordSettingsRouteGate: AppShellKeywordSettingsRouteGate {
+        AppShellKeywordSettingsRouteGate(notificationFeatures: environment.notificationFeatures)
     }
 
     private func presentPendingNotificationArticleIfPossible() {
@@ -463,6 +472,7 @@ private struct DrawerView: View {
     let feedSectionState: AppShellDrawerFeedSectionState
     let selectedItem: AppShellDrawerSelection
     let themeOverride: AppShellThemeOverride
+    let showsKeywordSettingsAction: Bool
     let onSelectRoute: (AppShellRoute) -> Void
     let onShowAccount: () -> Void
     let onToggleTheme: () -> Void
@@ -602,12 +612,14 @@ private struct DrawerView: View {
                 onTap: onShowFeedRegistration
             )
 
-            DrawerFooterActionButton(
-                title: "キーワード通知",
-                subtitle: "記事タイトルの通知条件",
-                systemImage: "bell.badge",
-                onTap: onShowKeywordSettings
-            )
+            if showsKeywordSettingsAction {
+                DrawerFooterActionButton(
+                    title: "キーワード通知",
+                    subtitle: "記事タイトルの通知条件",
+                    systemImage: "bell.badge",
+                    onTap: onShowKeywordSettings
+                )
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)

@@ -80,3 +80,35 @@ STATUS: complete
 - `git diff --check`: 成功
 
 STATUS: complete
+
+### Task 4
+
+- 採用方針: AppShell 境界に `AppShellKeywordSettingsRouteGate` を追加し、`RootView` の drawer 表示、通常 presentation request、防御的 sheet presentation を同じ `NotificationFeatureFlags` 判定で gate した。
+- 重要な判断: disabled 時は drawer footer から「キーワード通知」を非表示にし、誤って `.keywordSettings` が state に入っても `KeywordSettingsSheet` を構築しない `visiblePresentation` に寄せた。enabled path は `presentKeywordSettings()` を既存どおり使い、sheet / ViewModel / repository の次フェーズ実装を削除しない。
+- 残存課題: next phase repository / ViewModel / sheet coverage の最終確認は task 5、README smoke checklist と full xcodebuild は task 6 の scope。
+
+#### Task 4 AC Coverage Matrix
+
+| Requirement / AC | Implementation path | Production entrypoint / owning flow | Test / assertion | Verification result | Notes |
+|------------------|---------------------|-------------------------------------|------------------|---------------------|-------|
+| 2.1 | `RootView` -> `DrawerView(showsKeywordSettingsAction:)`, `AppShellKeywordSettingsRouteGate.showsDrawerEntry` | Authenticated AppShell drawer footer | `testDisabledKeywordSettingsRouteGateHidesEntryAndIgnoresPresentationRequest` が disabled で drawer entry 判定 false を検証 | targeted `xcodebuild ... -only-testing:FeedmanTests/AppShellStateTests -only-testing:FeedmanTests/KeywordRepositoryTests test` 成功 | SwiftUI private `DrawerView` は純粋 gate helper 経由で検証 |
+| 2.2 | `RootView` の `onShowKeywordSettings` が `AppShellKeywordSettingsRouteGate.presentKeywordSettings(on:)` を使用 | Drawer footer action tap -> AppShell presentation state | `testDisabledKeywordSettingsRouteGateHidesEntryAndIgnoresPresentationRequest` が disabled request 後も `.keywordSettings` にならないことを検証 | 同上 成功 | 通常 UI では entry 自体も非表示 |
+| 2.3 | `RootView.activePresentationBinding` / `sheetContent(.keywordSettings)` の disabled guard | AppShell sheet presentation binding -> `KeywordSettingsSheet` construction | `testDisabledKeywordSettingsRouteGateSuppressesDefensivePresentation` が defensive `.keywordSettings` を nil に抑止することを検証 | 同上 成功 | `KeywordSettingsViewModel.loadKeywords()` は sheet 未構築のため開始されない |
+| 2.4 | `AppShellKeywordSettingsRouteGate.presentKeywordSettings(on:)` enabled path | Explicit enabled AppShell drawer flow | `testEnabledKeywordSettingsRouteGateKeepsExistingPresentationFlowReachable` が `.nextPhaseEnabled` で `.keywordSettings` presentation を維持することを検証 | 同上 成功 | 既存 `KeywordSettingsSheet` / ViewModel は削除なし |
+| 2.5 | `DisabledKeywordRepository` 全 method / `RootView` defensive presentation guard | Defensive disabled repository boundary / AppShell sheet defense | `testDisabledKeywordRepositoryFailsWithoutNetworkDependency`, `testDisabledKeywordRepositoryMutationsFailWithoutNetworkDependency`, `testDisabledKeywordSettingsRouteGateSuppressesDefensivePresentation` | 同上 成功 | repository は `APIClient` を保持せず `/api/keywords` に到達しない |
+| 5.2 | `AppEnvironment.production()` default `.v1Default` + AppShell route gate + `DisabledKeywordRepository` | Production default AppShell / repository boundary | task 1 の production default tests と task 4 disabled route/repository tests | 同上 成功 | device registration runtime は task 2/3 で検証済み |
+| 5.3 | `.nextPhaseEnabled` route gate enabled path and existing keyword repository request contract tests | Explicit enabled AppShell and repository flows | `testEnabledKeywordSettingsRouteGateKeepsExistingPresentationFlowReachable` と既存 `KeywordRepositoryTests` request contract tests | 同上 成功 | ViewModel enabled coverage の総点検は task 5 scope |
+
+#### Finding Closure Matrix
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| N/A | Reviewer | 対応不要 | N/A | N/A | `review-notes.md` round 1 は `RESULT: approve` / Findings なし | task 4 着手前の review は task 3 approve のため corrective commit 不要 |
+
+#### Verification
+
+- Red 確認: `AppShellKeywordSettingsRouteGate` tests 追加直後の targeted `xcodebuild ... test` は `cannot find 'AppShellKeywordSettingsRouteGate' in scope` で compile failure（期待どおり）。
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:FeedmanTests/AppShellStateTests -only-testing:FeedmanTests/KeywordRepositoryTests test`: 成功
+- `git diff --check`: 成功
+
+STATUS: complete

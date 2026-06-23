@@ -69,6 +69,34 @@ enum AppShellPresentation: Equatable, Identifiable {
     }
 }
 
+struct AppShellKeywordSettingsRouteGate: Equatable {
+    let notificationFeatures: NotificationFeatureFlags
+
+    var showsDrawerEntry: Bool {
+        notificationFeatures.keywordNotificationsEnabled
+    }
+
+    func presentKeywordSettings(on state: inout AppShellState) -> Bool {
+        guard notificationFeatures.keywordNotificationsEnabled else {
+            state.dismissDrawer()
+            if state.activePresentation == .keywordSettings {
+                state.dismissPresentation()
+            }
+            return false
+        }
+
+        state.presentKeywordSettings()
+        return true
+    }
+
+    func visiblePresentation(from presentation: AppShellPresentation?) -> AppShellPresentation? {
+        guard presentation != .keywordSettings || notificationFeatures.keywordNotificationsEnabled else {
+            return nil
+        }
+        return presentation
+    }
+}
+
 enum AppShellThemeOverride: Equatable {
     case system
     case dark
