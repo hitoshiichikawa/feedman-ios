@@ -24,7 +24,7 @@
   - _Boundary: NotificationPermissionCoordinator, DisabledPathRegressionTests_
   - _Depends: 1_
 
-- [ ] 4. Keyword settings の drawer 導線と repository 誤到達を feature gate する
+- [x] 4. Keyword settings の drawer 導線と repository 誤到達を feature gate する
   - `RootView` / `DrawerView` で disabled 時に「キーワード通知」footer action を表示しない。
   - Disabled 時に `KeywordSettingsSheet` と `KeywordSettingsViewModel.loadKeywords()` が AppShell の通常操作から開始されないようにする。
   - `DisabledKeywordRepository` を追加し、防御的に keyword repository method が呼ばれても `/api/keywords` へ到達しないようにする。
