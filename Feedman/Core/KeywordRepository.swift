@@ -11,6 +11,10 @@ protocol KeywordRepository {
     func deleteKeyword(id: String, accessToken: String) async throws
 }
 
+enum KeywordRepositoryError: Error, Equatable {
+    case keywordNotificationsDisabled
+}
+
 struct APIClientKeywordRepository: KeywordRepository {
     let apiClient: APIClient
 
@@ -53,6 +57,28 @@ struct APIClientKeywordRepository: KeywordRepository {
             path: "/api/keywords/\(id)",
             accessToken: accessToken
         )
+    }
+}
+
+struct DisabledKeywordRepository: KeywordRepository {
+    func keywords(accessToken: String) async throws -> [KeywordResponse] {
+        throw KeywordRepositoryError.keywordNotificationsDisabled
+    }
+
+    func createKeyword(_ request: KeywordCreateRequest, accessToken: String) async throws -> KeywordResponse {
+        throw KeywordRepositoryError.keywordNotificationsDisabled
+    }
+
+    func updateKeyword(
+        id: String,
+        request: KeywordUpdateRequest,
+        accessToken: String
+    ) async throws -> KeywordResponse {
+        throw KeywordRepositoryError.keywordNotificationsDisabled
+    }
+
+    func deleteKeyword(id: String, accessToken: String) async throws {
+        throw KeywordRepositoryError.keywordNotificationsDisabled
     }
 }
 

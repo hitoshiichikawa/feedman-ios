@@ -196,6 +196,18 @@ final class KeywordRepositoryTests: XCTestCase {
         }
     }
 
+    func testDisabledKeywordRepositoryFailsWithoutNetworkDependency() async throws {
+        let repository = DisabledKeywordRepository()
+
+        do {
+            _ = try await repository.keywords(accessToken: "access-1")
+            XCTFail("Expected keyword notifications disabled error")
+        } catch KeywordRepositoryError.keywordNotificationsDisabled {
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testMockKeywordRepositoryMutatesDeterministically() async throws {
         let repository = MockKeywordRepository(keywords: [
             KeywordResponse(id: "keyword-1", term: "SwiftUI", scope: "title", enabled: true, hits: 3)

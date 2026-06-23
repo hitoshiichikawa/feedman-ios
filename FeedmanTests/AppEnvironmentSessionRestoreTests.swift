@@ -164,10 +164,24 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         XCTAssertTrue(AppEnvironment.preview.keywordRepository is MockKeywordRepository)
     }
 
-    func testProductionEnvironmentUsesAPIClientKeywordRepository() {
+    func testProductionEnvironmentUsesV1DefaultDisabledNotificationDependencies() {
         let environment = AppEnvironment.production(apiBaseURL: URL(string: "https://api.example.com")!)
 
+        XCTAssertEqual(environment.notificationFeatures, .v1Default)
+        XCTAssertFalse(environment.notificationFeatures.keywordNotificationsEnabled)
+        XCTAssertTrue(environment.keywordRepository is DisabledKeywordRepository)
+        XCTAssertFalse(environment.deviceRegistrationRepository is APIClientDeviceRegistrationRepository)
+    }
+
+    func testProductionEnvironmentCanEnableNotificationDependenciesExplicitly() {
+        let environment = AppEnvironment.production(
+            apiBaseURL: URL(string: "https://api.example.com")!,
+            notificationFeatures: .nextPhaseEnabled
+        )
+
+        XCTAssertEqual(environment.notificationFeatures, .nextPhaseEnabled)
         XCTAssertTrue(environment.keywordRepository is APIClientKeywordRepository)
+        XCTAssertTrue(environment.deviceRegistrationRepository is APIClientDeviceRegistrationRepository)
     }
 
     func testCompleteLoginPublishesPendingDeviceRegistrationRetryFailureAndKeepsTokenForRetry() async throws {
