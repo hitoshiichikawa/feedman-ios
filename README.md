@@ -220,7 +220,10 @@ plist を置き、`EnvironmentVariables` で少なくとも以下を指定しま
 - `REPO=hitoshiichikawa/feedman-ios`
 - `REPO_DIR=/Users/<user>/github/github/feedman-ios`
 - `WATCHER_ENV_FILE=/Users/<user>/.idd-codex/hitoshiichikawa-feedman-ios.env`
-- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`
+
+`xcodebuild` を watcher から実行する macOS 環境で active developer directory が Command Line Tools
+を指している場合のみ、`DEVELOPER_DIR` を任意で追加します。値は環境ごとの Xcode developer directory
+に合わせ、`xcode-select -p` が Xcode を指している環境では固定指定しません。
 
 登録と起動:
 
