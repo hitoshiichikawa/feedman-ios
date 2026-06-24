@@ -256,18 +256,47 @@ enum MockStarredItemsState {
 }
 
 struct RegisteredFeed: Equatable {
-    let subscriptionID: String
+    let subscriptionID: String?
     let feedID: String
     let title: String
     let feedURL: String?
     let siteURL: String?
     let faviconURL: String?
-    let fetchIntervalMinutes: Int
+    let fetchIntervalMinutes: Int?
     let status: FeedStatus
     let unreadCount: Int
+    let isPendingServerConfirmation: Bool
 
-    var drawerFeed: Feed {
-        Feed(
+    init(
+        subscriptionID: String?,
+        feedID: String,
+        title: String,
+        feedURL: String?,
+        siteURL: String?,
+        faviconURL: String?,
+        fetchIntervalMinutes: Int?,
+        status: FeedStatus,
+        unreadCount: Int,
+        isPendingServerConfirmation: Bool = false
+    ) {
+        self.subscriptionID = subscriptionID
+        self.feedID = feedID
+        self.title = title
+        self.feedURL = feedURL
+        self.siteURL = siteURL
+        self.faviconURL = faviconURL
+        self.fetchIntervalMinutes = fetchIntervalMinutes
+        self.status = status
+        self.unreadCount = unreadCount
+        self.isPendingServerConfirmation = isPendingServerConfirmation
+    }
+
+    var drawerFeed: Feed? {
+        guard !isPendingServerConfirmation else {
+            return nil
+        }
+
+        return Feed(
             id: feedID,
             subscriptionID: subscriptionID,
             title: title,
@@ -281,19 +310,44 @@ struct RegisteredFeed: Equatable {
 
 extension RegisteredFeed {
     init(response: FeedRegistrationResponse) {
-        self.subscriptionID = response.id
-        self.feedID = response.feedID
-        self.title = response.feedTitle
+        self.subscriptionID = nil
+        self.feedID = response.id
+        self.title = response.title
         self.feedURL = response.feedURL
         self.siteURL = response.siteURL
-        self.faviconURL = response.feedFaviconURL
-        self.fetchIntervalMinutes = response.fetchIntervalMinutes
-        self.status = FeedStatus(subscriptionStatus: response.feedStatus, message: response.errorMessage)
-        self.unreadCount = response.unreadCount
+        self.faviconURL = nil
+        self.fetchIntervalMinutes = nil
+        self.status = FeedStatus(fetchStatus: response.fetchStatus)
+        self.unreadCount = 0
+        self.isPendingServerConfirmation = false
+    }
+
+    init(pendingURL url: String) {
+        self.subscriptionID = nil
+        self.feedID = url
+        self.title = url
+        self.feedURL = url
+        self.siteURL = nil
+        self.faviconURL = nil
+        self.fetchIntervalMinutes = nil
+        self.status = .active
+        self.unreadCount = 0
+        self.isPendingServerConfirmation = true
     }
 }
 
 private extension FeedStatus {
+    init(fetchStatus: String) {
+        switch fetchStatus.lowercased() {
+        case "stopped":
+            self = .stopped(message: "停止中")
+        case "error", "failed":
+            self = .error(message: "取得エラー")
+        default:
+            self = .active
+        }
+    }
+
     init(subscriptionStatus: SubscriptionFeedStatus, message: String?) {
         switch subscriptionStatus {
         case .active:
@@ -366,7 +420,7 @@ actor APIClientFeedRepository: FeedRepository {
     }
 
     func registerFeed(url: String) async throws -> RegisteredFeed {
-        let response = try await apiClient.send(
+        let response = try await apiClient.sendOptional(
             FeedRegistrationResponse.self,
             method: .post,
             path: "/api/feeds",
@@ -374,7 +428,7 @@ actor APIClientFeedRepository: FeedRepository {
             accessToken: try await accessTokenProvider()
         )
 
-        return RegisteredFeed(response: response)
+        return response.map(RegisteredFeed.init(response:)) ?? RegisteredFeed(pendingURL: url)
     }
 
     func updateSubscriptionSettings(
@@ -590,7 +644,7 @@ actor APIClientFeedRepository: FeedRepository {
         }
 
         if let sinceTime {
-            queryItems.append(URLQueryItem(name: "since_time", value: sinceTime))
+            queryItems.append(URLQueryItem(name: "since", value: sinceTime))
         }
 
         return try await apiClient.send(
@@ -820,7 +874,9 @@ actor MockFeedRepository: FeedRepository {
         registeredURLs.append(url)
 
         let registeredFeed = try registrationResult.get()
-        upsertSubscription(registeredFeed.drawerFeed)
+        if let drawerFeed = registeredFeed.drawerFeed {
+            upsertSubscription(drawerFeed)
+        }
         return registeredFeed
     }
 

@@ -233,7 +233,26 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
             viewModel.sectionState,
             .failed(
                 message: "フィードは登録されましたが、一覧を更新できませんでした",
-                feeds: existingFeeds + [Self.registeredFeed.drawerFeed]
+                feeds: existingFeeds + [Self.registeredFeed.drawerFeed!]
+            )
+        )
+    }
+
+    func testRefreshAfterPendingFeedRegistrationFailureDoesNotAddRoutableURLFeed() async {
+        let existingFeeds = [
+            Feed(id: "feed-a", title: "Feed A", unreadCount: 1, status: .active)
+        ]
+        let repository = ScriptedFeedRepository(results: [.failure(StubError.failed)])
+        let viewModel = AppShellDrawerFeedViewModel(sectionState: .loaded(feeds: existingFeeds))
+        let pendingFeed = RegisteredFeed(pendingURL: "https://example.com/feed.xml")
+
+        await viewModel.refreshSubscriptionsAfterFeedRegistration(pendingFeed, repository: repository)
+
+        XCTAssertEqual(
+            viewModel.sectionState,
+            .failed(
+                message: "フィードは登録されましたが、一覧を更新できませんでした",
+                feeds: existingFeeds
             )
         )
     }
@@ -253,7 +272,7 @@ final class AppShellDrawerFeedStateTests: XCTestCase {
             viewModel.sectionState,
             .failed(
                 message: "フィードは登録されましたが、一覧を更新できませんでした",
-                feeds: [Self.registeredFeed.drawerFeed]
+                feeds: [Self.registeredFeed.drawerFeed!]
             )
         )
 

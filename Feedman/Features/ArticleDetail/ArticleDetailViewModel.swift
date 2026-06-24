@@ -81,10 +81,18 @@ struct ArticleDetailSummary: Equatable {
     }
 
     init(item: ItemSummary) {
+        self.init(item: item, fallbackFeedTitle: nil, fallbackFaviconURL: nil)
+    }
+
+    init(
+        item: ItemSummary,
+        fallbackFeedTitle: String?,
+        fallbackFaviconURL: String?
+    ) {
         self.init(
             id: item.id,
-            feedTitle: item.feedTitle,
-            feedFaviconURL: item.feedFaviconURL,
+            feedTitle: item.feedTitle.nilIfBlank ?? fallbackFeedTitle?.nilIfBlank,
+            feedFaviconURL: item.feedFaviconURL ?? fallbackFaviconURL,
             title: item.title,
             summary: item.summary,
             link: item.link,
@@ -137,15 +145,15 @@ struct ArticleDetailPresentation: Equatable {
     let linkURL: URL?
     let preview: ArticleDetailContentPreview
 
-    init(detail: ItemDetail) {
+    init(detail: ItemDetail, fallbackSummary: ArticleDetailSummary? = nil) {
         self.id = detail.id
         let publishedDateText = ArticleDetailPublishedDateFormatter.string(
             from: detail.publishedAt,
             isEstimated: detail.isDateEstimated
         )
         self.sourceMetadata = ArticleSourceMetadata(
-            feedTitle: detail.feedTitle,
-            faviconURL: detail.feedFaviconURL,
+            feedTitle: detail.feedTitle.nilIfBlank ?? fallbackSummary?.feedTitle?.nilIfBlank ?? "",
+            faviconURL: detail.feedFaviconURL ?? fallbackSummary?.feedFaviconURL,
             relativeDate: publishedDateText
         )
         self.title = detail.title
@@ -492,7 +500,10 @@ final class ArticleDetailViewModel: ObservableObject {
 
     private func applyDetail(_ detail: ItemDetail) {
         self.detail = detail
-        state = .loaded(ArticleDetailPresentation(detail: itemStateCoordinator.effectiveDetail(detail)))
+        state = .loaded(ArticleDetailPresentation(
+            detail: itemStateCoordinator.effectiveDetail(detail),
+            fallbackSummary: summary
+        ))
     }
 
     private func refreshLoadedPresentation() {
@@ -500,7 +511,10 @@ final class ArticleDetailViewModel: ObservableObject {
             return
         }
 
-        state = .loaded(ArticleDetailPresentation(detail: itemStateCoordinator.effectiveDetail(detail)))
+        state = .loaded(ArticleDetailPresentation(
+            detail: itemStateCoordinator.effectiveDetail(detail),
+            fallbackSummary: summary
+        ))
     }
 
     private func readStarBaseline() -> (isRead: Bool, isStarred: Bool) {

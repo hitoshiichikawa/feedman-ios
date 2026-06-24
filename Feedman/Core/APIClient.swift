@@ -75,6 +75,29 @@ struct APIClient {
         return try await send(responseType, request: request)
     }
 
+    func sendOptional<Response: Decodable, Body: Encodable>(
+        _ responseType: Response.Type,
+        method: HTTPMethod,
+        path: String,
+        queryItems: [URLQueryItem] = [],
+        body: Body,
+        accessToken: String? = nil
+    ) async throws -> Response? {
+        let request = try makeRequest(
+            method: method,
+            path: path,
+            queryItems: queryItems,
+            body: body,
+            accessToken: accessToken
+        )
+        let (data, httpResponse) = try await performWithRefreshRetry(request)
+        if data.isEmpty {
+            try responseDecoder.validateNoContent(from: data, response: httpResponse)
+            return nil
+        }
+        return try responseDecoder.decode(responseType, from: data, response: httpResponse)
+    }
+
     /// 204 No Content のような body を持たない成功応答を期待する request を送信する。
     func sendNoContent(
         method: HTTPMethod,

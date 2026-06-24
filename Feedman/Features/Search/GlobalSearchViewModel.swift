@@ -158,12 +158,16 @@ final class GlobalSearchViewModel: ObservableObject {
 
     @Published var query: String
     @Published private(set) var state: GlobalSearchViewState
+    @Published private(set) var canLoadMore: Bool = false
+    @Published private(set) var isLoadingNextPage: Bool = false
+    @Published private(set) var nextPageErrorMessage: String?
 
     private let repository: any SearchRepository
     private let itemStateCoordinator: ItemStateCoordinator?
     private let onAuthRequired: () -> Void
+    private var nextCursor: String?
     private var currentRequestID: UUID?
-    private var activeSearchTask: Task<Result<[ItemSearchHit], Error>, Never>?
+    private var activeSearchTask: Task<Result<SearchItemsResponse, Error>, Never>?
     private var cancellables: Set<AnyCancellable> = []
 
     init(
@@ -205,14 +209,20 @@ final class GlobalSearchViewModel: ObservableObject {
         }
 
         activeSearchTask?.cancel()
+        resetPaginationState()
         let requestID = UUID()
         currentRequestID = requestID
         state = .loading(query: submittedQuery)
 
         let repository = repository
-        let task = Task<Result<[ItemSearchHit], Error>, Never> {
+        let task = Task<Result<SearchItemsResponse, Error>, Never> {
             do {
-                return .success(try await repository.searchItems(query: submittedQuery, scope: .global))
+                return .success(try await repository.searchItemsPage(
+                    query: submittedQuery,
+                    scope: .global,
+                    cursor: nil,
+                    limit: nil
+                ))
             } catch {
                 return .failure(error)
             }
@@ -226,12 +236,70 @@ final class GlobalSearchViewModel: ObservableObject {
 
         activeSearchTask = nil
         switch result {
-        case .success(let hits):
-            let effectiveHits = hits.map(effectiveHit(_:))
+        case .success(let response):
+            applyPagination(response)
+            let effectiveHits = response.items.map(effectiveHit(_:))
             state = effectiveHits.isEmpty ? .empty(query: submittedQuery) : .results(query: submittedQuery, hits: effectiveHits)
         case .failure(let error):
+            resetPaginationState()
             applyFailure(error, query: submittedQuery)
         }
+    }
+
+    func loadNextPageIfNeeded(currentItemID: String? = nil) async {
+        guard case let .results(activeQuery, visibleHits) = state,
+              canLoadMore,
+              !isLoadingNextPage,
+              activeSearchTask == nil
+        else {
+            return
+        }
+
+        if let currentItemID,
+           currentItemID != visibleHits.last?.id {
+            return
+        }
+
+        guard let cursor = nextCursor else {
+            canLoadMore = false
+            return
+        }
+
+        let requestID = currentRequestID
+        isLoadingNextPage = true
+        nextPageErrorMessage = nil
+
+        do {
+            let response = try await repository.searchItemsPage(
+                query: activeQuery,
+                scope: .global,
+                cursor: cursor,
+                limit: nil
+            )
+
+            guard currentRequestID == requestID,
+                  case let .results(query, latestHits) = state,
+                  query == activeQuery
+            else {
+                return
+            }
+
+            applyPagination(response)
+            let effectiveHits = (latestHits + response.items).map(effectiveHit(_:))
+            state = effectiveHits.isEmpty ? .empty(query: activeQuery) : .results(query: activeQuery, hits: effectiveHits)
+            isLoadingNextPage = false
+        } catch {
+            guard currentRequestID == requestID else {
+                return
+            }
+
+            isLoadingNextPage = false
+            applyNextPageFailure(error)
+        }
+    }
+
+    func retryNextPage() async {
+        await loadNextPageIfNeeded()
     }
 
     func clearQuery() {
@@ -293,6 +361,20 @@ final class GlobalSearchViewModel: ObservableObject {
         activeSearchTask?.cancel()
         activeSearchTask = nil
         currentRequestID = nil
+        resetPaginationState()
+    }
+
+    private func applyPagination(_ response: SearchItemsResponse) {
+        nextCursor = response.usableNextCursor
+        canLoadMore = response.canLoadMore
+        nextPageErrorMessage = nil
+    }
+
+    private func resetPaginationState() {
+        nextCursor = nil
+        canLoadMore = false
+        isLoadingNextPage = false
+        nextPageErrorMessage = nil
     }
 
     private func applyFailure(_ error: Error, query: String) {
@@ -311,6 +393,16 @@ final class GlobalSearchViewModel: ObservableObject {
             message: "検索結果を読み込めませんでした。",
             isAuthRequired: false
         )
+    }
+
+    private func applyNextPageFailure(_ error: Error) {
+        if case FeedmanAPIError.authRequired = error {
+            onAuthRequired()
+            nextPageErrorMessage = "認証の有効期限が切れました。もう一度ログインしてください。"
+            return
+        }
+
+        nextPageErrorMessage = "検索結果の続きを読み込めませんでした。"
     }
 }
 

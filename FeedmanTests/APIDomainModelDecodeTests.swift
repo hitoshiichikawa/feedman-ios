@@ -25,10 +25,11 @@ final class APIDomainModelDecodeTests: XCTestCase {
     func testFeedRegistrationResponseDecodesFlatFeedResponse() throws {
         let response = try decode(FeedRegistrationResponse.self, fixture: "feed_registration_response")
 
-        XCTAssertEqual(response.id, "sub-registered")
-        XCTAssertEqual(response.feedID, "feed-registered")
-        XCTAssertEqual(response.feedStatus, .active)
-        XCTAssertNil(response.feedFaviconURL)
+        XCTAssertEqual(response.id, "feed-registered")
+        XCTAssertEqual(response.feedURL, "https://example.com/feed.xml")
+        XCTAssertEqual(response.siteURL, "https://example.com")
+        XCTAssertEqual(response.title, "Registered Feed")
+        XCTAssertEqual(response.fetchStatus, "active")
     }
 
     func testItemSearchHitDecodesNullablePublishedAtAndFaviconURL() throws {
@@ -48,6 +49,95 @@ final class APIDomainModelDecodeTests: XCTestCase {
         XCTAssertEqual(response.items.count, 1)
         XCTAssertNil(response.nextCursor)
         XCTAssertFalse(response.hasMore)
+    }
+
+    func testSearchItemsResponseDecodesWrapperMetadata() throws {
+        let data = Data(
+            """
+            {
+              "items": [
+                {
+                  "id": "search-1",
+                  "feed_id": "feed-1",
+                  "feed_title": "Search Feed",
+                  "favicon_url": null,
+                  "title": "Search Title",
+                  "summary": "Search summary",
+                  "link": "https://example.com/search-1",
+                  "published_at": "2026-06-08T08:30:00Z",
+                  "is_date_estimated": false,
+                  "is_read": false,
+                  "is_starred": false,
+                  "hatebu_count": 3,
+                  "author": null
+                }
+              ],
+              "next_cursor": "cursor-next",
+              "has_more": true
+            }
+            """.utf8
+        )
+
+        let response = try decoder.decode(SearchItemsResponse.self, from: data)
+
+        XCTAssertEqual(response.items.map(\.id), ["search-1"])
+        XCTAssertEqual(response.nextCursor, "cursor-next")
+        XCTAssertTrue(response.hasMore)
+    }
+
+    func testFeedScopedItemSummaryDecodesWithoutFeedMetadata() throws {
+        let data = Data(
+            """
+            {
+              "id": "item-1",
+              "feed_id": "feed-1",
+              "title": "Feed item",
+              "summary": null,
+              "link": "https://example.com/item-1",
+              "published_at": "2026-06-08T08:30:00Z",
+              "is_date_estimated": false,
+              "is_read": false,
+              "is_starred": false,
+              "hatebu_count": null,
+              "hatebu_fetched_at": null,
+              "author": null
+            }
+            """.utf8
+        )
+
+        let item = try decoder.decode(ItemSummary.self, from: data)
+
+        XCTAssertEqual(item.feedTitle, "")
+        XCTAssertNil(item.feedFaviconURL)
+        XCTAssertEqual(item.title, "Feed item")
+    }
+
+    func testItemDetailDecodesWithoutFeedMetadata() throws {
+        let data = Data(
+            """
+            {
+              "id": "item-1",
+              "feed_id": "feed-1",
+              "title": "Detail item",
+              "summary": null,
+              "content": "<p>body</p>",
+              "link": "https://example.com/item-1",
+              "published_at": "2026-06-08T08:30:00Z",
+              "is_date_estimated": false,
+              "is_read": false,
+              "is_starred": false,
+              "hatebu_count": null,
+              "hatebu_fetched_at": null,
+              "author": null
+            }
+            """.utf8
+        )
+
+        let detail = try decoder.decode(ItemDetail.self, from: data)
+
+        XCTAssertEqual(detail.feedTitle, "")
+        XCTAssertNil(detail.feedFaviconURL)
+        XCTAssertEqual(detail.content, "<p>body</p>")
     }
 
     func testCrossFeedResponseDecodesSinceTimeAsString() throws {

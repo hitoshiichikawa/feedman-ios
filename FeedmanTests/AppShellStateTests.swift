@@ -452,7 +452,12 @@ private actor AppShellSearchResultRecordingItemRepository: ItemRepository {
 }
 
 private actor RecordingAppShellSearchRepository: SearchRepository {
-    func searchItems(query: String, scope: SearchScope) async throws -> [ItemSearchHit] {
-        []
+    func searchItemsPage(
+        query: String,
+        scope: SearchScope,
+        cursor: String?,
+        limit: Int?
+    ) async throws -> SearchItemsResponse {
+        SearchItemsResponse(items: [], nextCursor: nil, hasMore: false)
     }
 }

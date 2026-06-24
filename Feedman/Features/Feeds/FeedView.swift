@@ -47,7 +47,8 @@ struct FeedView: View {
             viewModel.configure(
                 repository: repository,
                 itemRepository: itemRepository,
-                accessToken: accessToken
+                accessToken: accessToken,
+                selectedFeed: feed
             )
             await viewModel.loadInitialIfNeeded(feedID: feed.id)
         }

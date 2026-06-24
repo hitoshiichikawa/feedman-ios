@@ -32,6 +32,56 @@ struct ItemSummary: Codable, Equatable {
         case hatebuFetchedAt = "hatebu_fetched_at"
         case author
     }
+
+    init(
+        id: String,
+        feedID: String,
+        feedTitle: String,
+        feedFaviconURL: String?,
+        title: String,
+        summary: String?,
+        link: String,
+        publishedAt: String,
+        isDateEstimated: Bool,
+        isRead: Bool,
+        isStarred: Bool,
+        hatebuCount: Int?,
+        hatebuFetchedAt: String?,
+        author: String?
+    ) {
+        self.id = id
+        self.feedID = feedID
+        self.feedTitle = feedTitle
+        self.feedFaviconURL = feedFaviconURL
+        self.title = title
+        self.summary = summary
+        self.link = link
+        self.publishedAt = publishedAt
+        self.isDateEstimated = isDateEstimated
+        self.isRead = isRead
+        self.isStarred = isStarred
+        self.hatebuCount = hatebuCount
+        self.hatebuFetchedAt = hatebuFetchedAt
+        self.author = author
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        feedID = try container.decode(String.self, forKey: .feedID)
+        feedTitle = try container.decodeIfPresent(String.self, forKey: .feedTitle) ?? ""
+        feedFaviconURL = try container.decodeIfPresent(String.self, forKey: .feedFaviconURL)
+        title = try container.decode(String.self, forKey: .title)
+        summary = try container.decodeIfPresent(String.self, forKey: .summary)
+        link = try container.decode(String.self, forKey: .link)
+        publishedAt = try container.decode(String.self, forKey: .publishedAt)
+        isDateEstimated = try container.decode(Bool.self, forKey: .isDateEstimated)
+        isRead = try container.decode(Bool.self, forKey: .isRead)
+        isStarred = try container.decode(Bool.self, forKey: .isStarred)
+        hatebuCount = try container.decodeIfPresent(Int.self, forKey: .hatebuCount)
+        hatebuFetchedAt = try container.decodeIfPresent(String.self, forKey: .hatebuFetchedAt)
+        author = try container.decodeIfPresent(String.self, forKey: .author)
+    }
 }
 
 struct ItemDetail: Codable, Equatable {
@@ -67,6 +117,59 @@ struct ItemDetail: Codable, Equatable {
         case hatebuCount = "hatebu_count"
         case hatebuFetchedAt = "hatebu_fetched_at"
         case author
+    }
+
+    init(
+        id: String,
+        feedID: String,
+        feedTitle: String,
+        feedFaviconURL: String?,
+        title: String,
+        summary: String?,
+        content: String?,
+        link: String,
+        publishedAt: String,
+        isDateEstimated: Bool,
+        isRead: Bool,
+        isStarred: Bool,
+        hatebuCount: Int?,
+        hatebuFetchedAt: String?,
+        author: String?
+    ) {
+        self.id = id
+        self.feedID = feedID
+        self.feedTitle = feedTitle
+        self.feedFaviconURL = feedFaviconURL
+        self.title = title
+        self.summary = summary
+        self.content = content
+        self.link = link
+        self.publishedAt = publishedAt
+        self.isDateEstimated = isDateEstimated
+        self.isRead = isRead
+        self.isStarred = isStarred
+        self.hatebuCount = hatebuCount
+        self.hatebuFetchedAt = hatebuFetchedAt
+        self.author = author
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        feedID = try container.decode(String.self, forKey: .feedID)
+        feedTitle = try container.decodeIfPresent(String.self, forKey: .feedTitle) ?? ""
+        feedFaviconURL = try container.decodeIfPresent(String.self, forKey: .feedFaviconURL)
+        title = try container.decode(String.self, forKey: .title)
+        summary = try container.decodeIfPresent(String.self, forKey: .summary)
+        content = try container.decodeIfPresent(String.self, forKey: .content)
+        link = try container.decode(String.self, forKey: .link)
+        publishedAt = try container.decode(String.self, forKey: .publishedAt)
+        isDateEstimated = try container.decode(Bool.self, forKey: .isDateEstimated)
+        isRead = try container.decode(Bool.self, forKey: .isRead)
+        isStarred = try container.decode(Bool.self, forKey: .isStarred)
+        hatebuCount = try container.decodeIfPresent(Int.self, forKey: .hatebuCount)
+        hatebuFetchedAt = try container.decodeIfPresent(String.self, forKey: .hatebuFetchedAt)
+        author = try container.decodeIfPresent(String.self, forKey: .author)
     }
 }
 
@@ -160,33 +263,49 @@ struct CrossFeedItemsResponse: Codable, Equatable {
     }
 }
 
+struct SearchItemsResponse: Codable, Equatable {
+    let items: [ItemSearchHit]
+    let nextCursor: String?
+    let hasMore: Bool
+
+    var usableNextCursor: String? {
+        guard let cursor = nextCursor?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !cursor.isEmpty
+        else {
+            return nil
+        }
+
+        return cursor
+    }
+
+    var canLoadMore: Bool {
+        hasMore && usableNextCursor != nil
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case items
+        case nextCursor = "next_cursor"
+        case hasMore = "has_more"
+    }
+}
+
 struct FeedRegistrationRequest: Codable, Equatable {
     let url: String
 }
 
 struct FeedRegistrationResponse: Codable, Equatable {
     let id: String
-    let feedID: String
-    let feedTitle: String
     let feedURL: String?
     let siteURL: String?
-    let feedFaviconURL: String?
-    let fetchIntervalMinutes: Int
-    let feedStatus: SubscriptionFeedStatus
-    let errorMessage: String?
-    let unreadCount: Int
+    let title: String
+    let fetchStatus: String
 
     enum CodingKeys: String, CodingKey {
         case id
-        case feedID = "feed_id"
-        case feedTitle = "feed_title"
         case feedURL = "feed_url"
         case siteURL = "site_url"
-        case feedFaviconURL = "favicon_url"
-        case fetchIntervalMinutes = "fetch_interval_minutes"
-        case feedStatus = "feed_status"
-        case errorMessage = "error_message"
-        case unreadCount = "unread_count"
+        case title
+        case fetchStatus = "fetch_status"
     }
 }
 
