@@ -265,9 +265,38 @@ struct RegisteredFeed: Equatable {
     let fetchIntervalMinutes: Int?
     let status: FeedStatus
     let unreadCount: Int
+    let isPendingServerConfirmation: Bool
 
-    var drawerFeed: Feed {
-        Feed(
+    init(
+        subscriptionID: String?,
+        feedID: String,
+        title: String,
+        feedURL: String?,
+        siteURL: String?,
+        faviconURL: String?,
+        fetchIntervalMinutes: Int?,
+        status: FeedStatus,
+        unreadCount: Int,
+        isPendingServerConfirmation: Bool = false
+    ) {
+        self.subscriptionID = subscriptionID
+        self.feedID = feedID
+        self.title = title
+        self.feedURL = feedURL
+        self.siteURL = siteURL
+        self.faviconURL = faviconURL
+        self.fetchIntervalMinutes = fetchIntervalMinutes
+        self.status = status
+        self.unreadCount = unreadCount
+        self.isPendingServerConfirmation = isPendingServerConfirmation
+    }
+
+    var drawerFeed: Feed? {
+        guard !isPendingServerConfirmation else {
+            return nil
+        }
+
+        return Feed(
             id: feedID,
             subscriptionID: subscriptionID,
             title: title,
@@ -290,6 +319,7 @@ extension RegisteredFeed {
         self.fetchIntervalMinutes = nil
         self.status = FeedStatus(fetchStatus: response.fetchStatus)
         self.unreadCount = 0
+        self.isPendingServerConfirmation = false
     }
 
     init(pendingURL url: String) {
@@ -302,6 +332,7 @@ extension RegisteredFeed {
         self.fetchIntervalMinutes = nil
         self.status = .active
         self.unreadCount = 0
+        self.isPendingServerConfirmation = true
     }
 }
 
@@ -843,7 +874,9 @@ actor MockFeedRepository: FeedRepository {
         registeredURLs.append(url)
 
         let registeredFeed = try registrationResult.get()
-        upsertSubscription(registeredFeed.drawerFeed)
+        if let drawerFeed = registeredFeed.drawerFeed {
+            upsertSubscription(drawerFeed)
+        }
         return registeredFeed
     }
 

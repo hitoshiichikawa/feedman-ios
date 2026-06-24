@@ -49,6 +49,8 @@ final class FeedRegistrationRepositoryTests: XCTestCase {
         XCTAssertEqual(registeredFeed.feedID, "https://example.com/feed.xml")
         XCTAssertEqual(registeredFeed.title, "https://example.com/feed.xml")
         XCTAssertEqual(registeredFeed.feedURL, "https://example.com/feed.xml")
+        XCTAssertTrue(registeredFeed.isPendingServerConfirmation)
+        XCTAssertNil(registeredFeed.drawerFeed)
         XCTAssertEqual(transport.requests.count, 1)
     }
 

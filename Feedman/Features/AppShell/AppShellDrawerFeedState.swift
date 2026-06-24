@@ -119,7 +119,9 @@ final class AppShellDrawerFeedViewModel: ObservableObject {
 
     private func feedsByUpsertingRegisteredFeed(_ registeredFeed: RegisteredFeed, into feeds: [Feed]) -> [Feed] {
         var updatedFeeds = feeds
-        let drawerFeed = registeredFeed.drawerFeed
+        guard let drawerFeed = registeredFeed.drawerFeed else {
+            return updatedFeeds
+        }
 
         if let index = updatedFeeds.firstIndex(where: { $0.id == drawerFeed.id }) {
             updatedFeeds[index] = drawerFeed
