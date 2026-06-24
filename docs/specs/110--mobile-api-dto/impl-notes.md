@@ -17,7 +17,7 @@
 
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`
   - Result: PASS
-  - Executed 465 tests, 0 failures
+  - Executed 491 tests, 0 failures
   - Note: 既存の `SharedPrimitives.swift` async warning が 1 件出るが、今回変更範囲外で test は成功。
 
 ## AC Coverage Matrix
@@ -87,5 +87,16 @@ Round 1 reject の対象は実装コードではなく、境界判定の正本�
 | Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
 |--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
 | `boundary:docs/specs/110--mobile-api-dto/tasks.md` | boundary 逸脱 | 正本の `tasks.md` を復元し、各 task の `_Requirements:_` / `_Boundary:_` アノテーションで今回変更ファイルが許可範囲に入ることを確認できる状態にする | `docs(spec): restore mobile api dto task boundaries` | `test -f docs/specs/110--mobile-api-dto/tasks.md`; `rg -n "_Requirements:|_Boundary:" docs/specs/110--mobile-api-dto/tasks.md` | PASS | doc-only corrective action。実装コードと既存 test は変更していないため xcodebuild は前回 PASS 結果を維持する。 |
+
+## Reviewer Round 2 Corrective Action
+
+Round 2 reject の対象は実装コードではなく、`docs/specs/110--mobile-api-dto/requirements.md` と `tasks.md` に対応する `design.md` が欠落していたことによる設計 traceability 不足だった。
+`design.md` を追加し、component / interface、data contract summary、Requirement AC と task の traceability matrix、NFR / risk coverage を明文化した。
+
+### Finding Closure Matrix
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| `docs/specs/110--mobile-api-dto/design.md` | design traceability | `requirements.md` の AC 1.1-5.8 と `tasks.md` の Task 1-5 を結ぶ design component / interface / traceability matrix を追加する | `docs(spec): add mobile api dto design traceability` | `test -f docs/specs/110--mobile-api-dto/design.md`; `rg -n "CrossFeedPaginationContract|SearchAPIContract|ItemFeedMetadataContract|FeedRegistrationContract|5\\.8" docs/specs/110--mobile-api-dto/design.md`; canonical xcodebuild test | PASS | doc-only corrective action。実装コードは変更していないが、PR head で canonical xcodebuild も再実行済み。 |
 
 STATUS: complete
