@@ -279,6 +279,24 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         }
     }
 
+    func testConfiguredProductionAPIBaseURLAllowsLoopbackHTTPForLocalDevelopment() throws {
+        let url = try AppEnvironment.resolveProductionAPIBaseURL(
+            infoDictionary: [:],
+            environment: ["FEEDMAN_API_BASE_URL": "http://127.0.0.1:3000"]
+        )
+
+        XCTAssertEqual(url, URL(string: "http://127.0.0.1:3000")!)
+    }
+
+    func testConfiguredProductionAPIBaseURLRejectsRemotePlainHTTPOrigin() {
+        XCTAssertThrowsError(try AppEnvironment.resolveProductionAPIBaseURL(
+            infoDictionary: ["FeedmanAPIBaseURL": "http://api.example.com"],
+            environment: [:]
+        )) { error in
+            XCTAssertEqual(error as? AppEnvironmentConfigurationError, .invalidAPIBaseURL)
+        }
+    }
+
     func testConfiguredProductionAPIBaseURLRejectsInvalidOrigin() {
         let configuredOrigin = "ftp://api.example.com"
 
@@ -286,7 +304,7 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
             infoDictionary: ["FeedmanAPIBaseURL": configuredOrigin],
             environment: [:]
         )) { error in
-            XCTAssertEqual(error as? AppEnvironmentConfigurationError, .invalidAPIBaseURL(configuredOrigin))
+            XCTAssertEqual(error as? AppEnvironmentConfigurationError, .invalidAPIBaseURL)
         }
     }
 
@@ -302,8 +320,24 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
                 infoDictionary: ["FeedmanAPIBaseURL": configuredOrigin],
                 environment: [:]
             )) { error in
-                XCTAssertEqual(error as? AppEnvironmentConfigurationError, .invalidAPIBaseURL(configuredOrigin))
+                XCTAssertEqual(error as? AppEnvironmentConfigurationError, .invalidAPIBaseURL)
             }
+        }
+    }
+
+    func testInvalidProductionAPIBaseURLDescriptionDoesNotExposeRawValue() {
+        let configuredOrigin = "https://user:secret-token@api.example.com?token=secret-query"
+
+        XCTAssertThrowsError(try AppEnvironment.resolveProductionAPIBaseURL(
+            infoDictionary: ["FeedmanAPIBaseURL": configuredOrigin],
+            environment: [:]
+        )) { error in
+            let configurationError = error as? AppEnvironmentConfigurationError
+            XCTAssertEqual(configurationError, .invalidAPIBaseURL)
+            let description = configurationError?.description ?? ""
+            XCTAssertFalse(description.contains(configuredOrigin))
+            XCTAssertFalse(description.contains("secret-token"))
+            XCTAssertFalse(description.contains("secret-query"))
         }
     }
 

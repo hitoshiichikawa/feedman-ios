@@ -45,7 +45,7 @@ Xcode で確認します。
 アプリの runtime API origin は `FEEDMAN_API_BASE_URL` で設定します。Scheme の
 Environment Variables、または build setting から `Info.plist` の `FeedmanAPIBaseURL` へ展開される
 値を使います。`AppEnvironment.production()` はこの設定を解決し、欠落・不正値・`localhost`
-指定を起動時に developer-observable な設定不備として扱います。
+指定・remote HTTP origin を起動時に developer-observable な設定不備として扱います。
 
 Simulator から macOS 上の local server に接続する開発用途では、Scheme の Environment Variables に
 次のような origin を明示します。
@@ -54,8 +54,8 @@ Simulator から macOS 上の local server に接続する開発用途では、S
 FEEDMAN_API_BASE_URL=http://127.0.0.1:3000
 ```
 
-Release 相当の確認では local-development origin を使わず、server / release 方針で確定した origin を
-同じ `FEEDMAN_API_BASE_URL` として明示してください。正式な production / staging URL はこの
+Release 相当の確認では local-development origin を使わず、server / release 方針で確定した HTTPS
+origin を同じ `FEEDMAN_API_BASE_URL` として明示してください。正式な production / staging URL はこの
 README では未確定値として扱い、仮の endpoint は記載しません。
 
 Debug / Release / Staging / Local の正式な API base URL 文字列は未決です。release

@@ -22,7 +22,8 @@
 
 | Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
 |--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
-| 1.5 | missing test | invalid API origin が `AppEnvironmentConfigurationError.invalidAPIBaseURL` になる XCTest を追加する | `test(mobile-api): cover invalid api origin configuration` | `testConfiguredProductionAPIBaseURLRejectsInvalidOrigin` が `ftp://api.example.com` を渡して `.invalidAPIBaseURL(configuredOrigin)` を検証 | targeted: 18 tests passed / canonical: 460 tests passed | 実装分岐は既存 commit に存在していたため production code の変更は不要 |
+| 1.5 | missing test | invalid API origin が `AppEnvironmentConfigurationError.invalidAPIBaseURL` になる XCTest を追加する | `test(mobile-api): cover invalid api origin configuration` | `testConfiguredProductionAPIBaseURLRejectsInvalidOrigin` が `ftp://api.example.com` を渡して `.invalidAPIBaseURL` を検証 | targeted: 18 tests passed / canonical: 460 tests passed | 実装分岐は既存 commit に存在していたため production code の変更は不要 |
+| 1.5, NFR 2.3 | reviewer finding | remote HTTP origin を拒否し、invalid URL の raw value を error description に出さない | `fix(mobile-api): require https remote origins` | `testConfiguredProductionAPIBaseURLRejectsRemotePlainHTTPOrigin`, `testInvalidProductionAPIBaseURLDescriptionDoesNotExposeRawValue` | targeted: 28 tests passed / canonical: 480 tests passed | local loopback HTTP は Simulator 開発用途に限定して許容 |
 
 ## Reviewer Round 2 Closure
 

@@ -2,7 +2,7 @@
 
 - [x] 1. API origin configuration を Release 相当 runtime 向けに補正する
   - `AppEnvironment.production()` が明示 API origin、環境変数、Info.plist 設定を解決できるようにする。
-  - missing / invalid / localhost origin を developer-observable configuration failure として扱う。
+  - missing / invalid / localhost / remote HTTP origin を developer-observable configuration failure として扱う。
   - authenticated API request と native login base URL に同じ resolved origin を渡す。
   - API origin configuration の回帰 XCTest を追加する。
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 5.4_

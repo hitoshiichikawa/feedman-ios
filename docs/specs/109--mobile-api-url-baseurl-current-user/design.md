@@ -35,7 +35,7 @@ Issue #109 では、iOS アプリの API origin 解決、native Google login URL
 
 ### 1. API origin configuration
 
-`AppEnvironment.production(apiBaseURL:)` は、明示引数、`FEEDMAN_API_BASE_URL`、`Info.plist` の `FeedmanAPIBaseURL` の順に API origin を解決する。未設定、空文字、未解決 build setting placeholder、不正 URL、path / query / fragment / userinfo を含む URL、または `localhost` は production origin として拒否する。
+`AppEnvironment.production(apiBaseURL:)` は、明示引数、`FEEDMAN_API_BASE_URL`、`Info.plist` の `FeedmanAPIBaseURL` の順に API origin を解決する。未設定、空文字、未解決 build setting placeholder、不正 URL、path / query / fragment / userinfo を含む URL、`localhost`、または local loopback 以外の HTTP origin は production origin として拒否する。
 
 Unit test host の app bootstrap は Release 相当 runtime ではないため、テスト実行中の missing configuration だけ `127.0.0.1` fallback を限定的に許容する。この fallback は production app launch の設定契約としては扱わない。
 

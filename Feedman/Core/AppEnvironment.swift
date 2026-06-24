@@ -29,15 +29,15 @@ struct NotificationFeatureFlags: Equatable {
 
 enum AppEnvironmentConfigurationError: Error, Equatable, CustomStringConvertible {
     case missingAPIBaseURL
-    case invalidAPIBaseURL(String)
+    case invalidAPIBaseURL
     case localhostAPIBaseURLNotAllowed
 
     var description: String {
         switch self {
         case .missingAPIBaseURL:
             return "FEEDMAN_API_BASE_URL or FeedmanAPIBaseURL is required."
-        case let .invalidAPIBaseURL(value):
-            return "Invalid API base URL: \(value)"
+        case .invalidAPIBaseURL:
+            return "Feedman API base URL must be an HTTPS origin without path, query, fragment, or credentials."
         case .localhostAPIBaseURLNotAllowed:
             return "http://localhost:3000 is not allowed as the production API base URL."
         }
@@ -376,7 +376,7 @@ final class AppEnvironment: ObservableObject {
               let scheme = url.scheme?.lowercased(),
               ["http", "https"].contains(scheme),
               url.host?.isEmpty == false else {
-            throw AppEnvironmentConfigurationError.invalidAPIBaseURL(value)
+            throw AppEnvironmentConfigurationError.invalidAPIBaseURL
         }
 
         let path = components.percentEncodedPath
@@ -385,14 +385,23 @@ final class AppEnvironment: ObservableObject {
               components.percentEncodedFragment == nil,
               components.percentEncodedUser == nil,
               components.percentEncodedPassword == nil else {
-            throw AppEnvironmentConfigurationError.invalidAPIBaseURL(value)
+            throw AppEnvironmentConfigurationError.invalidAPIBaseURL
         }
 
-        if url.host?.lowercased() == "localhost" {
+        let host = url.host?.lowercased()
+        if host == "localhost" {
             throw AppEnvironmentConfigurationError.localhostAPIBaseURLNotAllowed
         }
 
+        if scheme == "http", !isAllowedLocalDevelopmentHTTPHost(host) {
+            throw AppEnvironmentConfigurationError.invalidAPIBaseURL
+        }
+
         return url
+    }
+
+    private static func isAllowedLocalDevelopmentHTTPHost(_ host: String?) -> Bool {
+        host == "127.0.0.1" || host == "::1"
     }
 
     private static var isRunningUnitTests: Bool {
