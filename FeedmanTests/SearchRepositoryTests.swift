@@ -86,9 +86,12 @@ final class SearchRepositoryTests: XCTestCase {
     func testTerminalSearchPageWhenHasMoreFalseOrCursorMissing() async throws {
         let noMore = SearchItemsResponse(items: [hit(id: "terminal")], nextCursor: "ignored", hasMore: false)
         let missingCursor = SearchItemsResponse(items: [hit(id: "missing-cursor")], nextCursor: nil, hasMore: true)
+        let blankCursor = SearchItemsResponse(items: [hit(id: "blank-cursor")], nextCursor: "   \n\t", hasMore: true)
 
         XCTAssertFalse(noMore.canLoadMore)
         XCTAssertFalse(missingCursor.canLoadMore)
+        XCTAssertNil(blankCursor.usableNextCursor)
+        XCTAssertFalse(blankCursor.canLoadMore)
     }
 
     private func makeRepository(transport: RecordingSearchTransport) -> APIClientSearchRepository {

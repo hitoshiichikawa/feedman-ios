@@ -3,7 +3,7 @@
 ## Summary
 
 - Cross-feed next page request を `since_time` query から `since` query へ変更した。
-- Search repository は `{ items, next_cursor, has_more }` wrapper を decode し、global search では `scope` を送らない。内部 feed-scoped search は `SearchScope.feed(id:)` / `feed_id` で表現する。
+- Search repository は `{ items, next_cursor, has_more }` wrapper を decode し、global search では `scope` を送らない。Global search ViewModel は wrapper metadata を保持して next page request / terminal page 判定に使う。内部 feed-scoped search は `SearchScope.feed(id:)` / `feed_id` で表現する。
 - `ItemSummary` / `ItemDetail` は redundant feed metadata 欠落時も decode し、feed-scoped list / detail 表示では route の selected feed または originating summary を補完に使う。
 - `POST /api/feeds` は server feed response shape と successful empty body を成功扱いにし、drawer は既存の subscription reload flow を正本にする。
 
@@ -17,7 +17,7 @@
 
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`
   - Result: PASS
-  - Executed 491 tests, 0 failures
+  - Executed 495 tests, 0 failures
   - Note: 既存の `SharedPrimitives.swift` async warning が 1 件出るが、今回変更範囲外で test は成功。
 
 ## AC Coverage Matrix
@@ -30,14 +30,14 @@
 | 1.4 | `loadCrossFeedNextPage` keeps stored cursor and normalized limit | Timeline next-page repository flow | same test asserts `cursor` and `limit` | xcodebuild PASS | existing pagination session preserved |
 | 1.5 | `loadCrossFeedNextPage` guards missing baseline | Timeline next-page repository flow | `CrossFeedRepositoryTests.testNextPageBeforeFirstPageFailsWithoutNetworkRequest` | xcodebuild PASS | no network request without first page |
 | 2.1 | `APIClientSearchRepository.searchItemsPage` sends `q` | Global search repository flow | `SearchRepositoryTests.testGlobalSearchRequestsEndpointWithQueryLimitAndBearerTokenWithoutScope` | xcodebuild PASS | encoded query asserted |
-| 2.2 | `searchItemsPage` sends `cursor` when provided | Search next-page repository capability | same test asserts `cursor` | xcodebuild PASS | UI remains first page only |
+| 2.2 | `GlobalSearchViewModel` stores `SearchItemsResponse.usableNextCursor` and `searchItemsPage` sends `cursor` on next page | Global search next-page production flow | `SearchRepositoryTests.testGlobalSearchRequestsEndpointWithQueryLimitAndBearerTokenWithoutScope`; `GlobalSearchViewModelTests.testNextPageUsesStoredCursorAndAppendsResultsInServerOrder`; `GlobalSearchViewModelTests.testNextPageFailurePreservesResultsAndCanRetryWithStoredCursor` | xcodebuild PASS | stored cursor drives production next-page request |
 | 2.3 | `searchItemsPage` normalizes and sends `limit` | Global search repository flow | same test asserts `limit=50` | xcodebuild PASS | uses existing page-size policy |
 | 2.4 | `searchItemsPage` omits `scope` | Global search repository flow | same test asserts `scope == nil` | xcodebuild PASS | old contract regression |
 | 2.5 | `SearchItemsResponse.items` | Search response decode | `APIDomainModelDecodeTests.testSearchItemsResponseDecodesWrapperMetadata` | xcodebuild PASS | wrapper decode |
 | 2.6 | `SearchItemsResponse.nextCursor` | Search response decode | same test asserts `nextCursor` | xcodebuild PASS | snake_case mapping |
 | 2.7 | `SearchItemsResponse.hasMore` | Search response decode | same test asserts `hasMore` | xcodebuild PASS | snake_case mapping |
-| 2.8 | `searchItems` compatibility returns wrapper items in order | Global search ViewModel repository dependency | `SearchRepositoryTests.testGlobalSearchItemsCompatibilityReturnsWrapperItemsInOrder`; `GlobalSearchViewModelTests.testNonEmptySearchShowsLoadingThenResultsInAPIOrder` | xcodebuild PASS | server order preserved |
-| 2.9 | `SearchItemsResponse.canLoadMore` requires `hasMore` and usable cursor | Search pagination metadata | `SearchRepositoryTests.testTerminalSearchPageWhenHasMoreFalseOrCursorMissing` | xcodebuild PASS | UI pagination not added |
+| 2.8 | `GlobalSearchViewModel` consumes wrapper response items in order | Global search ViewModel repository dependency | `SearchRepositoryTests.testGlobalSearchItemsCompatibilityReturnsWrapperItemsInOrder`; `GlobalSearchViewModelTests.testNonEmptySearchShowsLoadingThenResultsInAPIOrder`; `GlobalSearchViewModelTests.testNextPageUsesStoredCursorAndAppendsResultsInServerOrder` | xcodebuild PASS | server order preserved for first and next page |
+| 2.9 | `SearchItemsResponse.canLoadMore` requires `hasMore` and usable cursor; `GlobalSearchViewModel` clears `canLoadMore` on terminal page | Search pagination metadata and UI state | `SearchRepositoryTests.testTerminalSearchPageWhenHasMoreFalseOrCursorMissing`; `GlobalSearchViewModelTests.testNextPageUsesStoredCursorAndAppendsResultsInServerOrder` | xcodebuild PASS | blank cursor is treated as terminal |
 | 2.10 | `SearchScope.feed(id:)` sends `feed_id` | Internal feed-scoped search repository capability | `SearchRepositoryTests.testFeedScopedSearchSendsFeedIDInsteadOfScope` | xcodebuild PASS | no `scope=feed` |
 | 2.11 | No feed-scoped search UI added | Search feature UI | Diff review: `GlobalSearchView` unchanged for feed-scoped route | xcodebuild PASS | scope control |
 | 3.1 | `ItemSummary.init(from:)` tolerates missing `feed_title` | Feed-scoped item list decode | `APIDomainModelDecodeTests.testFeedScopedItemSummaryDecodesWithoutFeedMetadata` | xcodebuild PASS | empty title marks missing metadata |
@@ -59,7 +59,7 @@
 | 5.1 | cross-feed next page sends `since` | Regression test | `CrossFeedRepositoryTests.testNextPageSendsStoredCursorAndFirstPageSinceTimeThenAppendsItems` | xcodebuild PASS | direct query assertion |
 | 5.2 | cross-feed next page does not send `since_time` | Regression test | same test asserts nil | xcodebuild PASS | direct query assertion |
 | 5.3 | search request does not send `scope` | Regression test | `SearchRepositoryTests.testGlobalSearchRequestsEndpointWithQueryLimitAndBearerTokenWithoutScope` | xcodebuild PASS | direct query assertion |
-| 5.4 | search wrapper response decodes metadata | Regression test | `APIDomainModelDecodeTests.testSearchItemsResponseDecodesWrapperMetadata` | xcodebuild PASS | items/cursor/has_more |
+| 5.4 | search wrapper response decodes metadata and production search preserves it | Regression test | `APIDomainModelDecodeTests.testSearchItemsResponseDecodesWrapperMetadata`; `GlobalSearchViewModelTests.testSearchFirstPageStoresPaginationMetadata`; `GlobalSearchViewModelTests.testNextPageUsesStoredCursorAndAppendsResultsInServerOrder` | xcodebuild PASS | items/cursor/has_more |
 | 5.5 | feed-scoped item list decode and selected feed display fallback | Regression test | `APIDomainModelDecodeTests.testFeedScopedItemSummaryDecodesWithoutFeedMetadata`; `FeedViewModelTests.testDescriptorUsesSelectedFeedMetadataWhenFeedScopedItemOmitsMetadata` | xcodebuild PASS | production presentation path covered |
 | 5.6 | item detail decode and originating summary fallback | Regression test | `APIDomainModelDecodeTests.testItemDetailDecodesWithoutFeedMetadata`; `ArticleDetailViewModelTests.testDetailPresentationUsesOriginatingSummaryMetadataWhenDetailOmitsFeedMetadata` | xcodebuild PASS | production sheet path covered |
 | 5.7 | feed registration server feed response succeeds | Regression test | `FeedRegistrationRepositoryTests.testRegisterFeedPostsURLWithBearerTokenAndMapsResponse` | xcodebuild PASS | no subscription-only fields |
@@ -98,5 +98,23 @@ Round 2 reject の対象は実装コードではなく、`docs/specs/110--mobile
 | Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
 |--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
 | `docs/specs/110--mobile-api-dto/design.md` | design traceability | `requirements.md` の AC 1.1-5.8 と `tasks.md` の Task 1-5 を結ぶ design component / interface / traceability matrix を追加する | `docs(spec): add mobile api dto design traceability` | `test -f docs/specs/110--mobile-api-dto/design.md`; `rg -n "CrossFeedPaginationContract|SearchAPIContract|ItemFeedMetadataContract|FeedRegistrationContract|5\\.8" docs/specs/110--mobile-api-dto/design.md`; canonical xcodebuild test | PASS | doc-only corrective action。実装コードは変更していないが、PR head で canonical xcodebuild も再実行済み。 |
+
+## Reviewer Round 3 Corrective Action
+
+Round 3 reject は search pagination の production 経路で wrapper metadata が失われる点と、空白だけの `next_cursor` を usable cursor と扱う点だった。
+`SearchRepository` protocol を page response 境界へ拡張し、`GlobalSearchViewModel` / `GlobalSearchView` が first page の `next_cursor` / `has_more` を保持して末尾 sentinel から次ページを取得するようにした。
+
+### Finding Closure Matrix
+
+| Target requirement | Category | Required Action | Fix commit | Test/assertion | Verification result | Notes / no-change reason |
+|--------------------|----------|-----------------|------------|----------------|---------------------|--------------------------|
+| `Feedman/Core/SearchRepository.swift:29` | production pagination metadata | `searchItemsPage` を `SearchRepository` protocol 境界へ出し、`GlobalSearchViewModel` が `SearchItemsResponse` の `items` / `nextCursor` / `hasMore` を保持して next page request と terminal 判定に使う | `fix(search): preserve global search pagination metadata` | `GlobalSearchViewModelTests.testSearchFirstPageStoresPaginationMetadata`; `GlobalSearchViewModelTests.testNextPageUsesStoredCursorAndAppendsResultsInServerOrder`; `GlobalSearchViewModelTests.testNextPageFailurePreservesResultsAndCanRetryWithStoredCursor` | PASS | GlobalSearchView の末尾 sentinel から production next-page flow が呼ばれる |
+| `Feedman/Core/APIModels.swift:272` | cursor validation | `SearchItemsResponse.usableNextCursor` を追加し、空白だけの cursor を terminal として扱う | `fix(search): preserve global search pagination metadata` | `SearchRepositoryTests.testTerminalSearchPageWhenHasMoreFalseOrCursorMissing` | PASS | stored cursor は trimmed value のみを使う |
+
+### Verification
+
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`
+  - Result: PASS
+  - Executed 495 tests, 0 failures
 
 STATUS: complete

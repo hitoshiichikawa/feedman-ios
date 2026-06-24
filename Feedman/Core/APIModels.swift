@@ -268,8 +268,18 @@ struct SearchItemsResponse: Codable, Equatable {
     let nextCursor: String?
     let hasMore: Bool
 
+    var usableNextCursor: String? {
+        guard let cursor = nextCursor?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !cursor.isEmpty
+        else {
+            return nil
+        }
+
+        return cursor
+    }
+
     var canLoadMore: Bool {
-        hasMore && nextCursor?.isEmpty == false
+        hasMore && usableNextCursor != nil
     }
 
     enum CodingKeys: String, CodingKey {

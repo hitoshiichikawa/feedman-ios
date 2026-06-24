@@ -6,7 +6,23 @@ enum SearchScope: Equatable {
 }
 
 protocol SearchRepository {
-    func searchItems(query: String, scope: SearchScope) async throws -> [ItemSearchHit]
+    func searchItemsPage(
+        query: String,
+        scope: SearchScope,
+        cursor: String?,
+        limit: Int?
+    ) async throws -> SearchItemsResponse
+}
+
+extension SearchRepository {
+    func searchItems(query: String, scope: SearchScope) async throws -> [ItemSearchHit] {
+        try await searchItemsPage(
+            query: query,
+            scope: scope,
+            cursor: nil,
+            limit: nil
+        ).items
+    }
 }
 
 actor APIClientSearchRepository: SearchRepository {
@@ -23,12 +39,17 @@ actor APIClientSearchRepository: SearchRepository {
         self.accessTokenProvider = accessTokenProvider
     }
 
-    func searchItems(query: String, scope: SearchScope) async throws -> [ItemSearchHit] {
+    func searchItemsPage(
+        query: String,
+        scope: SearchScope,
+        cursor: String?,
+        limit: Int?
+    ) async throws -> SearchItemsResponse {
         switch scope {
         case .global:
-            return try await searchItemsPage(query: query).items
+            return try await searchItemsPage(query: query, feedID: nil, cursor: cursor, limit: limit)
         case .feed(let feedID):
-            return try await searchItemsPage(query: query, feedID: feedID).items
+            return try await searchItemsPage(query: query, feedID: feedID, cursor: cursor, limit: limit)
         }
     }
 
@@ -37,7 +58,7 @@ actor APIClientSearchRepository: SearchRepository {
         cursor: String? = nil,
         limit: Int? = nil
     ) async throws -> SearchItemsResponse {
-        try await searchItemsPage(query: query, feedID: nil, cursor: cursor, limit: limit)
+        try await searchItemsPage(query: query, scope: .global, cursor: cursor, limit: limit)
     }
 
     func searchItemsPage(
@@ -101,11 +122,20 @@ actor MockSearchRepository: SearchRepository {
     }
 
     func searchItems(query: String, scope: SearchScope) async throws -> [ItemSearchHit] {
+        try await searchItemsPage(query: query, scope: scope, cursor: nil, limit: nil).items
+    }
+
+    func searchItemsPage(
+        query: String,
+        scope: SearchScope,
+        cursor: String?,
+        limit: Int?
+    ) async throws -> SearchItemsResponse {
         calls.append(MockSearchRepositoryCall(query: query, scope: scope))
 
         switch responsesByQuery[query] ?? defaultResponse {
         case .success(let hits):
-            return hits
+            return SearchItemsResponse(items: hits, nextCursor: nil, hasMore: false)
         case .failure(let error):
             throw error
         }

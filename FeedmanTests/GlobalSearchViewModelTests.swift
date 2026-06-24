@@ -48,6 +48,124 @@ final class GlobalSearchViewModelTests: XCTestCase {
         )
     }
 
+    func testSearchFirstPageStoresPaginationMetadata() async {
+        let repository = RecordingSearchRepository(
+            pageResult: .success(SearchItemsResponse(
+                items: [hit(id: "first")],
+                nextCursor: "cursor-2",
+                hasMore: true
+            ))
+        )
+        let viewModel = makeViewModel(repository: repository)
+
+        await viewModel.submitSearch("Swift")
+
+        XCTAssertEqual(viewModel.state, .results(query: "Swift", hits: [hit(id: "first")]))
+        XCTAssertTrue(viewModel.canLoadMore)
+        XCTAssertFalse(viewModel.isLoadingNextPage)
+        XCTAssertNil(viewModel.nextPageErrorMessage)
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [SearchRepositoryCall(query: "Swift", scope: .global)])
+    }
+
+    func testNextPageUsesStoredCursorAndAppendsResultsInServerOrder() async {
+        let repository = RecordingSearchRepository(pageResults: [
+            .success(SearchItemsResponse(
+                items: [hit(id: "first")],
+                nextCursor: "cursor-2",
+                hasMore: true
+            )),
+            .success(SearchItemsResponse(
+                items: [hit(id: "second"), hit(id: "third")],
+                nextCursor: nil,
+                hasMore: false
+            ))
+        ])
+        let viewModel = makeViewModel(repository: repository)
+
+        await viewModel.submitSearch("Swift")
+        await viewModel.loadNextPageIfNeeded(currentItemID: "first")
+
+        XCTAssertEqual(
+            viewModel.state,
+            .results(query: "Swift", hits: [hit(id: "first"), hit(id: "second"), hit(id: "third")])
+        )
+        XCTAssertFalse(viewModel.canLoadMore)
+        XCTAssertFalse(viewModel.isLoadingNextPage)
+        XCTAssertNil(viewModel.nextPageErrorMessage)
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [
+            SearchRepositoryCall(query: "Swift", scope: .global),
+            SearchRepositoryCall(query: "Swift", scope: .global, cursor: "cursor-2")
+        ])
+    }
+
+    func testNextPageIsOnlyRequestedForLastVisibleResult() async {
+        let repository = RecordingSearchRepository(pageResults: [
+            .success(SearchItemsResponse(
+                items: [hit(id: "first"), hit(id: "last")],
+                nextCursor: "cursor-2",
+                hasMore: true
+            )),
+            .success(SearchItemsResponse(
+                items: [hit(id: "unexpected")],
+                nextCursor: nil,
+                hasMore: false
+            ))
+        ])
+        let viewModel = makeViewModel(repository: repository)
+
+        await viewModel.submitSearch("Swift")
+        await viewModel.loadNextPageIfNeeded(currentItemID: "first")
+
+        XCTAssertEqual(
+            viewModel.state,
+            .results(query: "Swift", hits: [hit(id: "first"), hit(id: "last")])
+        )
+        XCTAssertTrue(viewModel.canLoadMore)
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [SearchRepositoryCall(query: "Swift", scope: .global)])
+    }
+
+    func testNextPageFailurePreservesResultsAndCanRetryWithStoredCursor() async {
+        let repository = RecordingSearchRepository(pageResults: [
+            .success(SearchItemsResponse(
+                items: [hit(id: "first")],
+                nextCursor: "cursor-2",
+                hasMore: true
+            )),
+            .failure(SearchViewModelTestError.transport),
+            .success(SearchItemsResponse(
+                items: [hit(id: "recovered")],
+                nextCursor: nil,
+                hasMore: false
+            ))
+        ])
+        let viewModel = makeViewModel(repository: repository)
+
+        await viewModel.submitSearch("Swift")
+        await viewModel.loadNextPageIfNeeded(currentItemID: "first")
+
+        XCTAssertEqual(viewModel.state, .results(query: "Swift", hits: [hit(id: "first")]))
+        XCTAssertTrue(viewModel.canLoadMore)
+        XCTAssertEqual(viewModel.nextPageErrorMessage, "検索結果の続きを読み込めませんでした。")
+
+        await viewModel.retryNextPage()
+
+        XCTAssertEqual(
+            viewModel.state,
+            .results(query: "Swift", hits: [hit(id: "first"), hit(id: "recovered")])
+        )
+        XCTAssertFalse(viewModel.canLoadMore)
+        XCTAssertNil(viewModel.nextPageErrorMessage)
+        let calls = await repository.calls()
+        XCTAssertEqual(calls, [
+            SearchRepositoryCall(query: "Swift", scope: .global),
+            SearchRepositoryCall(query: "Swift", scope: .global, cursor: "cursor-2"),
+            SearchRepositoryCall(query: "Swift", scope: .global, cursor: "cursor-2")
+        ])
+    }
+
     func testZeroResultSearchShowsEmptyStateForSubmittedQuery() async {
         let repository = RecordingSearchRepository(result: .success([]))
         let viewModel = makeViewModel(repository: repository)
@@ -364,47 +482,110 @@ private enum SearchViewModelTestError: Error {
 private struct SearchRepositoryCall: Equatable {
     let query: String
     let scope: SearchScope
+    let cursor: String?
+    let limit: Int?
+
+    init(
+        query: String,
+        scope: SearchScope,
+        cursor: String? = nil,
+        limit: Int? = nil
+    ) {
+        self.query = query
+        self.scope = scope
+        self.cursor = cursor
+        self.limit = limit
+    }
 }
 
 private actor RecordingSearchRepository: SearchRepository {
     private var recordedCalls: [SearchRepositoryCall] = []
-    private var result: Result<[ItemSearchHit], Error>
+    private var queuedResults: [Result<SearchItemsResponse, Error>] = []
+    private var fallbackResult: Result<SearchItemsResponse, Error>
 
     init(result: Result<[ItemSearchHit], Error>) {
-        self.result = result
+        self.fallbackResult = result.map {
+            SearchItemsResponse(items: $0, nextCursor: nil, hasMore: false)
+        }
+    }
+
+    init(pageResult: Result<SearchItemsResponse, Error>) {
+        self.fallbackResult = pageResult
+    }
+
+    init(pageResults: [Result<SearchItemsResponse, Error>]) {
+        self.queuedResults = pageResults
+        self.fallbackResult = .success(SearchItemsResponse(items: [], nextCursor: nil, hasMore: false))
     }
 
     func setResult(_ result: Result<[ItemSearchHit], Error>) {
-        self.result = result
+        self.queuedResults.removeAll()
+        self.fallbackResult = result.map {
+            SearchItemsResponse(items: $0, nextCursor: nil, hasMore: false)
+        }
     }
 
     func calls() -> [SearchRepositoryCall] {
         recordedCalls
     }
 
-    func searchItems(query: String, scope: SearchScope) async throws -> [ItemSearchHit] {
-        recordedCalls.append(SearchRepositoryCall(query: query, scope: scope))
-        return try result.get()
+    func searchItemsPage(
+        query: String,
+        scope: SearchScope,
+        cursor: String?,
+        limit: Int?
+    ) async throws -> SearchItemsResponse {
+        recordedCalls.append(SearchRepositoryCall(
+            query: query,
+            scope: scope,
+            cursor: cursor,
+            limit: limit
+        ))
+
+        if !queuedResults.isEmpty {
+            return try queuedResults.removeFirst().get()
+        }
+
+        return try fallbackResult.get()
     }
 }
 
 private actor PendingSearchRepository: SearchRepository {
     private var recordedCalls: [SearchRepositoryCall] = []
-    private var continuations: [String: CheckedContinuation<[ItemSearchHit], Error>] = [:]
+    private var continuations: [String: CheckedContinuation<SearchItemsResponse, Error>] = [:]
 
     func queries() -> [String] {
         recordedCalls.map(\.query)
     }
 
-    func searchItems(query: String, scope: SearchScope) async throws -> [ItemSearchHit] {
-        recordedCalls.append(SearchRepositoryCall(query: query, scope: scope))
+    func searchItemsPage(
+        query: String,
+        scope: SearchScope,
+        cursor: String?,
+        limit: Int?
+    ) async throws -> SearchItemsResponse {
+        recordedCalls.append(SearchRepositoryCall(
+            query: query,
+            scope: scope,
+            cursor: cursor,
+            limit: limit
+        ))
         return try await withCheckedThrowingContinuation { continuation in
             continuations[query] = continuation
         }
     }
 
-    func succeed(query: String, hits: [ItemSearchHit]) {
-        continuations.removeValue(forKey: query)?.resume(returning: hits)
+    func succeed(
+        query: String,
+        hits: [ItemSearchHit],
+        nextCursor: String? = nil,
+        hasMore: Bool = false
+    ) {
+        continuations.removeValue(forKey: query)?.resume(returning: SearchItemsResponse(
+            items: hits,
+            nextCursor: nextCursor,
+            hasMore: hasMore
+        ))
     }
 }
 

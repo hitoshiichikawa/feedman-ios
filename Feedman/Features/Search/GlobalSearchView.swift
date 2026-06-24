@@ -173,9 +173,40 @@ struct GlobalSearchView: View {
                         onSelectItem: onSelectItem,
                         onOpenLink: onOpenLink
                     )
+                    .onAppear {
+                        Task {
+                            await viewModel.loadNextPageIfNeeded(currentItemID: hit.id)
+                        }
+                    }
                 }
+
+                bottomPaginationContent(hasResults: !hits.isEmpty)
             }
             .padding(16)
+        }
+    }
+
+    @ViewBuilder
+    private func bottomPaginationContent(hasResults: Bool) -> some View {
+        if viewModel.isLoadingNextPage {
+            FeedmanCompactLoadingRow("続きを読み込んでいます")
+        } else if let nextPageErrorMessage = viewModel.nextPageErrorMessage {
+            FeedmanBannerView(
+                message: nextPageErrorMessage,
+                style: .warning
+            ) {
+                Button("再試行") {
+                    Task {
+                        await viewModel.retryNextPage()
+                    }
+                }
+            }
+        } else if !viewModel.canLoadMore, hasResults {
+            Text("最後まで読みました")
+                .font(.footnote)
+                .foregroundStyle(FeedmanTheme.mutedForeground)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .accessibilityLabel("最後まで読みました")
         }
     }
 }
