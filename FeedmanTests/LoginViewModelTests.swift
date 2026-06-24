@@ -28,6 +28,28 @@ final class LoginViewModelTests: XCTestCase {
         XCTAssertEqual(components.queryItems?.first(named: "diagnostic")?.value, "1")
         XCTAssertEqual(components.queryItems?.first(named: "flow")?.value, "native")
         XCTAssertEqual(components.queryItems?.first(named: "code_challenge")?.value, "challenge-1")
+        XCTAssertEqual(components.queryItems?.first(named: "code_challenge_method")?.value, "S256")
+
+        sessionStarter.cancel()
+        await task.value
+    }
+
+    func testStartGoogleLoginNormalizesStaleAuthQueryParameters() async throws {
+        let sessionStarter = PendingWebAuthenticationSessionStarter()
+        let viewModel = makeViewModel(sessionStarter: sessionStarter)
+
+        let task = Task {
+            await viewModel.startGoogleLogin()
+        }
+        await waitForSessionRequest(sessionStarter)
+
+        let request = try XCTUnwrap(sessionStarter.requests.first)
+        let components = try XCTUnwrap(URLComponents(url: request.url, resolvingAgainstBaseURL: false))
+        let queryItems = components.queryItems ?? []
+        XCTAssertEqual(queryItems.filter { $0.name == "flow" }.map(\.value), ["native"])
+        XCTAssertEqual(queryItems.filter { $0.name == "code_challenge" }.map(\.value), ["challenge-1"])
+        XCTAssertEqual(queryItems.filter { $0.name == "code_challenge_method" }.map(\.value), ["S256"])
+        XCTAssertEqual(queryItems.first(named: "diagnostic")?.value, "1")
 
         sessionStarter.cancel()
         await task.value
@@ -168,7 +190,7 @@ final class LoginViewModelTests: XCTestCase {
         onAuthenticated: @escaping (TokenCredentials) -> Void = { _ in }
     ) -> LoginViewModel {
         LoginViewModel(
-            authBaseURL: URL(string: "https://api.example.com/base?diagnostic=1&flow=web&code_challenge=old")!,
+            authBaseURL: URL(string: "https://api.example.com/base?diagnostic=1&flow=web&code_challenge=old&code_challenge_method=plain")!,
             authRepository: repository,
             sessionStarter: sessionStarter,
             pkceGenerator: FixedPKCELoginChallengeGenerator(

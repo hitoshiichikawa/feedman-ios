@@ -27,6 +27,23 @@ struct NotificationFeatureFlags: Equatable {
     static let nextPhaseEnabled = NotificationFeatureFlags(keywordNotificationsEnabled: true)
 }
 
+enum AppEnvironmentConfigurationError: Error, Equatable, CustomStringConvertible {
+    case missingAPIBaseURL
+    case invalidAPIBaseURL
+    case localhostAPIBaseURLNotAllowed
+
+    var description: String {
+        switch self {
+        case .missingAPIBaseURL:
+            return "FEEDMAN_API_BASE_URL or FeedmanAPIBaseURL is required."
+        case .invalidAPIBaseURL:
+            return "Feedman API base URL must be an HTTPS origin without path, query, fragment, or credentials."
+        case .localhostAPIBaseURLNotAllowed:
+            return "http://localhost:3000 is not allowed as the production API base URL."
+        }
+    }
+}
+
 final class AppAccessTokenStore: @unchecked Sendable {
     private let lock = NSLock()
     private var accessToken: String?
@@ -263,9 +280,18 @@ final class AppEnvironment: ObservableObject {
     }
 
     static func production(
-        apiBaseURL: URL = URL(string: "http://localhost:3000")!,
+        apiBaseURL explicitAPIBaseURL: URL? = nil,
         notificationFeatures: NotificationFeatureFlags = .v1Default
     ) -> AppEnvironment {
+        let apiBaseURL: URL
+        do {
+            apiBaseURL = try resolveProductionAPIBaseURL(explicitAPIBaseURL: explicitAPIBaseURL)
+        } catch AppEnvironmentConfigurationError.missingAPIBaseURL where isRunningUnitTests {
+            apiBaseURL = URL(string: "http://127.0.0.1:3000")!
+        } catch {
+            fatalError("Invalid Feedman API base URL configuration: \(error)")
+        }
+
         let accessTokenStore = AppAccessTokenStore()
         let authAPIClient = APIClient(baseURL: apiBaseURL)
         let authRepository = FeedmanAuthRepository(
@@ -313,6 +339,73 @@ final class AppEnvironment: ObservableObject {
             deviceRegistrationRepository: deviceRegistrationRepository,
             deviceRegistrationStateStore: deviceRegistrationStateStore
         )
+    }
+
+    static func resolveProductionAPIBaseURL(
+        explicitAPIBaseURL: URL? = nil,
+        infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:],
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) throws -> URL {
+        if let explicitAPIBaseURL {
+            return try validatedAPIBaseURL(explicitAPIBaseURL.absoluteString)
+        }
+
+        if let environmentValue = meaningfulConfigurationValue(environment["FEEDMAN_API_BASE_URL"]) {
+            return try validatedAPIBaseURL(environmentValue)
+        }
+
+        if let infoValue = meaningfulConfigurationValue(infoDictionary["FeedmanAPIBaseURL"] as? String) {
+            return try validatedAPIBaseURL(infoValue)
+        }
+
+        throw AppEnvironmentConfigurationError.missingAPIBaseURL
+    }
+
+    private static func meaningfulConfigurationValue(_ value: String?) -> String? {
+        guard let trimmedValue = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmedValue.isEmpty,
+              !trimmedValue.hasPrefix("$(") else {
+            return nil
+        }
+        return trimmedValue
+    }
+
+    private static func validatedAPIBaseURL(_ value: String) throws -> URL {
+        guard let url = URL(string: value),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host?.isEmpty == false else {
+            throw AppEnvironmentConfigurationError.invalidAPIBaseURL
+        }
+
+        let path = components.percentEncodedPath
+        guard (path.isEmpty || path == "/"),
+              components.percentEncodedQuery == nil,
+              components.percentEncodedFragment == nil,
+              components.percentEncodedUser == nil,
+              components.percentEncodedPassword == nil else {
+            throw AppEnvironmentConfigurationError.invalidAPIBaseURL
+        }
+
+        let host = url.host?.lowercased()
+        if host == "localhost" {
+            throw AppEnvironmentConfigurationError.localhostAPIBaseURLNotAllowed
+        }
+
+        if scheme == "http", !isAllowedLocalDevelopmentHTTPHost(host) {
+            throw AppEnvironmentConfigurationError.invalidAPIBaseURL
+        }
+
+        return url
+    }
+
+    private static func isAllowedLocalDevelopmentHTTPHost(_ host: String?) -> Bool {
+        host == "127.0.0.1" || host == "::1"
+    }
+
+    private static var isRunningUnitTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
     private convenience init(

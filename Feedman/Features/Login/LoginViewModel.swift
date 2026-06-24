@@ -102,11 +102,14 @@ final class LoginViewModel: ObservableObject {
 
         components.path = "/auth/google/login"
         let inheritedQueryItems = (components.queryItems ?? []).filter {
-            $0.name != "flow" && $0.name != "code_challenge"
+            $0.name != "flow"
+                && $0.name != "code_challenge"
+                && $0.name != "code_challenge_method"
         }
         components.queryItems = inheritedQueryItems + [
             URLQueryItem(name: "flow", value: "native"),
-            URLQueryItem(name: "code_challenge", value: codeChallenge)
+            URLQueryItem(name: "code_challenge", value: codeChallenge),
+            URLQueryItem(name: "code_challenge_method", value: "S256")
         ]
 
         guard let url = components.url else {

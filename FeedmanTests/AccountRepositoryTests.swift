@@ -4,7 +4,7 @@ import XCTest
 final class AccountRepositoryTests: XCTestCase {
     private let baseURL = URL(string: "https://api.example.com")!
 
-    func testCurrentUserRequestsAuthMeWithBearerToken() async throws {
+    func testCurrentUserRequestsUsersMeWithBearerToken() async throws {
         let transport = AccountRecordingTransport()
         transport.enqueue(data: currentUserData(name: "You", email: "you@example.com"), statusCode: 200)
         let repository = FeedmanAccountRepository(
@@ -18,7 +18,7 @@ final class AccountRepositoryTests: XCTestCase {
         XCTAssertEqual(user.email, "you@example.com")
 
         let request = try XCTUnwrap(transport.requests.first)
-        XCTAssertEqual(request.url?.path, "/auth/me")
+        XCTAssertEqual(request.url?.path, "/api/users/me")
         XCTAssertEqual(request.httpMethod, "GET")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-1")
         XCTAssertNil(request.httpBody)
@@ -45,6 +45,7 @@ final class AccountRepositoryTests: XCTestCase {
         let awaitedCallCount1 = await refreshHook.callCount
         XCTAssertEqual(awaitedCallCount1, 1)
         XCTAssertEqual(transport.requests.count, 2)
+        XCTAssertEqual(transport.requests.map { $0.url?.path }, ["/api/users/me", "/api/users/me"])
         XCTAssertEqual(
             transport.requests.first?.value(forHTTPHeaderField: "Authorization"),
             "Bearer access-1"
@@ -83,7 +84,7 @@ final class AccountRepositoryTests: XCTestCase {
         XCTAssertEqual(transport.requests.count, 1)
     }
 
-    func testUserResponseDecodesAuthMeContractFields() throws {
+    func testUserResponseDecodesMobileCurrentUserContractFields() throws {
         let data = currentUserData(name: nil, email: nil, avatarURL: "https://example.com/avatar.png")
 
         let response = try JSONDecoder().decode(UserResponse.self, from: data)
