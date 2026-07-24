@@ -28,6 +28,25 @@ enum LoginAttemptKind: Equatable {
 
 enum LoginViewState: Equatable {
     case idle
+    case loading
+    case authenticated
+    case canceled
+    case failed(String)
+
+    var isLoading: Bool {
+        if case .loading = self {
+            return true
+        }
+        return false
+    }
+
+    var isRetryEnabled: Bool {
+        !isLoading
+    }
+}
+
+enum LoginAttemptStatus: Equatable {
+    case idle
     case loading(LoginAttemptKind)
     case authenticated
     case canceled(LoginAttemptKind)
@@ -39,10 +58,6 @@ enum LoginViewState: Equatable {
             return true
         }
         return false
-    }
-
-    var isRetryEnabled: Bool {
-        !isLoading
     }
 
     func isLoading(_ kind: LoginAttemptKind) -> Bool {
@@ -84,6 +99,7 @@ struct UnavailablePasskeyPlatformAuthorizationCoordinator: PasskeyPlatformAuthor
 @MainActor
 final class LoginViewModel: ObservableObject {
     @Published private(set) var state: LoginViewState = .idle
+    @Published private(set) var attemptStatus: LoginAttemptStatus = .idle
 
     private let authBaseURL: URL
     private let authRepository: any AuthRepository
@@ -124,7 +140,7 @@ final class LoginViewModel: ObservableObject {
         }
 
         let attempt = beginAttempt(kind: .google)
-        state = .loading(.google)
+        setState(.loading, attemptStatus: .loading(.google))
         eventRecorder.record(.googleLoginStarted)
 
         do {
@@ -143,12 +159,12 @@ final class LoginViewModel: ObservableObject {
                 codeVerifier: challenge.verifier
             )
 
-            state = .authenticated
+            setState(.authenticated, attemptStatus: .authenticated)
             onAuthenticated(credentials)
         } catch FeedmanWebAuthenticationError.canceled {
-            state = .canceled(.google)
+            setState(.canceled, attemptStatus: .canceled(.google))
         } catch {
-            state = .failed(.google, "Google ログインを完了できませんでした。時間をおいて再試行してください。")
+            setFailure(.google, message: "Google ログインを完了できませんでした。時間をおいて再試行してください。")
         }
 
         finishAttempt(attempt)
@@ -160,7 +176,7 @@ final class LoginViewModel: ObservableObject {
         }
 
         let attempt = beginAttempt(kind: .passkeyLogin)
-        state = .loading(.passkeyLogin)
+        setState(.loading, attemptStatus: .loading(.passkeyLogin))
 
         do {
             let challenge = try pkceGenerator.generateChallenge()
@@ -186,18 +202,18 @@ final class LoginViewModel: ObservableObject {
                 codeVerifier: challenge.verifier
             )
 
-            state = .authenticated
+            setState(.authenticated, attemptStatus: .authenticated)
             onAuthenticated(credentials)
         } catch LoginAttemptError.canceled {
-            state = .canceled(.passkeyLogin)
+            setState(.canceled, attemptStatus: .canceled(.passkeyLogin))
         } catch is CancellationError {
-            state = .canceled(.passkeyLogin)
+            setState(.canceled, attemptStatus: .canceled(.passkeyLogin))
         } catch PasskeyPlatformAuthorizationError.canceled {
-            state = .canceled(.passkeyLogin)
+            setState(.canceled, attemptStatus: .canceled(.passkeyLogin))
         } catch LoginAttemptError.resultUnknown {
-            state = .resultUnknown(.passkeyLogin, Self.passkeyResultUnknownMessage)
+            setResultUnknown(.passkeyLogin, message: Self.passkeyResultUnknownMessage)
         } catch {
-            state = .failed(.passkeyLogin, "パスキーでログインできませんでした。時間をおいて再試行してください。")
+            setFailure(.passkeyLogin, message: "パスキーでログインできませんでした。時間をおいて再試行してください。")
         }
 
         finishAttempt(attempt)
@@ -210,12 +226,12 @@ final class LoginViewModel: ObservableObject {
 
         let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedUsername.isEmpty else {
-            state = .failed(.passkeyRegistration, "ユーザー名を入力してください。")
+            setFailure(.passkeyRegistration, message: "ユーザー名を入力してください。")
             return
         }
 
         let attempt = beginAttempt(kind: .passkeyRegistration)
-        state = .loading(.passkeyRegistration)
+        setState(.loading, attemptStatus: .loading(.passkeyRegistration))
 
         do {
             let challenge = try pkceGenerator.generateChallenge()
@@ -261,18 +277,18 @@ final class LoginViewModel: ObservableObject {
                 codeVerifier: challenge.verifier
             )
 
-            state = .authenticated
+            setState(.authenticated, attemptStatus: .authenticated)
             onAuthenticated(credentials)
         } catch LoginAttemptError.canceled {
-            state = .canceled(.passkeyRegistration)
+            setState(.canceled, attemptStatus: .canceled(.passkeyRegistration))
         } catch is CancellationError {
-            state = .canceled(.passkeyRegistration)
+            setState(.canceled, attemptStatus: .canceled(.passkeyRegistration))
         } catch PasskeyPlatformAuthorizationError.canceled {
-            state = .canceled(.passkeyRegistration)
+            setState(.canceled, attemptStatus: .canceled(.passkeyRegistration))
         } catch LoginAttemptError.resultUnknown {
-            state = .resultUnknown(.passkeyRegistration, Self.passkeyResultUnknownMessage)
+            setResultUnknown(.passkeyRegistration, message: Self.passkeyResultUnknownMessage)
         } catch {
-            state = .failed(.passkeyRegistration, Self.passkeyRegistrationFailureMessage(from: error))
+            setFailure(.passkeyRegistration, message: Self.passkeyRegistrationFailureMessage(from: error))
         }
 
         finishAttempt(attempt)
@@ -319,6 +335,19 @@ final class LoginViewModel: ObservableObject {
         if activeAttempt === attempt {
             activeAttempt = nil
         }
+    }
+
+    private func setState(_ state: LoginViewState, attemptStatus: LoginAttemptStatus) {
+        self.state = state
+        self.attemptStatus = attemptStatus
+    }
+
+    private func setFailure(_ kind: LoginAttemptKind, message: String) {
+        setState(.failed(message), attemptStatus: .failed(kind, message))
+    }
+
+    private func setResultUnknown(_ kind: LoginAttemptKind, message: String) {
+        setState(.failed(message), attemptStatus: .resultUnknown(kind, message))
     }
 
     private func checkActive(_ attempt: LoginAttempt) throws {

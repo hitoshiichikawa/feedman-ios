@@ -20,7 +20,8 @@ final class LoginViewModelTests: XCTestCase {
         }
         await waitForSessionRequest(sessionStarter)
 
-        XCTAssertEqual(viewModel.state, .loading(.google))
+        XCTAssertEqual(viewModel.state, .loading)
+        XCTAssertEqual(viewModel.attemptStatus, .loading(.google))
         let request = try XCTUnwrap(sessionStarter.requests.first)
         XCTAssertEqual(request.callbackURLScheme, "feedman")
         XCTAssertEqual(request.url.path, "/auth/google/login")
@@ -129,7 +130,8 @@ final class LoginViewModelTests: XCTestCase {
 
         XCTAssertTrue(passkeyRepository.authenticationFinishes.isEmpty)
         XCTAssertTrue(authRepository.exchanges.isEmpty)
-        XCTAssertEqual(viewModel.state, .canceled(.passkeyLogin))
+        XCTAssertEqual(viewModel.state, .canceled)
+        XCTAssertEqual(viewModel.attemptStatus, .canceled(.passkeyLogin))
         XCTAssertTrue(viewModel.state.isRetryEnabled)
     }
 
@@ -150,7 +152,7 @@ final class LoginViewModelTests: XCTestCase {
             PasskeyFinishCall(challengeID: "auth-challenge-1", rawID: "assertion-1")
         ])
         XCTAssertTrue(authRepository.exchanges.isEmpty)
-        XCTAssertFailed(viewModel.state, kind: .passkeyLogin)
+        XCTAssertFailed(viewModel, kind: .passkeyLogin)
     }
 
     func testPasskeyLoginTokenExchangeFailureShowsFailure() async {
@@ -166,7 +168,7 @@ final class LoginViewModelTests: XCTestCase {
         XCTAssertEqual(authRepository.exchanges, [
             AuthCodeExchange(authCode: "auth-code-1", codeVerifier: "verifier-1")
         ])
-        XCTAssertFailed(viewModel.state, kind: .passkeyLogin)
+        XCTAssertFailed(viewModel, kind: .passkeyLogin)
     }
 
     func testPasskeyRegistrationRejectsEmptyUsernameWithoutServerRequest() async {
@@ -181,7 +183,7 @@ final class LoginViewModelTests: XCTestCase {
 
         XCTAssertTrue(passkeyRepository.registrationBeginRequests.isEmpty)
         XCTAssertTrue(passkeyCoordinator.registrationRequests.isEmpty)
-        XCTAssertFailed(viewModel.state, kind: .passkeyRegistration)
+        XCTAssertFailed(viewModel, kind: .passkeyRegistration)
     }
 
     func testPasskeyRegistrationRejectsWhitespaceUsernameWithoutServerRequest() async {
@@ -196,7 +198,7 @@ final class LoginViewModelTests: XCTestCase {
 
         XCTAssertTrue(passkeyRepository.registrationBeginRequests.isEmpty)
         XCTAssertTrue(passkeyCoordinator.registrationRequests.isEmpty)
-        XCTAssertFailed(viewModel.state, kind: .passkeyRegistration)
+        XCTAssertFailed(viewModel, kind: .passkeyRegistration)
     }
 
     func testPasskeyRegistrationUsernameTakenDoesNotCreatePlatformCredential() async {
@@ -215,7 +217,7 @@ final class LoginViewModelTests: XCTestCase {
             RegistrationBeginCall(username: "reader", codeChallenge: "challenge-1")
         ])
         XCTAssertTrue(passkeyCoordinator.registrationRequests.isEmpty)
-        XCTAssertFailed(viewModel.state, kind: .passkeyRegistration)
+        XCTAssertFailed(viewModel, kind: .passkeyRegistration)
     }
 
     func testPasskeyRegistrationInvalidUsernameDoesNotCreatePlatformCredential() async {
@@ -231,7 +233,7 @@ final class LoginViewModelTests: XCTestCase {
         await viewModel.startPasskeyRegistration(username: "reader!")
 
         XCTAssertTrue(passkeyCoordinator.registrationRequests.isEmpty)
-        XCTAssertFailed(viewModel.state, kind: .passkeyRegistration)
+        XCTAssertFailed(viewModel, kind: .passkeyRegistration)
     }
 
     func testPasskeyRegistrationUsesCreatedCredentialForLocalHandoffAndAuthenticates() async {
@@ -286,7 +288,7 @@ final class LoginViewModelTests: XCTestCase {
         ])
         XCTAssertTrue(passkeyRepository.authenticationBeginChallenges.isEmpty)
         XCTAssertTrue(authRepository.exchanges.isEmpty)
-        XCTAssertResultUnknown(viewModel.state, kind: .passkeyRegistration)
+        XCTAssertResultUnknown(viewModel, kind: .passkeyRegistration)
     }
 
     func testPasskeyRegistrationPlatformFailurePreservesUnauthenticatedState() async {
@@ -304,7 +306,7 @@ final class LoginViewModelTests: XCTestCase {
 
         XCTAssertTrue(passkeyRepository.registrationFinishes.isEmpty)
         XCTAssertTrue(authRepository.exchanges.isEmpty)
-        XCTAssertFailed(viewModel.state, kind: .passkeyRegistration)
+        XCTAssertFailed(viewModel, kind: .passkeyRegistration)
     }
 
     func testPasskeyRegistrationFinishDispatchedCancellationBecomesResultUnknown() async {
@@ -324,7 +326,7 @@ final class LoginViewModelTests: XCTestCase {
             PasskeyFinishCall(challengeID: "registration-challenge-1", rawID: "created-credential-1")
         ])
         XCTAssertTrue(authRepository.exchanges.isEmpty)
-        XCTAssertResultUnknown(viewModel.state, kind: .passkeyRegistration)
+        XCTAssertResultUnknown(viewModel, kind: .passkeyRegistration)
     }
 
     func testPasskeyRegistrationCancelBeforeFinishSkipsFinishAndShowsCanceled() async {
@@ -339,7 +341,8 @@ final class LoginViewModelTests: XCTestCase {
         await viewModel.startPasskeyRegistration(username: "reader")
 
         XCTAssertTrue(passkeyRepository.registrationFinishes.isEmpty)
-        XCTAssertEqual(viewModel.state, .canceled(.passkeyRegistration))
+        XCTAssertEqual(viewModel.state, .canceled)
+        XCTAssertEqual(viewModel.attemptStatus, .canceled(.passkeyRegistration))
     }
 
     func testCancelBeforeTokenExchangeSkipsUnsentAuthenticationFinishAndTokenExchange() async {
@@ -357,7 +360,8 @@ final class LoginViewModelTests: XCTestCase {
 
         XCTAssertTrue(passkeyRepository.authenticationFinishes.isEmpty)
         XCTAssertTrue(authRepository.exchanges.isEmpty)
-        XCTAssertEqual(viewModel.state, .canceled(.passkeyRegistration))
+        XCTAssertEqual(viewModel.state, .canceled)
+        XCTAssertEqual(viewModel.attemptStatus, .canceled(.passkeyRegistration))
     }
 
     func testTokenExchangeDispatchCriticalSectionAuthenticatesAfterCancellation() async {
@@ -439,7 +443,8 @@ final class LoginViewModelTests: XCTestCase {
 
         sessionStarter.cancel()
         await task.value
-        XCTAssertEqual(viewModel.state, .canceled(.google))
+        XCTAssertEqual(viewModel.state, .canceled)
+        XCTAssertEqual(viewModel.attemptStatus, .canceled(.google))
     }
 
     func testCancellationDoesNotExchangeAndAllowsRetry() async {
@@ -458,7 +463,8 @@ final class LoginViewModelTests: XCTestCase {
         await task.value
 
         XCTAssertTrue(repository.exchanges.isEmpty)
-        XCTAssertEqual(viewModel.state, .canceled(.google))
+        XCTAssertEqual(viewModel.state, .canceled)
+        XCTAssertEqual(viewModel.attemptStatus, .canceled(.google))
         XCTAssertTrue(viewModel.state.isRetryEnabled)
     }
 
@@ -478,7 +484,7 @@ final class LoginViewModelTests: XCTestCase {
         await task.value
 
         XCTAssertTrue(repository.exchanges.isEmpty)
-        XCTAssertFailed(viewModel.state)
+        XCTAssertFailed(viewModel)
         XCTAssertTrue(viewModel.state.isRetryEnabled)
     }
 
@@ -500,7 +506,7 @@ final class LoginViewModelTests: XCTestCase {
         XCTAssertEqual(repository.exchanges, [
             AuthCodeExchange(authCode: "auth-1", codeVerifier: "verifier-1")
         ])
-        XCTAssertFailed(viewModel.state)
+        XCTAssertFailed(viewModel)
         XCTAssertTrue(viewModel.state.isRetryEnabled)
     }
 
@@ -517,7 +523,7 @@ final class LoginViewModelTests: XCTestCase {
         XCTAssertEqual(sessionStarter.requests.count, 1)
         XCTAssertTrue(repository.exchanges.isEmpty)
         XCTAssertFalse(viewModel.state.isLoading)
-        XCTAssertFailed(viewModel.state)
+        XCTAssertFailed(viewModel)
         XCTAssertTrue(viewModel.state.isRetryEnabled)
     }
 
@@ -567,27 +573,38 @@ final class LoginViewModelTests: XCTestCase {
     }
 
     private func XCTAssertFailed(
-        _ state: LoginViewState,
+        _ viewModel: LoginViewModel,
         kind: LoginAttemptKind? = nil,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        if case let .failed(actualKind, _) = state, kind == nil || kind == actualKind {
+        guard case .failed = viewModel.state else {
+            XCTFail("Expected failed state, got \(viewModel.state)", file: file, line: line)
             return
         }
-        XCTFail("Expected failed state, got \(state)", file: file, line: line)
+        guard let kind else {
+            return
+        }
+        if case let .failed(actualKind, _) = viewModel.attemptStatus, actualKind == kind {
+            return
+        }
+        XCTFail("Expected failed attempt status for \(kind), got \(viewModel.attemptStatus)", file: file, line: line)
     }
 
     private func XCTAssertResultUnknown(
-        _ state: LoginViewState,
+        _ viewModel: LoginViewModel,
         kind: LoginAttemptKind,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        if case let .resultUnknown(actualKind, _) = state, actualKind == kind {
+        guard case .failed = viewModel.state else {
+            XCTFail("Expected resultUnknown to be rendered as failed state, got \(viewModel.state)", file: file, line: line)
             return
         }
-        XCTFail("Expected resultUnknown state, got \(state)", file: file, line: line)
+        if case let .resultUnknown(actualKind, _) = viewModel.attemptStatus, actualKind == kind {
+            return
+        }
+        XCTFail("Expected resultUnknown attempt status, got \(viewModel.attemptStatus)", file: file, line: line)
     }
 
     private static func feedmanError(code: String, statusCode: Int) -> FeedmanAPIError {
