@@ -321,8 +321,8 @@ protocol PasskeyAuthCodeHandoff {
 - `excludeCredentials` は server options から descriptor ID だけを base64url decode して保持し、AuthenticationServices が platform registration request で受け付ける OS では best-effort に反映する。iOS 16〜17.3 では client-side duplicate prevention を保証できず、サーバ #216 は同一ユーザーへの複数 credential を許容するため server-side duplicate rejection を fallback とみなさない。この degraded behavior では「同一端末に追加 credential が作られ得るが、iOS は raw credential を保存せず server を source of truth とする」と明示し、複数 credential 管理 UI は本 Issue のスコープ外に留める。
 - Authentication request の `allowCredentials` は通常 login では empty を許容するが、signup handoff では platform registration credential envelope の top-level `rawId` / `id` から得た作成直後 credential ID を必ず制限として渡す。この制限は `ASAuthorizationPlatformPublicKeyCredentialAssertionRequest` にだけ適用し、サーバ `authentication/begin` request へは送らない。
 - `ASAuthorizationControllerDelegate` と `ASAuthorizationControllerPresentationContextProviding` を coordinator 内の bridge object に閉じ、`ASAuthorizationController.presentationContextProvider` へ設定してから `performRequests()` する。Apple API は delegate / presentation context provider を weak に保持するため、coordinator は attempt 中に `ActiveAuthorizationAttempt` を強参照し、その中で `ASAuthorizationController`、delegate bridge、presentation context provider bridge をまとめて保持する。presentation anchor は active `UIWindow` / `ASPresentationAnchor` を返す provider closure で UI layer から注入し、anchor を取得できない場合は `performRequests()` を呼ばず `.presentationAnchorUnavailable` を throw して retryable platform failure として表示する。
-- `PasskeyPlatformAuthorizationCoordinator` は UI presentation と `ASAuthorizationController` callback を扱うため `@MainActor` に隔離する。`ActiveAuthorizationAttempt` は delegate success / failure、明示 cancel、Task cancellation、または coordinator deinit のいずれかで nil にして bridge/provider を解放し、次 attempt へ参照を持ち越さない。
-- Async bridge は `withTaskCancellationHandler` で `ASAuthorizationController.cancel()` を呼ぶ。Delegate success が返った後でも、registration/add finish、authentication finish、token exchange の直前に caller 側 attempt ID と `Task.isCancelled` を再確認し、cancel 済みなら後続 server finish を送らない。
+- `PasskeyPlatformAuthorizationCoordinator` は UI presentation と `ASAuthorizationController` callback を扱うため `@MainActor` に隔離する。`ActiveAuthorizationAttempt` は delegate success / failure、または coordinator deinit のいずれかで exactly-once に continuation を resume してから nil にし、bridge/provider を解放して次 attempt へ参照を持ち越さない。
+- Async bridge は `withTaskCancellationHandler` で `ASAuthorizationController.cancel()` を呼ぶ。Apple API は active request の cancel 結果を delegate error callback で通知するため、明示 cancel / Task cancellation 直後に `ActiveAuthorizationAttempt` を nil にしない。Callback まで attempt を保持するか、callback を待てない coordinator deinit では continuation を `.canceled` で exactly-once resume してから解放する。Delegate success が返った後でも、registration/add finish、authentication finish、token exchange の直前に caller 側 attempt ID と `Task.isCancelled` を再確認し、cancel 済みなら後続 server finish を送らない。
 - User cancellation は domain error `.canceled`、entitlement/AASA mismatch や validation failure は `.failed` に分類する。
 - Credential response は WebAuthn JSON compatible envelope に変換し、top-level `id` / `rawId` / `type` と `response.clientDataJSON` を registration / assertion とも必ず含める。raw bytes は log / persistent storage に渡さない。
 
@@ -362,7 +362,7 @@ protocol PasskeyPlatformAuthorizationCoordinating {
 - `startPasskeyLogin()` は PKCE → authentication begin → platform assertion → authentication finish → `AuthRepository.exchangeAuthCode` → `onAuthenticated` の順に実行する。
 - `startPasskeyRegistration(username:)` は username validation → PKCE → registration begin → platform registration → registration finish `{user_id}` → authentication begin `{code_challenge}` → 作成直後 credential ID で制限した platform assertion → authentication finish `{auth_code}` → token exchange の順に実行する。`authentication/begin` へ `credential_id` を送らず、作成直後 credential ID が platform registration envelope から取得できない場合は authenticated transition せず result-unknown error とする。
 - In-flight 状態を 1 つに集約し、Google / passkey の同時実行を防ぐ。
-- View / sheet dismissal などで in-flight `Task` が cancel された場合は coordinator の active authorization を cancel し、platform callback 後の race に備えて registration finish、authentication finish、token exchange の直前に attempt ID と cancellation を確認する。Cancel 後は `.canceled` state を表示し、`idle` へ黙って戻さない。
+- View / sheet dismissal などで in-flight `Task` が cancel された場合は coordinator の active authorization を cancel し、platform callback 後の race に備えて registration finish、authentication finish、token exchange の直前に attempt ID と cancellation を確認する。`registration/finish` の dispatch 前に cancel を検知した場合は `.canceled` state を表示し、`idle` へ黙って戻さない。`registration/finish` dispatch 後に cancel / timeout / decode failure で完了状態を観測できない場合は、サーバ側で登録済みになり得るため `.resultUnknown` 相当の failed state として扱い、未ログイン状態を維持しつつ「再試行またはパスキーログインで照合できる」文言を出す。
 - Passkey login option 自体は app interaction を広告目的で収集しない。実装 PR では passkey flow に analytics / ad SDK event を追加しないことを diff review と tests で確認する。
 
 **Dependencies**
@@ -381,12 +381,13 @@ enum LoginViewState {
     case authenticated
     case canceled(LoginAttemptKind)
     case failed(LoginAttemptKind, String)
+    case resultUnknown(LoginAttemptKind, String)
 }
 ```
 
 - Preconditions: `state.isLoading == false` のときのみ新しい attempt を開始する。
 - Postconditions: 成功時だけ `onAuthenticated(credentials)` を呼ぶ。
-- Invariants: 失敗・キャンセル・result-unknown 時は in-flight PKCE verifier と challenge_id を破棄する。iOS が作成済み platform credential を削除できる前提には置かず、server を source of truth として次の retry / login で照合する。
+- Invariants: 失敗・キャンセル・result-unknown 時は in-flight PKCE verifier と challenge_id を破棄する。`registrationFinishDispatched` など finish request 送信済み marker は attempt-local に保持し、dispatch 前 cancellation は `.canceled`、dispatch 後 cancellation / transport timeout / decode failure は `.resultUnknown` へ map する。iOS が作成済み platform credential を削除できる前提には置かず、server を source of truth として次の retry / login で照合する。
 
 #### LoginPasskeyUI
 
@@ -422,7 +423,7 @@ enum LoginViewState {
 - Add begin/finish は access token 必須。missing token は認証切れ error として表示する。
 - Success は `actionNotice` または既存 notice pattern で表示し、authenticated session は維持する。
 - Existing logout / delete account state と混同せず、delete action を削除しない。
-- Passkey add / logout / account deletion は共同 guard を持つ。add が `.adding` の間は logout と delete action を disabled にし、logout または delete confirmation が進行中なら add を開始しない。ユーザーが sheet dismissal などで add ceremony を離脱した場合は `Task.cancel()` と `PasskeyPlatformAuthorizationCoordinating.cancelActiveAuthorization()` を呼び、platform registration が既に返っていても add finish 直前の cancellation check で finish request を送らない。
+- Passkey add / logout / account deletion は共同 guard を持つ。add が `.adding` の間は logout と delete action を disabled にし、logout または delete confirmation が進行中なら add を開始しない。ユーザーが sheet dismissal などで add ceremony を離脱した場合は `Task.cancel()` と `PasskeyPlatformAuthorizationCoordinating.cancelActiveAuthorization()` を呼ぶ。Add finish dispatch 前に cancellation check が検知した場合は finish request を送らず `.canceled` にするが、add finish dispatch 後に cancellation / timeout / decode failure で完了状態を観測できない場合は server 側で追加済みになり得るため `.resultUnknown` にする。
 
 **Dependencies**
 - Inbound: AccountView — add action (Critical)
@@ -439,12 +440,13 @@ enum PasskeyEnrollmentState {
     case adding
     case canceled(AccountErrorViewState)
     case failed(AccountErrorViewState)
+    case resultUnknown(AccountErrorViewState)
     case succeeded
 }
 ```
 
 - Preconditions: current user loaded かつ non-empty access token。logoutState / deletionState が in-flight でない。
-- Postconditions: 成功・失敗・キャンセル・result-unknown のいずれでも current auth session を維持する。キャンセルは `.canceled` として server / validation failure とは別表示にし、retry 可能な文言を出す。ただし user が明示的に logout / delete を開始した後は新しい add ceremony を開始しない。
+- Postconditions: 成功・失敗・キャンセル・result-unknown のいずれでも current auth session を維持する。キャンセルは `.canceled` として server / validation failure とは別表示にし、retry 可能な文言を出す。add finish dispatch 後の cancellation / transport timeout / decode failure は `.resultUnknown` として扱い、server を source of truth として再試行または次回パスキーログインで照合する文言を出す。ただし user が明示的に logout / delete を開始した後は新しい add ceremony を開始しない。
 - Invariants: deletionState / logoutState の挙動を変更しない。
 
 ### Configuration / Integration
@@ -533,16 +535,16 @@ enum PasskeyEnrollmentState {
 
 ### Error Strategy
 
-- Platform cancellation: `.canceled` として扱い、未ログイン flow では login screen、Account add では account sheet に専用 canceled state / notice を表示する。`ASAuthorizationController.cancel()` と finish 前 cancellation check で後続 server finish / token exchange を止め、Token exchange や local credential clear は実行しない。
-- Input validation: 空 username は client side で止める。server の `INVALID_USERNAME` / `USERNAME_TAKEN` は signup form に修正可能 error として表示する。
+- Platform cancellation: platform authorization 中または finish dispatch 前の cancellation は `.canceled` として扱い、未ログイン flow では login screen、Account add では account sheet に専用 canceled state / notice を表示する。`ASAuthorizationController.cancel()` と finish 前 cancellation check で後続 server finish / token exchange を止め、Token exchange や local credential clear は実行しない。finish dispatch 後は cancellation だけでは server side mutation の有無を断定できないため result-unknown に分類する。
+- Input validation: empty または whitespace-only username は trim 後 client side で止める。server の `INVALID_USERNAME` / `USERNAME_TAKEN` は signup form に修正可能 error として表示する。
 - Ceremony failure: `REGISTRATION_FAILED` / `AUTHENTICATION_FAILED`、AASA mismatch、expired challenge、unknown credential は server を source of truth とする retry 可能 error にする。Platform credential が既に作成済みの可能性を UI 文言で否定しない。
-- Result-unknown finish: platform registration 成功後に `registration/finish` / add finish が timeout、network lost、decode failure で結果不明になった場合、iOS は raw credential を保存せず、signup では未ログイン状態、add では current session 維持に留める。次の retry または passkey login で server state を照合する。
+- Result-unknown finish: platform registration 成功後に `registration/finish` / add finish が dispatch 済みで、Task cancellation、timeout、network lost、decode failure により結果不明になった場合、iOS は raw credential を保存せず、signup では未ログイン状態、add では current session 維持に留める。次の retry または passkey login で server state を照合する。
 - Token exchange failure: passkey finish が成功しても token exchange に失敗した場合は既存 login failure と同様に authenticated transition しない。
 - Account add failure: current session と refresh token を保持する。Add flow 失敗を logout / account deletion と混同せず、add / logout / delete の共同 guard で finish と失効 token / 退会を競合させない。
 
 ### Error Categories and Responses
 
-- **User Errors (4xx)**: empty username、invalid username、username taken、canceled passkey ceremony。入力修正または再試行を案内する。
+- **User Errors (4xx)**: empty / whitespace-only username、invalid username、username taken、canceled passkey ceremony。入力修正または再試行を案内する。
 - **System Errors (5xx)**: passkey endpoint 500、network failure、decode failure、finish result-unknown。既存文言に合わせ「時間をおいて再試行」を表示し、必要なら「パスキーでログインを試す」導線へ戻す。
 - **Business Logic Errors (422 相当)**: server contract は 400 `REGISTRATION_FAILED` / `AUTHENTICATION_FAILED` を返す想定。詳細を出さず、credential 未登録・期限切れ・認証失敗を uniform に扱う。
 
@@ -550,9 +552,9 @@ enum PasskeyEnrollmentState {
 
 - **Unit Tests**:
   - `PasskeyRepositoryTests`: 6 endpoint の method/path/body/Bearer header、401 refresh retry 委譲、distinct begin DTO、`options.publicKey` decode、204 no-content、error propagation。
-  - `PasskeyPlatformAuthorizationCoordinatorTests`: base64url decode 対象が `challenge` / `user.id` / credential descriptor ID に限定され `rp.id` を decode しないこと、registration/assertion credential envelope conversion（`id` / `rawId` / `type` / `clientDataJSON` 必須）、presentation anchor unavailable error、attempt 中の controller / delegate bridge / presentation provider bridge lifetime、completion / cancel 後の release、`ASAuthorizationController.cancel()` propagation、cancellation mapping、`excludeCredentials` 反映可能 OS の best-effort 適用、iOS 16〜17.3 degraded behavior。
-  - `LoginViewModelTests`: passkey login success/failure/cancel、signup validation、`INVALID_USERNAME` と `USERNAME_TAKEN` 分岐、signup local credential-bound continuation、registration envelope missing credential ID result-unknown、View / signup sheet dismissal cancel 後に registration/authentication finish と token exchange を呼ばない race guard、duplicate guard、Google regression。
-  - `AccountViewModelTests`: add begin/finish success、success notice、dedicated canceled state、cancel/failure/result-unknown session preservation、missing token、duplicate guard、logout/delete 共同 guard、401 refresh retry delegation、delete state 不変。
+  - `PasskeyPlatformAuthorizationCoordinatorTests`: base64url decode 対象が `challenge` / `user.id` / credential descriptor ID に限定され `rp.id` を decode しないこと、registration/assertion credential envelope conversion（`id` / `rawId` / `type` / `clientDataJSON` 必須）、presentation anchor unavailable error、attempt 中の controller / delegate bridge / presentation provider bridge lifetime、cancel callback までの attempt retention、continuation exactly-once resume、completion / cancel 後の release、`ASAuthorizationController.cancel()` propagation、cancellation mapping、`excludeCredentials` 反映可能 OS の best-effort 適用、iOS 16〜17.3 degraded behavior。
+  - `LoginViewModelTests`: passkey login success/failure/cancel、signup validation、empty username と whitespace-only username が server request を送らないこと、`INVALID_USERNAME` と `USERNAME_TAKEN` 分岐、signup local credential-bound continuation、registration envelope missing credential ID result-unknown、registration finish dispatch 前 cancellation は canceled、dispatch 後 cancellation / timeout / decode failure は result-unknown、View / signup sheet dismissal cancel 後に未送信の registration/authentication finish と token exchange を呼ばない race guard、duplicate guard、Google regression。
+  - `AccountViewModelTests`: add begin/finish success、success notice、dedicated canceled state、add finish dispatch 前 cancellation は canceled、dispatch 後 cancellation / timeout / decode failure は result-unknown、cancel/failure/result-unknown session preservation、missing token、duplicate guard、logout/delete 共同 guard、401 refresh retry delegation、delete state 不変。
   - `AccountDisplayUser` tests: `name` → `username` → `email` → fallback precedence。
 - **Integration Tests**:
   - `AppEnvironment` production wiring が `PasskeyRepository` を注入し、passkey login success で existing `completeLogin` に到達する。
