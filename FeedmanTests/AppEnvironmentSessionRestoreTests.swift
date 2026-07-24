@@ -234,6 +234,48 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         XCTAssertEqual(environment.authBaseURL, URL(string: "https://api.example.com")!)
     }
 
+    func testProductionEnvironmentProvidesRealPasskeyRepositoryForAuthStateIntegration() {
+        let environment = AppEnvironment.production(apiBaseURL: URL(string: "https://api.example.com")!)
+
+        XCTAssertTrue(environment.passkeyRepository is FeedmanPasskeyRepository)
+    }
+
+    func testRootViewWiresPasskeyDependenciesToLoginAndAccountRoutes() throws {
+        let rootViewSource = try loadProjectFile("Feedman/Features/AppShell/RootView.swift")
+
+        XCTAssertEqual(
+            rootViewSource.occurrenceCount(of: "passkeyRepository: environment.passkeyRepository"),
+            2
+        )
+        XCTAssertEqual(
+            rootViewSource.occurrenceCount(of: "passkeyCoordinator: PasskeyPlatformAuthorizationCoordinator()"),
+            2
+        )
+    }
+
+    func testAssociatedDomainsEntitlementUsesUninventedWebCredentialsBuildSetting() throws {
+        let entitlementsData = try Data(contentsOf: projectFileURL("Feedman/Feedman.entitlements"))
+        let entitlements = try XCTUnwrap(
+            PropertyListSerialization.propertyList(
+                from: entitlementsData,
+                options: [],
+                format: nil
+            ) as? [String: Any]
+        )
+        let associatedDomains = try XCTUnwrap(
+            entitlements["com.apple.developer.associated-domains"] as? [String]
+        )
+        XCTAssertEqual(associatedDomains, ["webcredentials:$(FEEDMAN_WEBCREDENTIALS_DOMAIN)"])
+
+        let project = try loadProjectFile("Feedman.xcodeproj/project.pbxproj")
+        XCTAssertEqual(project.occurrenceCount(of: "CODE_SIGN_ENTITLEMENTS = Feedman/Feedman.entitlements;"), 2)
+        XCTAssertEqual(project.occurrenceCount(of: "FEEDMAN_WEBCREDENTIALS_DOMAIN = \"\";"), 2)
+        XCTAssertEqual(project.occurrenceCount(of: "PRODUCT_BUNDLE_IDENTIFIER = com.hitoshiichikawa.feedman;"), 2)
+
+        let infoPlist = try loadProjectFile("Feedman/Info.plist")
+        XCTAssertTrue(infoPlist.contains("<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>"))
+    }
+
     func testConfiguredProductionAPIBaseURLUsesEnvironmentOrigin() throws {
         let url = try AppEnvironment.resolveProductionAPIBaseURL(
             infoDictionary: [:],
@@ -241,6 +283,18 @@ final class AppEnvironmentSessionRestoreTests: XCTestCase {
         )
 
         XCTAssertEqual(url, URL(string: "https://api.example.com")!)
+    }
+
+    private func loadProjectFile(_ relativePath: String) throws -> String {
+        try String(contentsOf: projectFileURL(relativePath), encoding: .utf8)
+    }
+
+    private func projectFileURL(_ relativePath: String) -> URL {
+        let testFileURL = URL(fileURLWithPath: #filePath)
+        let repositoryRootURL = testFileURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return repositoryRootURL.appendingPathComponent(relativePath)
     }
 
     func testConfiguredProductionAPIBaseURLUsesInfoPlistOrigin() throws {
@@ -796,6 +850,12 @@ private func waitForDeviceRegistrationStateClear(
         try? await Task.sleep(nanoseconds: 1_000_000)
     }
     XCTFail("Timed out waiting for device registration state clear", file: file, line: line)
+}
+
+private extension String {
+    func occurrenceCount(of searchString: String) -> Int {
+        components(separatedBy: searchString).count - 1
+    }
 }
 
 @MainActor

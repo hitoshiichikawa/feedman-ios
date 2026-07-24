@@ -221,6 +221,7 @@
 		10000000000000000000029A /* PasskeyRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyRepository.swift; sourceTree = "<group>"; };
 		10000000000000000000029B /* PasskeyPlatformAuthorizationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyPlatformAuthorizationCoordinator.swift; sourceTree = "<group>"; };
 		10000000000000000000029C /* PasskeyPlatformAuthorizationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyPlatformAuthorizationCoordinatorTests.swift; sourceTree = "<group>"; };
+		10000000000000000000029D /* Feedman.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Feedman.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -255,6 +256,7 @@
 			children = (
 				100000000000000000000201 /* FeedmanApp.swift */,
 				100000000000000000000248 /* Info.plist */,
+				10000000000000000000029D /* Feedman.entitlements */,
 				100000000000000000000605 /* Core */,
 				100000000000000000000606 /* DesignSystem */,
 				100000000000000000000607 /* Features */,
@@ -863,9 +865,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Feedman/Feedman.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Feedman/Preview Content\"";
+				FEEDMAN_WEBCREDENTIALS_DOMAIN = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Feedman/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -886,9 +890,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Feedman/Feedman.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Feedman/Preview Content\"";
+				FEEDMAN_WEBCREDENTIALS_DOMAIN = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Feedman/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
