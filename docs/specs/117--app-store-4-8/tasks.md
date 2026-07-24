@@ -61,7 +61,7 @@
   - _Boundary: AccountPasskeyEnrollment, PasskeyRepository, PasskeyPlatformAuthorizationCoordinator_
   - _Depends: 1, 2_
 
-- [ ] 6. AppEnvironment wiring と Associated Domains 設定を追加する
+- [x] 6. AppEnvironment wiring と Associated Domains 設定を追加する
   - `AppEnvironment` に `PasskeyRepository` dependency を追加し、production / preview / tests の injection を更新する。
   - `RootView` の unauthenticated `LoginRouteView` と authenticated `AccountRouteView` に passkey dependencies を渡す。
   - `Feedman/Feedman.entitlements` を追加し、app target Debug/Release に `CODE_SIGN_ENTITLEMENTS = Feedman/Feedman.entitlements` を設定する。
