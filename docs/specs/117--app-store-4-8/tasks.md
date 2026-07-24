@@ -11,7 +11,7 @@
   - _Requirements: 2.3, 2.5, 3.2, 3.4, 4.2, 4.4, 4.7, 6.6, 8.2, 8.3, 8.5, 8.6_
   - _Boundary: PasskeyAPIModels, PasskeyRepository_
 
-- [ ] 2. AuthenticationServices platform coordinator を追加する
+- [x] 2. AuthenticationServices platform coordinator を追加する
   - `Feedman/Features/Login/PasskeyPlatformAuthorizationCoordinator.swift` を追加し、server WebAuthn options から `ASAuthorizationPlatformPublicKeyCredentialProvider` の registration / assertion request を作る。
   - `challenge` / `user.id` / credential descriptor ID だけを base64url decode し、`rp.id` / `rpId` は relying party domain string として provider に渡す。
   - `excludeCredentials` は platform request に適用可能な OS で best-effort に反映し、iOS 16〜17.3 では duplicate prevention を保証できない degraded behavior として扱う。server-side duplicate rejection は前提にしない。
