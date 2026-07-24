@@ -12,7 +12,7 @@ Issue #117 は、Feedman iOS が Google OAuth のみをログイン手段とし�
 - リカバリ用メールはコメント回答 `2.B` を採用し、初回パスキー登録フローでは入力させない。サーバ #216 の新規登録 begin は `email?` を許容するが、本 Issue の iOS 初回登録 request では送信しない。
 - 既存アカウントへのパスキー後付け追加はサーバ #216 のコメント回答 `OptionA` に合わせ、本 Issue のスコープに含める。
 - 既存 Account sheet には退会（アカウント削除）導線があるため、本 Issue では導線の存在を回帰確認し、退会 flow の再設計は行わない。
-- サーバ #216 / PR #217 の API 契約が merge 前に変わった場合、iOS 実装前に本 spec を更新する必要がある。
+- サーバ #216 / PR #217 の API 契約が merge 前に変わった場合、iOS 実装前に本 spec を更新する必要がある。特に登録完了直後のログイン済み遷移は、`registration/finish` が `auth_code` を返すか、作成直後の `credential_id` で後続 assertion を制限できる契約でなければ実装へ進まない。
 
 ## スコープ
 
@@ -38,7 +38,7 @@ Issue #117 は、Feedman iOS が Google OAuth のみをログイン手段とし�
 
 ## 依存関係
 
-- Depends on: `hitoshiichikawa/feedman#216`。少なくともサーバ側の passkey API 契約が merge 済み、または iOS 実装時に同等の endpoint が検証可能であること。
+- Depends on: `hitoshiichikawa/feedman#216`。サーバ側の passkey API 契約が merge 済みであることを iOS 実装開始条件とし、未完了の場合は本 Issue の Developer フェーズへ進まない。
 
 ## 要件
 
@@ -66,9 +66,9 @@ Issue #117 は、Feedman iOS が Google OAuth のみをログイン手段とし�
 3. When the user submits a username, the app shall PKCE `code_verifier` と S256 `code_challenge` を生成し、`POST /api/passkey/registration/begin` に `username` と `code_challenge` を送信する。
 4. When registration begin succeeds, the app shall response の `challenge_id` と WebAuthn options から platform passkey registration request を作成する。
 5. When platform passkey registration succeeds, the app shall attestation credential と `challenge_id` を `POST /api/passkey/registration/finish` に送信する。
-6. When registration finish succeeds, the app shall 同一 username で passkey authentication begin/finish を実行するか、サーバが返す既存契約の auth_code を使って、既存 token exchange に合流しログイン済み状態へ遷移する。
-7. If username is rejected or already taken, the app shall local credentials を保存せず、入力画面に留まってユーザーが修正できるエラーを表示する。
-8. If passkey registration is canceled or fails, the app shall local credentials を保存せず、未ログイン状態を維持し、再試行可能にする。
+6. When registration finish succeeds, the app shall サーバが返す `auth_code` を使うか、作成直後の `credential_id` に制限された passkey authentication begin/finish を実行し、既存 token exchange に合流してログイン済み状態へ遷移する。
+7. If username is rejected or already taken before platform registration succeeds, the app shall platform credential を作成せず、入力画面に留まってユーザーが修正できるエラーを表示する。
+8. If passkey registration is canceled, platform authorization fails, or `registration/finish` fails or becomes result-unknown after a platform credential may have been created, the app shall raw credential を保存せず、未ログイン状態を維持し、サーバを source of truth として再試行またはパスキーログインで照合できるエラーを表示する。
 
 ### Requirement 3: Passkey login
 
@@ -95,7 +95,7 @@ Issue #117 は、Feedman iOS が Google OAuth のみをログイン手段とし�
 3. When add begin succeeds, the app shall response の `challenge_id` と WebAuthn options から platform passkey registration request を作成する。
 4. When platform passkey registration succeeds, the app shall credential と `challenge_id` を `POST /api/passkey/registration/add/finish` に Bearer token 付きで送信する。
 5. When add finish succeeds, the app shall account sheet 上に追加完了 notice を表示し、現在の authenticated session を維持する。
-6. If add registration is canceled or fails, the app shall current session と既存 token を維持し、再試行可能なエラーを表示する。
+6. If add registration is canceled, platform authorization fails, or add finish fails or becomes result-unknown after a platform credential may have been created, the app shall current session と既存 token を維持し、サーバを source of truth として再試行または次回パスキーログインで照合できるエラーを表示する。
 7. If the access token is expired, the app shall 既存 APIClient の 401 refresh retry hook に委ね、Account feature 内で独自 refresh を実装しない。
 
 ### Requirement 5: Associated Domains and passkey domain alignment
@@ -149,6 +149,7 @@ Issue #117 は、Feedman iOS が Google OAuth のみをログイン手段とし�
 6. The implementation shall add regression tests for Google login URL, passkey registration success/failure, passkey login success/failure, passkey add success/failure, duplicate in-flight guards, and account deletion route preservation。
 7. When Xcode is available, the implementation shall pass `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test`。
 8. The implementation shall not change established `docs/specs/*` outside this spec directory in implementation PRs。
+9. The implementation shall not collect interactions with the app for advertising purposes through the passkey login option without user consent。
 
 ## 受入基準
 
