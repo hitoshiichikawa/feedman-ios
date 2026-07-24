@@ -2,9 +2,9 @@
 
 ## Overview
 
-本機能は Feedman iOS の認証入口にパスキーを追加し、Google OAuth のみの状態から App Store Review Guideline 4.8 に適合できる構成へ移行する。Apple の最新 Guideline 4.8 は代替 login option に「氏名・メールへの収集制限」「メール非公開」「同意なしに広告目的でアプリ内 interaction を収集しない」の三条件を求めているため、本 spec は username-only の passkey option に加えて広告目的収集を行わないことを検証対象に含める。サーバ側 #216 / PR #217 の passkey API は WebAuthn ceremony を提供し、認証成功時に既存 native auth と同じ `auth_code` を返すため、iOS 側は既存 `AuthRepository.exchangeAuthCode`、`TokenStore`、`AppEnvironment.completeLogin` を再利用する。
+本機能は Feedman iOS の認証入口にパスキーを追加し、Google OAuth のみの状態から App Store Review Guideline 4.8 に適合できる構成へ移行する。Apple の最新 Guideline 4.8 は代替 login option に「氏名・メールへの収集制限」「メール非公開」「同意なしに広告目的でアプリ内 interaction を収集しない」の三条件を求めているため、本 spec は username-only の passkey option に加えて広告目的収集を行わないことを検証対象に含める。サーバ側 #216 / PR #217 の passkey API は WebAuthn ceremony を提供し、authentication finish 成功時に既存 native auth と同じ `auth_code` を返すため、iOS 側は既存 `AuthRepository.exchangeAuthCode`、`TokenStore`、`AppEnvironment.completeLogin` を再利用する。
 
-ログイン画面では Issue コメント回答どおり Google を主導線のまま維持し、パスキーでログインとアカウント新規作成を副導線として追加する。新規作成では初回に recovery email を収集せず username のみを送る。登録完了直後のログイン済み遷移は、`registration/finish` が `auth_code` を返す場合は即時 token exchange へ合流し、`user_id` / `credential_id` のみを返す場合は作成直後の `credential_id` に後続 assertion を制限する。空の `allowCredentials` による discoverable login を登録直後 handoff には使わず、複数 Feedman passkey が同一端末にある場合でも別アカウントへログインしない契約にする。
+ログイン画面では Issue コメント回答どおり Google を主導線のまま維持し、パスキーでログインとアカウント新規作成を副導線として追加する。新規作成では初回に recovery email を収集せず username のみを送る。サーバ確定契約では `registration/finish` は `{user_id}` のみを返すため、登録完了直後のログイン済み遷移は platform registration 結果から得た作成直後 credential ID を iOS 側の assertion request `allowedCredentials` にだけ適用し、サーバには `authentication/begin` `{code_challenge}` のみを送る。空の `allowCredentials` による discoverable login を登録直後 handoff には使わず、複数 Feedman passkey が同一端末にある場合でも別アカウントへログインしない契約にする。
 
 **Purpose**: この機能は Google に依存しないアカウント作成・ログイン手段を Feedman iOS ユーザーに提供する。
 **Users**: 新規ユーザーは username + platform passkey で登録し、既存 Google ユーザーは Account sheet から自分のアカウントへ passkey を追加する。
@@ -76,7 +76,7 @@ flowchart TB
 - 新規コンポーネントの根拠:
   - `PasskeyRepository`: #216 passkey endpoint 群が既存 auth repository と異なる ceremony DTO を扱うため。
   - `PasskeyPlatformAuthorizationCoordinator`: `ASAuthorizationController` delegate/callback を async API に変換し、ViewModel tests で mock 可能にするため。
-  - `PasskeyAuthCodeHandoff`: registration finish 直後の auth_code 直返し、credential-bound auth continuation、authentication finish の `auth_code` 合流を 1 箇所に閉じるため。
+  - `PasskeyAuthCodeHandoff`: registration finish 後の local credential-bound auth continuation と authentication finish の `auth_code` 合流を 1 箇所に閉じるため。
 
 ### Technology Stack
 
@@ -114,13 +114,13 @@ Feedman/
 └── Info.plist                                  # 既存 URL scheme は維持、必要なら config key 追加
 
 FeedmanTests/
-├── PasskeyRepositoryTests.swift                # PasskeyRepository request/response tests
+├── PasskeyRepositoryTests.swift                # PasskeyRepository request/response tests / RegressionCoverage
 ├── PasskeyPlatformAuthorizationCoordinatorTests.swift
-│                                               # PasskeyPlatformAuthorizationCoordinator parsing/mock boundary tests
-├── LoginViewModelTests.swift                   # LoginPasskeyFlow regression を追加
-├── AccountViewModelTests.swift                 # AccountPasskeyEnrollment regression を追加
-├── AccountViewTests.swift                      # 既存削除導線 preservation を軽量確認（既存なら拡張）
-└── AppEnvironmentSessionRestoreTests.swift     # AuthStateIntegration / UserResponse username fallback tests
+│                                               # PasskeyPlatformAuthorizationCoordinator parsing/mock boundary tests / RegressionCoverage
+├── LoginViewModelTests.swift                   # LoginPasskeyFlow regression / RegressionCoverage
+├── AccountViewModelTests.swift                 # AccountPasskeyEnrollment regression / RegressionCoverage
+├── AccountViewTests.swift                      # 既存削除導線 preservation / RegressionCoverage
+└── AppEnvironmentSessionRestoreTests.swift     # AuthStateIntegration / UserResponse username fallback / RegressionCoverage
 
 Feedman.xcodeproj/
 └── project.pbxproj                             # AssociatedDomainsConfiguration と新規 Swift files を target 登録
@@ -128,7 +128,7 @@ Feedman.xcodeproj/
 
 ### Modified Files
 
-- `Feedman/Core/APIModels.swift` — `PasskeyRegistrationBeginRequest`、distinct な `PasskeyRegistrationBeginResponse` / `PasskeyAuthenticationBeginResponse` / `PasskeyAddRegistrationBeginResponse`、`PasskeyAuthenticationFinishResponse`、`PasskeyCredentialEnvelope`、`UserResponse.username?` を追加する。
+- `Feedman/Core/APIModels.swift` — `PasskeyRegistrationBeginRequest`、distinct な `PasskeyRegistrationBeginResponse` / `PasskeyRegistrationFinishResponse(userID)` / `PasskeyAuthenticationBeginResponse` / `PasskeyAddRegistrationBeginResponse`、`PasskeyAuthenticationFinishResponse`、完全な WebAuthn JSON `PasskeyCredentialEnvelope`、`UserResponse.username?` を追加する。
 - `Feedman/Core/PasskeyRepository.swift` — 新規。unauthenticated registration/authentication endpoint と Bearer 付き add endpoint を `APIClient` へ委譲する。
 - `Feedman/Features/Login/PasskeyPlatformAuthorizationCoordinator.swift` — 新規。Apple platform passkey request/response と server DTO の変換境界。
 - `Feedman/Features/Login/LoginViewModel.swift` — Google flow を維持しつつ passkey login/signup state と `PasskeyAuthCodeHandoff` を追加する。
@@ -154,7 +154,7 @@ Feedman.xcodeproj/
 | 2.3 | registration begin + PKCE | PasskeyRepository, LoginPasskeyFlow | `registrationBegin` | Registration begin |
 | 2.4 | registration platform request | PasskeyPlatformAuthorizationCoordinator | `performRegistration` | Platform registration |
 | 2.5 | registration finish | PasskeyRepository | `registrationFinish` | Registration finish |
-| 2.6 | signup credential-bound login handoff | PasskeyAuthCodeHandoff, AuthStateIntegration | `auth_code` or credential-bound assertion | Registration to login |
+| 2.6 | signup local credential-bound login handoff | PasskeyAuthCodeHandoff, AuthStateIntegration | local `allowedCredentials` + `auth_code` | Registration to login |
 | 2.7 | username error before platform credential | LoginPasskeyFlow, PasskeyRepository | Error mapping | Signup failure |
 | 2.8 | registration cancel/failure/result unknown | LoginPasskeyFlow | Cancellation/result-unknown mapping | Signup failure |
 | 3.1 | passkey PKCE | LoginPasskeyFlow | PKCE generator | Authentication begin |
@@ -212,7 +212,7 @@ Feedman.xcodeproj/
 - WebAuthn options は go-webauthn の top-level `publicKey` wrapper を decode し、registration / authentication の response 型を分ける。`options.publicKey` が無い JSON は decode error として扱い、coordinator に曖昧な型を渡さない。
 - Registration begin / authentication begin / add begin は同じ JSON shape に見えても distinct DTO とし、creation options と request options を enum discriminator なしで混在させない。
 - `credential` envelope は WebAuthn JSON 互換の base64url field を保持する。raw Data は repository に渡す直前の DTO 変換に閉じ、ログ出力しない。
-- `PasskeyRegistrationFinishResponse` は `authCode?` と `credentialID?` を表現する。現行 server contract が `userID` のみの場合は登録直後 login handoff を実装不可として contract 確認事項に戻す。
+- `PasskeyRegistrationFinishResponse` はサーバ確定契約どおり `userID` のみを表現する。登録直後 handoff に使う credential ID はこの response ではなく、platform registration credential envelope の top-level `rawId` / `id` から取得する。
 - `UserResponse.username` は optional とし、サーバが未返却でも既存 account loading を壊さない。
 
 **Dependencies**
@@ -227,8 +227,8 @@ Feedman.xcodeproj/
 | Method | Endpoint | Request | Response | Errors |
 |--------|----------|---------|----------|--------|
 | POST | `/api/passkey/registration/begin` | `{ username, code_challenge }` | `{ challenge_id, options: { publicKey } }` | 400, 409, 429, 500 |
-| POST | `/api/passkey/registration/finish` | `{ challenge_id, credential }` | `{ auth_code }` or `{ user_id, credential_id }` | 400, 429, 500 |
-| POST | `/api/passkey/authentication/begin` | `{ code_challenge, credential_id? }` | `{ challenge_id, options: { publicKey } }` | 400, 429, 500 |
+| POST | `/api/passkey/registration/finish` | `{ challenge_id, credential }` | `{ user_id }` | 400, 429, 500 |
+| POST | `/api/passkey/authentication/begin` | `{ code_challenge }` | `{ challenge_id, options: { publicKey } }` | 400, 429, 500 |
 | POST | `/api/passkey/authentication/finish` | `{ challenge_id, credential }` | `{ auth_code }` | 400, 429, 500 |
 | POST | `/api/passkey/registration/add/begin` | `{}` + Bearer | `{ challenge_id, options: { publicKey } }` | 401, 400, 500 |
 | POST | `/api/passkey/registration/add/finish` | `{ challenge_id, credential }` + Bearer | 204 | 401, 400, 500 |
@@ -258,7 +258,7 @@ Feedman.xcodeproj/
 protocol PasskeyRepository {
     func beginRegistration(username: String, codeChallenge: String) async throws -> PasskeyRegistrationBeginResponse
     func finishRegistration(challengeID: String, credential: PasskeyCredentialEnvelope) async throws -> PasskeyRegistrationFinishResponse
-    func beginAuthentication(codeChallenge: String, allowedCredentialID: String?) async throws -> PasskeyAuthenticationBeginResponse
+    func beginAuthentication(codeChallenge: String) async throws -> PasskeyAuthenticationBeginResponse
     func finishAuthentication(challengeID: String, credential: PasskeyCredentialEnvelope) async throws -> PasskeyAuthenticationFinishResponse
     func beginAddingCredential(accessToken: String) async throws -> PasskeyAddRegistrationBeginResponse
     func finishAddingCredential(accessToken: String, challengeID: String, credential: PasskeyCredentialEnvelope) async throws
@@ -267,7 +267,7 @@ protocol PasskeyRepository {
 
 - Preconditions: username は LoginPasskeyFlow で空白 validation 済み。Bearer endpoint には non-empty access token を渡す。
 - Postconditions: repository は token を保存しない。token storage は AuthRepository の責務。
-- Invariants: endpoint path と JSON key は #216 contract に一致する。登録直後 continuation では `allowedCredentialID` を渡し、空の discoverable login を使わない。
+- Invariants: endpoint path と JSON key は #216 contract に一致する。`authentication/begin` に `credential_id` などの未知 field を送らない。登録直後 continuation の credential 制限は repository request ではなく coordinator の platform assertion request に閉じる。
 
 #### PasskeyAuthCodeHandoff
 
@@ -277,14 +277,15 @@ protocol PasskeyRepository {
 | Requirements | 2.6, 3.5, 3.6, 6.1, 6.2, 8.3, 8.5 |
 
 **Responsibilities & Constraints**
-- `registration/finish` が `auth_code` を返した場合は、その `auth_code` と in-flight `code_verifier` を既存 token exchange に渡す。
-- `registration/finish` が `credentialID` を返した場合は、同じ in-flight PKCE の `code_challenge` で credential-bound authentication begin/finish を実行してから token exchange へ進む。
-- `auth_code` も `credentialID` も無い場合、または credential-bound assertion が空の discoverable request にしかならない場合は result-unknown / contract mismatch として authenticated transition しない。
+- `registration/finish` の `{user_id}` は登録完了確認として扱い、token exchange には使わない。
+- Platform registration credential envelope から作成直後 credential ID を保持し、同じ in-flight PKCE の `code_challenge` で通常の `authentication/begin` を呼ぶ。
+- Authentication begin response から作る platform assertion request にだけ作成直後 credential ID を `allowedCredentials` として適用し、assertion finish の `auth_code` を既存 token exchange に渡す。
+- 作成直後 credential ID を envelope から取得できない場合、または credential-bound assertion が空の discoverable request にしかならない場合は result-unknown / contract mismatch として authenticated transition しない。
 
 **Dependencies**
 - Inbound: LoginPasskeyFlow — registration / authentication success handoff (Critical)
 - Outbound: PasskeyRepository, PasskeyPlatformAuthorizationCoordinator, AuthRepository, AppEnvironment (Critical)
-- External: Feedman API #216 registration finish contract (Critical)
+- External: Feedman API #216 registration/authentication contract (Critical)
 
 **Contracts**: Service [x] / State [x]
 
@@ -294,6 +295,7 @@ protocol PasskeyRepository {
 protocol PasskeyAuthCodeHandoff {
     func completeSignupHandoff(
         finishResponse: PasskeyRegistrationFinishResponse,
+        createdCredentialID: String,
         codeVerifier: String,
         codeChallenge: String
     ) async throws -> TokenCredentials
@@ -317,10 +319,10 @@ protocol PasskeyAuthCodeHandoff {
 **Responsibilities & Constraints**
 - `ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier:)` を使い、registration は challenge/name/userID、authentication は challenge から request を作る。
 - `excludeCredentials` は iOS 17.4+ で platform registration request に反映し、iOS 16〜17.3 では server-side duplicate rejection を互換 fallback とする。`#available` 分岐を置き、fallback 時も begin response の duplicate 防止情報を破棄せず repository tests で server rejection を検証する。
-- Authentication request の `allowCredentials` は通常 login では empty を許容するが、signup handoff では `credentialID` が存在する場合に必ず制限として渡す。
+- Authentication request の `allowCredentials` は通常 login では empty を許容するが、signup handoff では platform registration credential envelope の top-level `rawId` / `id` から得た作成直後 credential ID を必ず制限として渡す。この制限は `ASAuthorizationPlatformPublicKeyCredentialAssertionRequest` にだけ適用し、サーバ `authentication/begin` request へは送らない。
 - `ASAuthorizationControllerDelegate` の success/error callback を async throws に bridge する。
 - User cancellation は domain error `.canceled`、entitlement/AASA mismatch や validation failure は `.failed` に分類する。
-- Credential response は WebAuthn JSON compatible envelope に変換し、raw bytes を log / persistent storage に渡さない。
+- Credential response は WebAuthn JSON compatible envelope に変換し、top-level `id` / `rawId` / `type` と `response.clientDataJSON` を registration / assertion とも必ず含める。raw bytes は log / persistent storage に渡さない。
 
 **Dependencies**
 - Inbound: LoginPasskeyFlow, AccountPasskeyEnrollment — platform ceremony start (Critical)
@@ -354,7 +356,7 @@ protocol PasskeyPlatformAuthorizationCoordinating {
 **Responsibilities & Constraints**
 - 既存 `startGoogleLogin()` の behavior を維持する。
 - `startPasskeyLogin()` は PKCE → authentication begin → platform assertion → authentication finish → `AuthRepository.exchangeAuthCode` → `onAuthenticated` の順に実行する。
-- `startPasskeyRegistration(username:)` は username validation → PKCE → registration begin → platform registration → registration finish → `auth_code` handoff または `credentialID` 付き passkey login continuation の順に実行する。`registration/finish` が `auth_code` も `credentialID` も返さない場合は authenticated transition せず result-unknown error として扱い、server contract 更新を必要とする。
+- `startPasskeyRegistration(username:)` は username validation → PKCE → registration begin → platform registration → registration finish `{user_id}` → authentication begin `{code_challenge}` → 作成直後 credential ID で制限した platform assertion → authentication finish `{auth_code}` → token exchange の順に実行する。`authentication/begin` へ `credential_id` を送らず、作成直後 credential ID が platform registration envelope から取得できない場合は authenticated transition せず result-unknown error とする。
 - In-flight 状態を 1 つに集約し、Google / passkey の同時実行を防ぐ。
 - Passkey login option 自体は app interaction を広告目的で収集しない。実装 PR では passkey flow に analytics / ad SDK event を追加しないことを diff review と tests で確認する。
 
@@ -511,9 +513,9 @@ enum PasskeyEnrollmentState {
 - `PasskeyAuthenticationBeginResponse`: `challengeID` と `options.publicKey` の request options を保持する。
 - `PasskeyAddRegistrationBeginResponse`: `challengeID` と `options.publicKey` の creation options を保持する。registration と同じ shape でも add flow 用に distinct type とする。
 - `PasskeyPublicKeyCredentialCreationOptions`: `rp.id`、`user.name`、`user.id`、`challenge`、`excludeCredentials` を保持する。`challenge` と `user.id` は base64url → `Data` へ変換して platform registration request に渡す。`excludeCredentials` は iOS 17.4+ で反映し、それ未満は server-side duplicate rejection に委譲する。
-- `PasskeyPublicKeyCredentialRequestOptions`: `rpId`、`challenge`、`allowCredentials` を保持する。通常の passkey login は discoverable login として `allowCredentials` 空を許容するが、signup handoff は `credentialID` で制限し、空の `allowCredentials` に fallback しない。
-- `PasskeyCredentialEnvelope`: finish endpoint へ送る WebAuthn compatible credential JSON。registration は `attestationObject`、assertion は `authenticatorData` / `signature` / `userHandle` を含む。
-- `PasskeyRegistrationFinishResponse`: `authCode?`、`credentialID?`、`userID?` を持つ。`authCode` があれば即 token exchange、`credentialID` があれば credential-bound authentication continuation、どちらも無ければ result-unknown / contract mismatch とする。
+- `PasskeyPublicKeyCredentialRequestOptions`: `rpId`、`challenge`、server options の `allowCredentials` を保持する。通常の passkey login は discoverable login として `allowCredentials` 空を許容するが、signup handoff は coordinator 呼び出し時に作成直後 credential ID をローカル override として渡し、空の `allowCredentials` に fallback しない。
+- `PasskeyCredentialEnvelope`: finish endpoint へ送る WebAuthn compatible credential JSON。top-level は `id`、`rawId`、`type: "public-key"`、`response`、任意の `clientExtensionResults` / `authenticatorAttachment` を持つ。registration response は `clientDataJSON` と `attestationObject` を必須とし、go-webauthn が受理する場合に限り `transports`、`authenticatorData`、`publicKey`、`publicKeyAlgorithm` も保持する。assertion response は `clientDataJSON`、`authenticatorData`、`signature`、任意の `userHandle` を持つ。全 binary field は base64url 文字列として encode/decode し、unit test で padding 有無と missing required field を検証する。
+- `PasskeyRegistrationFinishResponse`: `userID` を持つ。登録完了確認専用であり、`authCode` や server-returned `credentialID` を表現しない。
 - `PasskeyAuthenticationFinishResponse`: `authCode` を保持し、既存 `AuthRepository.exchangeAuthCode` に渡す。
 - `UserResponse.username`: optional。Account display は `name` → `username` → `email` → fallback の順に displayName を決める。
 
@@ -542,8 +544,8 @@ enum PasskeyEnrollmentState {
 
 - **Unit Tests**:
   - `PasskeyRepositoryTests`: 6 endpoint の method/path/body/Bearer header、401 refresh retry 委譲、distinct begin DTO、`options.publicKey` decode、204 no-content、error propagation。
-  - `PasskeyPlatformAuthorizationCoordinatorTests`: base64url decode、registration/assertion credential envelope conversion、cancellation mapping、iOS 17.4+ `excludeCredentials` 反映、iOS 16〜17.3 fallback。
-  - `LoginViewModelTests`: passkey login success/failure/cancel、signup validation、`INVALID_USERNAME` と `USERNAME_TAKEN` 分岐、auth_code 直返し、credential-bound continuation、result-unknown、duplicate guard、Google regression。
+  - `PasskeyPlatformAuthorizationCoordinatorTests`: base64url decode、registration/assertion credential envelope conversion（`id` / `rawId` / `type` / `clientDataJSON` 必須）、cancellation mapping、iOS 17.4+ `excludeCredentials` 反映、iOS 16〜17.3 fallback。
+  - `LoginViewModelTests`: passkey login success/failure/cancel、signup validation、`INVALID_USERNAME` と `USERNAME_TAKEN` 分岐、signup local credential-bound continuation、registration envelope missing credential ID result-unknown、duplicate guard、Google regression。
   - `AccountViewModelTests`: add begin/finish success、success notice、cancel/failure/result-unknown session preservation、missing token、duplicate guard、logout/delete 共同 guard、401 refresh retry delegation、delete state 不変。
   - `AccountDisplayUser` tests: `name` → `username` → `email` → fallback precedence。
 - **Integration Tests**:
@@ -572,5 +574,5 @@ enum PasskeyEnrollmentState {
 - Apple fast account creation with passkeys: <https://developer.apple.com/documentation/authenticationservices/performing-fast-account-creation-with-passkeys>
 - Associated Domains entitlement: <https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.associated-domains>
 - Apple platform passkey registration request: <https://developer.apple.com/documentation/authenticationservices/asauthorizationplatformpublickeycredentialregistrationrequest>
-- go-webauthn protocol `CredentialCreation` / `CredentialAssertion`: <https://pkg.go.dev/github.com/go-webauthn/webauthn/protocol>
+- go-webauthn protocol `CredentialCreationResponse` / `CredentialAssertionResponse`: <https://pkg.go.dev/github.com/go-webauthn/webauthn/protocol>
 - Server passkey design PR: <https://github.com/hitoshiichikawa/feedman/pull/217>

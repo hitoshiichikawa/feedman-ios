@@ -4,7 +4,7 @@
 
 Issue #117 は、Feedman iOS が Google OAuth のみをログイン手段としている状態を解消し、App Store Review Guideline 4.8 に対応するために、パスキーによるログイン、ユーザー名による新規アカウント作成、既存アカウントへのパスキー追加登録を追加する。
 
-サーバ側 Issue `hitoshiichikawa/feedman#216` の設計レビュー PR #217 では、iOS クライアント向けに `POST /api/passkey/registration/begin|finish`、`POST /api/passkey/authentication/begin|finish`、`POST /api/passkey/registration/add/begin|finish`、および `/.well-known/apple-app-site-association` が定義されている。パスキー認証 begin は既存 Google native auth と同じく PKCE S256 の `code_challenge` を受け取り、finish 成功時に `auth_code` を返す。iOS はその `auth_code` と保持中の `code_verifier` を既存 `AuthRepository.exchangeAuthCode` に渡し、既存 token 保存・認証済み route へ合流する。
+サーバ側 Issue `hitoshiichikawa/feedman#216` の設計レビュー PR #217 では、iOS クライアント向けに `POST /api/passkey/registration/begin|finish`、`POST /api/passkey/authentication/begin|finish`、`POST /api/passkey/registration/add/begin|finish`、および `/.well-known/apple-app-site-association` が定義されている。新規登録 finish は `{user_id}` のみを返し、ログイン済み遷移に必要な `auth_code` は後続の passkey authentication finish が返す。パスキー認証 begin は既存 Google native auth と同じく PKCE S256 の `code_challenge` だけを受け取り、finish 成功時に `auth_code` を返す。iOS はその `auth_code` と保持中の `code_verifier` を既存 `AuthRepository.exchangeAuthCode` に渡し、既存 token 保存・認証済み route へ合流する。
 
 ## 参照した Issue コメントの反映
 
@@ -12,7 +12,7 @@ Issue #117 は、Feedman iOS が Google OAuth のみをログイン手段とし�
 - リカバリ用メールはコメント回答 `2.B` を採用し、初回パスキー登録フローでは入力させない。サーバ #216 の新規登録 begin は `email?` を許容するが、本 Issue の iOS 初回登録 request では送信しない。
 - 既存アカウントへのパスキー後付け追加はサーバ #216 のコメント回答 `OptionA` に合わせ、本 Issue のスコープに含める。
 - 既存 Account sheet には退会（アカウント削除）導線があるため、本 Issue では導線の存在を回帰確認し、退会 flow の再設計は行わない。
-- サーバ #216 / PR #217 の API 契約が merge 前に変わった場合、iOS 実装前に本 spec を更新する必要がある。特に登録完了直後のログイン済み遷移は、`registration/finish` が `auth_code` を返すか、作成直後の `credential_id` で後続 assertion を制限できる契約でなければ実装へ進まない。
+- サーバ #216 の実装 API 契約が完了前に変わった場合、iOS 実装前に本 spec を更新する必要がある。登録完了直後のログイン済み遷移は、`registration/finish` の `{user_id}` をログイン token として扱わず、platform registration 結果から得た作成直後 credential ID を iOS 側の assertion request `allowedCredentials` にだけ適用して、サーバ request は確定契約どおり `authentication/begin` `{code_challenge}` のまま進める。
 
 ## スコープ
 
@@ -38,7 +38,7 @@ Issue #117 は、Feedman iOS が Google OAuth のみをログイン手段とし�
 
 ## 依存関係
 
-- Depends on: `hitoshiichikawa/feedman#216`。サーバ側の passkey API 契約が merge 済みであることを iOS 実装開始条件とし、未完了の場合は本 Issue の Developer フェーズへ進まない。
+- Depends on: `hitoshiichikawa/feedman#216`。サーバ側 passkey API の実装 Issue が完了し、`develop` に merge 済みであることを iOS 実装開始条件とする。設計 PR #217 の merge だけでは本依存を満たさないため、#216 が未完了の場合は本 Issue の Developer フェーズへ進まない。
 
 ## 要件
 
@@ -66,7 +66,7 @@ Issue #117 は、Feedman iOS が Google OAuth のみをログイン手段とし�
 3. When the user submits a username, the app shall PKCE `code_verifier` と S256 `code_challenge` を生成し、`POST /api/passkey/registration/begin` に `username` と `code_challenge` を送信する。
 4. When registration begin succeeds, the app shall response の `challenge_id` と WebAuthn options から platform passkey registration request を作成する。
 5. When platform passkey registration succeeds, the app shall attestation credential と `challenge_id` を `POST /api/passkey/registration/finish` に送信する。
-6. When registration finish succeeds, the app shall サーバが返す `auth_code` を使うか、作成直後の `credential_id` に制限された passkey authentication begin/finish を実行し、既存 token exchange に合流してログイン済み状態へ遷移する。
+6. When registration finish succeeds, the app shall `registration/finish` の `{user_id}` を token handoff として扱わず、platform registration 結果から得た作成直後 credential ID で iOS platform assertion request をローカル制限した passkey authentication begin/finish を実行し、既存 token exchange に合流してログイン済み状態へ遷移する。
 7. If username is rejected or already taken before platform registration succeeds, the app shall platform credential を作成せず、入力画面に留まってユーザーが修正できるエラーを表示する。
 8. If passkey registration is canceled, platform authorization fails, or `registration/finish` fails or becomes result-unknown after a platform credential may have been created, the app shall raw credential を保存せず、未ログイン状態を維持し、サーバを source of truth として再試行またはパスキーログインで照合できるエラーを表示する。
 
@@ -143,7 +143,7 @@ Issue #117 は、Feedman iOS が Google OAuth のみをログイン手段とし�
 
 1. The implementation shall use SwiftUI, Swift Concurrency, MVVM + Repository, and iOS 16+ compatible AuthenticationServices APIs。
 2. The implementation shall keep View code free from direct `URLSession` and Keychain access。
-3. The implementation shall not log or persist raw `auth_code`, access token, refresh token, `code_verifier`, platform credential raw data, or recovery email。
+3. The implementation shall not log raw `auth_code`, access token, refresh token, `code_verifier`, platform credential raw data, or recovery email, and shall not persist them outside the existing auth boundaries. Refresh token persistence is allowed only through the existing `TokenStore` required by Requirement 6.1。
 4. The implementation shall map user cancellation separately from server / validation failures where platform APIs expose cancellation。
 5. The implementation shall use XCTest with mock repository / mock passkey coordinator and shall not depend on real network, real Keychain, or real Face ID / Touch ID。
 6. The implementation shall add regression tests for Google login URL, passkey registration success/failure, passkey login success/failure, passkey add success/failure, duplicate in-flight guards, and account deletion route preservation。
@@ -163,6 +163,6 @@ Issue #117 は、Feedman iOS が Google OAuth のみをログイン手段とし�
 
 ## 確認事項
 
-- サーバ #216 / PR #217 は設計レビュー中であり、endpoint 契約が merge 前に変わる可能性がある。Developer は実装前に契約差分を確認する。
+- サーバ #216 は本レビュー時点で未完了であり、設計 PR #217 は merge 済みでも実装開始条件を満たさない。Developer / watcher は #216 の実装完了と endpoint 契約差分を実装前に確認する。
 - Associated Domains の production RP domain と Team ID はこの repo 内に正本が無い。Developer / 運用者は `WEBAUTHN_RP_ID` と AASA の `webcredentials.apps` に合わせて build configuration を確定する。
 - リカバリ用メールは初回登録では収集しない。後から設定画面で追加するにはサーバ側 profile update endpoint が必要だが、本 Issue では未定義のためスコープ外とする。
