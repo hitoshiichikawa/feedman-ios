@@ -38,7 +38,7 @@
   - _Boundary: LoginPasskeyFlow, PasskeyAuthCodeHandoff, AuthStateIntegration_
   - _Depends: 1, 2_
 
-- [ ] 4. Login UI に passkey 導線と signup form を追加する
+- [x] 4. Login UI に passkey 導線と signup form を追加する
   - `LoginView` / `LoginRouteView` に `PasskeyRepository` と `PasskeyPlatformAuthorizationCoordinator` dependency を渡す。
   - Google を主ボタン、パスキーでログインを副ボタン、アカウント新規作成を username-only form または sheet として表示する。
   - Recovery email input は初回登録 UI に置かない。
