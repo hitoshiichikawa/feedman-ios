@@ -104,6 +104,8 @@
 		100000000000000000000199 /* NotificationArticleNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000298 /* NotificationArticleNavigationTests.swift */; };
 		1000000000000000000001A0 /* PasskeyRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000299 /* PasskeyRepositoryTests.swift */; };
 		1000000000000000000001A1 /* PasskeyRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000029A /* PasskeyRepository.swift */; };
+		1000000000000000000001A2 /* PasskeyPlatformAuthorizationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000029B /* PasskeyPlatformAuthorizationCoordinator.swift */; };
+		1000000000000000000001A3 /* PasskeyPlatformAuthorizationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000029C /* PasskeyPlatformAuthorizationCoordinatorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -217,6 +219,8 @@
 		100000000000000000000298 /* NotificationArticleNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationArticleNavigationTests.swift; sourceTree = "<group>"; };
 		100000000000000000000299 /* PasskeyRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyRepositoryTests.swift; sourceTree = "<group>"; };
 		10000000000000000000029A /* PasskeyRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyRepository.swift; sourceTree = "<group>"; };
+		10000000000000000000029B /* PasskeyPlatformAuthorizationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyPlatformAuthorizationCoordinator.swift; sourceTree = "<group>"; };
+		10000000000000000000029C /* PasskeyPlatformAuthorizationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyPlatformAuthorizationCoordinatorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -269,6 +273,7 @@
 				100000000000000000000243 /* AuthRepositoryTests.swift */,
 				100000000000000000000256 /* AccountRepositoryTests.swift */,
 				100000000000000000000299 /* PasskeyRepositoryTests.swift */,
+				10000000000000000000029C /* PasskeyPlatformAuthorizationCoordinatorTests.swift */,
 				100000000000000000000255 /* AccountViewModelTests.swift */,
 				100000000000000000000247 /* LoginViewModelTests.swift */,
 				100000000000000000000213 /* APIDomainModelDecodeTests.swift */,
@@ -422,6 +427,7 @@
 				100000000000000000000244 /* LoginViewModel.swift */,
 				100000000000000000000245 /* LoginView.swift */,
 				100000000000000000000246 /* WebAuthenticationSessionCoordinator.swift */,
+				10000000000000000000029B /* PasskeyPlatformAuthorizationCoordinator.swift */,
 			);
 			path = Login;
 			sourceTree = "<group>";
@@ -656,6 +662,7 @@
 				100000000000000000000142 /* LoginViewModel.swift in Sources */,
 				100000000000000000000143 /* LoginView.swift in Sources */,
 				100000000000000000000144 /* WebAuthenticationSessionCoordinator.swift in Sources */,
+				1000000000000000000001A2 /* PasskeyPlatformAuthorizationCoordinator.swift in Sources */,
 				100000000000000000000155 /* GlobalSearchViewModel.swift in Sources */,
 				100000000000000000000156 /* GlobalSearchView.swift in Sources */,
 				100000000000000000000159 /* RegisterFeedViewModel.swift in Sources */,
@@ -722,6 +729,7 @@
 				100000000000000000000192 /* AppEnvironmentLogoutTests.swift in Sources */,
 				100000000000000000000199 /* NotificationArticleNavigationTests.swift in Sources */,
 				1000000000000000000001A0 /* PasskeyRepositoryTests.swift in Sources */,
+				1000000000000000000001A3 /* PasskeyPlatformAuthorizationCoordinatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
