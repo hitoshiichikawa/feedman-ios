@@ -25,7 +25,7 @@
   - _Boundary: PasskeyPlatformAuthorizationCoordinator_
   - _Depends: 1_
 
-- [ ] 3. LoginViewModel に passkey login / signup state machine を追加する
+- [x] 3. LoginViewModel に passkey login / signup state machine を追加する
   - 既存 `startGoogleLogin()` と Google login URL contract を維持したまま、`startPasskeyLogin()` と `startPasskeyRegistration(username:)` を追加する。
   - Passkey login は PKCE → authentication begin → platform assertion → authentication finish → `AuthRepository.exchangeAuthCode` → `onAuthenticated` の順に実行する。
   - Passkey signup は username validation → registration begin → platform registration → registration finish `{user_id}` → authentication begin `{code_challenge}` → 作成直後 credential ID でローカル制限した platform assertion → authentication finish `{auth_code}` → token exchange の順に実行する。初回 registration request に recovery email は送らず、`authentication/begin` に `credential_id` も送らない。
