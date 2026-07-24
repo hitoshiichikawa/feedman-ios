@@ -102,6 +102,8 @@
 		100000000000000000000197 /* KeywordSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000296 /* KeywordSettingsSheet.swift */; };
 		100000000000000000000198 /* NotificationArticleNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000297 /* NotificationArticleNavigation.swift */; };
 		100000000000000000000199 /* NotificationArticleNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000298 /* NotificationArticleNavigationTests.swift */; };
+		1000000000000000000001A0 /* PasskeyRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000299 /* PasskeyRepositoryTests.swift */; };
+		1000000000000000000001A1 /* PasskeyRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000029A /* PasskeyRepository.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -213,6 +215,8 @@
 		100000000000000000000296 /* KeywordSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeywordSettingsSheet.swift; sourceTree = "<group>"; };
 		100000000000000000000297 /* NotificationArticleNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationArticleNavigation.swift; sourceTree = "<group>"; };
 		100000000000000000000298 /* NotificationArticleNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationArticleNavigationTests.swift; sourceTree = "<group>"; };
+		100000000000000000000299 /* PasskeyRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyRepositoryTests.swift; sourceTree = "<group>"; };
+		10000000000000000000029A /* PasskeyRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyRepository.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -264,6 +268,7 @@
 				100000000000000000000241 /* AppShellDrawerFeedStateTests.swift */,
 				100000000000000000000243 /* AuthRepositoryTests.swift */,
 				100000000000000000000256 /* AccountRepositoryTests.swift */,
+				100000000000000000000299 /* PasskeyRepositoryTests.swift */,
 				100000000000000000000255 /* AccountViewModelTests.swift */,
 				100000000000000000000247 /* LoginViewModelTests.swift */,
 				100000000000000000000213 /* APIDomainModelDecodeTests.swift */,
@@ -323,6 +328,7 @@
 				100000000000000000000611 /* Auth */,
 				100000000000000000000204 /* FeedRepository.swift */,
 				100000000000000000000252 /* AccountRepository.swift */,
+				10000000000000000000029A /* PasskeyRepository.swift */,
 				100000000000000000000257 /* SearchRepository.swift */,
 				100000000000000000000285 /* DeviceRegistrationRepository.swift */,
 				100000000000000000000292 /* KeywordRepository.swift */,
@@ -636,6 +642,7 @@
 				100000000000000000000140 /* AuthRepository.swift in Sources */,
 				100000000000000000000104 /* FeedRepository.swift in Sources */,
 				100000000000000000000149 /* AccountRepository.swift in Sources */,
+				1000000000000000000001A1 /* PasskeyRepository.swift in Sources */,
 				100000000000000000000154 /* SearchRepository.swift in Sources */,
 				100000000000000000000105 /* FeedmanTheme.swift in Sources */,
 				100000000000000000000131 /* FeedmanFaviconView.swift in Sources */,
@@ -714,6 +721,7 @@
 				100000000000000000000191 /* APNsDeviceRegistrationServiceTests.swift in Sources */,
 				100000000000000000000192 /* AppEnvironmentLogoutTests.swift in Sources */,
 				100000000000000000000199 /* NotificationArticleNavigationTests.swift in Sources */,
+				1000000000000000000001A0 /* PasskeyRepositoryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
