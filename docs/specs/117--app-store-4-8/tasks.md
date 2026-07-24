@@ -17,10 +17,11 @@
   - `excludeCredentials` は platform request に適用可能な OS で best-effort に反映し、iOS 16〜17.3 では duplicate prevention を保証できない degraded behavior として扱う。server-side duplicate rejection は前提にしない。
   - Signup handoff の assertion は platform registration credential envelope から得た作成直後 credential ID を `ASAuthorizationPlatformPublicKeyCredentialAssertionRequest` の `allowCredentials` 相当にローカル適用し、通常 login の discoverable flow と分離する。
   - `ASAuthorizationControllerDelegate` callback と `ASAuthorizationControllerPresentationContextProviding` を async throws に bridge し、presentation anchor unavailable、cancellation、failure を分離する domain error を定義する。
-  - `withTaskCancellationHandler` で active `ASAuthorizationController.cancel()` を呼び、coordinator が attempt 中の controller を強参照する。
+  - Coordinator を `@MainActor` に隔離し、active attempt object が attempt 中の `ASAuthorizationController`、delegate bridge、presentation provider bridge を強参照する。完了・失敗・明示 cancel・Task cancellation・deinit 時に active attempt を release し、weak delegate/provider の deallocation による callback lost を防ぐ。
+  - `withTaskCancellationHandler` で active `ASAuthorizationController.cancel()` を呼び、cancel 後に active attempt を release する。
   - Platform credential result を server finish request 用の WebAuthn-compatible credential envelope へ変換し、registration / assertion とも top-level `id` / `rawId` / `type` / `response.clientDataJSON` を欠落させない。
-  - Coordinator tests で base64url decode 対象限定、`rp.id` 非 decode、required field missing、registration/assertion envelope conversion、created credential ID extraction、local `allowCredentials` override、presentation anchor unavailable、`cancel()` propagation、cancellation mapping、AASA/entitlement mismatch、exclude best-effort、iOS 16〜17.3 degraded behavior を mock で検証する。
-  - _Requirements: 2.4, 2.8, 3.3, 3.7, 4.3, 4.6, 5.5, 8.1, 8.3, 8.4, 8.5, 8.6_
+  - Coordinator tests で base64url decode 対象限定、`rp.id` 非 decode、required field missing、registration/assertion envelope conversion、created credential ID extraction、local `allowCredentials` override、presentation anchor unavailable、attempt 中の controller/bridge/provider lifetime、completion/cancel 後の release、`cancel()` propagation、cancellation mapping、AASA/entitlement mismatch、exclude best-effort、iOS 16〜17.3 degraded behavior を mock で検証する。
+  - _Requirements: 2.4, 2.6, 2.8, 3.3, 3.7, 4.3, 4.6, 5.5, 8.1, 8.3, 8.4, 8.5, 8.6_
   - _Boundary: PasskeyPlatformAuthorizationCoordinator_
   - _Depends: 1_
 
@@ -30,7 +31,8 @@
   - Passkey signup は username validation → registration begin → platform registration → registration finish `{user_id}` → authentication begin `{code_challenge}` → 作成直後 credential ID でローカル制限した platform assertion → authentication finish `{auth_code}` → token exchange の順に実行する。初回 registration request に recovery email は送らず、`authentication/begin` に `credential_id` も送らない。
   - Platform credential 作成後の finish timeout / decode failure は result-unknown とし、raw credential を保存せず未ログイン状態で再試行または passkey login へ戻せる error を表示する。
   - Google / passkey / signup の duplicate in-flight guard と、成功・失敗・キャンセル時の in-flight PKCE verifier / challenge cleanup を実装する。Platform callback 後の race に備え、registration finish、authentication finish、token exchange の直前に attempt ID と cancellation を確認する。
-  - ViewModel tests で signup empty username、`INVALID_USERNAME`、username taken、signup local credential-bound success、作成直後 credential ID 欠落、registration cancel/failure/result-unknown、cancel 後に finish/token exchange が呼ばれないこと、通常 passkey login success、passkey login cancellation state、auth finish failure、token exchange failure、duplicate guard、Google regression、passkey flow が広告目的 event を出さないことを検証する。
+  - LoginViewModel または Login route が active signup/login `Task` を所有し、View disappearance / signup sheet dismissal 時に `Task.cancel()` と `PasskeyPlatformAuthorizationCoordinating.cancelActiveAuthorization()` を呼ぶ境界を追加する。Dismissal 後に registration finish、authentication finish、token exchange へ進まないことを state machine の invariant にする。
+  - ViewModel tests で signup empty username、`INVALID_USERNAME`、username taken、signup local credential-bound success、作成直後 credential ID 欠落、registration cancel/failure/result-unknown、View disappearance / signup sheet dismissal cancel 後に finish/token exchange が呼ばれないこと、通常 passkey login success、passkey login cancellation state、auth finish failure、token exchange failure、duplicate guard、Google regression、passkey flow が広告目的 event を出さないことを検証する。
   - _Requirements: 1.2, 1.5, 2.1, 2.2, 2.3, 2.5, 2.6, 2.7, 2.8, 3.1, 3.2, 3.4, 3.5, 3.6, 3.7, 6.1, 6.2, 6.7, 8.3, 8.4, 8.5, 8.6, 8.9_
   - _Boundary: LoginPasskeyFlow, PasskeyAuthCodeHandoff, AuthStateIntegration_
   - _Depends: 1, 2_
@@ -39,9 +41,10 @@
   - `LoginView` / `LoginRouteView` に `PasskeyRepository` と `PasskeyPlatformAuthorizationCoordinator` dependency を渡す。
   - Google を主ボタン、パスキーでログインを副ボタン、アカウント新規作成を username-only form または sheet として表示する。
   - Recovery email input は初回登録 UI に置かない。
+  - Signup を sheet で実装する場合は sheet dismissal が Login route の active signup `Task.cancel()` と coordinator cancel に接続されるようにし、inline form の場合も View disappearance で同じ cancel path を通す。
   - Loading / canceled / failed state を attempt kind ごとに表示し、Dynamic Type / VoiceOver label / tap target が既存 design system と整合することを確認する。
-  - Lightweight UI tests または ViewModel-driven rendering checks で 3 導線表示、loading disabled、signup validation message、Google 主導線維持、accessibility label を検証する。
-  - _Requirements: 1.1, 1.3, 1.4, 1.5, 1.6, 2.1, 2.2, 8.1, 8.2, 8.6_
+  - Lightweight UI tests または ViewModel-driven rendering checks で 3 導線表示、loading disabled、signup validation message、Google 主導線の既存文言、ユーザー名とパスキーで新規作成すると理解できる日本語 copy、accessibility label、sheet dismissal cancellation trigger を検証する。
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 2.1, 2.2, 8.1, 8.2, 8.6_
   - _Boundary: LoginPasskeyUI, LoginPasskeyFlow_
   - _Depends: 3_
 

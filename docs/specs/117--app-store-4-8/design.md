@@ -154,7 +154,7 @@ Feedman.xcodeproj/
 | 2.3 | registration begin + PKCE | PasskeyRepository, LoginPasskeyFlow | `registrationBegin` | Registration begin |
 | 2.4 | registration platform request | PasskeyPlatformAuthorizationCoordinator | `performRegistration` | Platform registration |
 | 2.5 | registration finish | PasskeyRepository | `registrationFinish` | Registration finish |
-| 2.6 | signup local credential-bound login handoff | PasskeyAuthCodeHandoff, AuthStateIntegration | local `allowedCredentials` + `auth_code` | Registration to login |
+| 2.6 | signup local credential-bound login handoff | PasskeyPlatformAuthorizationCoordinator, PasskeyAuthCodeHandoff, AuthStateIntegration | local `allowedCredentials` + `auth_code` | Registration to login |
 | 2.7 | username error before platform credential | LoginPasskeyFlow, PasskeyRepository | Error mapping | Signup failure |
 | 2.8 | registration cancel/failure/result unknown | LoginPasskeyFlow | Cancellation/result-unknown mapping | Signup failure |
 | 3.1 | passkey PKCE | LoginPasskeyFlow | PKCE generator | Authentication begin |
@@ -314,14 +314,15 @@ protocol PasskeyAuthCodeHandoff {
 | Field | Detail |
 |-------|--------|
 | Intent | Server WebAuthn options と AuthenticationServices platform passkey request/response を async 境界で接続する |
-| Requirements | 2.4, 2.8, 3.3, 3.7, 4.3, 4.6, 5.5, 8.1, 8.3, 8.4, 8.5 |
+| Requirements | 2.4, 2.6, 2.8, 3.3, 3.7, 4.3, 4.6, 5.5, 8.1, 8.3, 8.4, 8.5 |
 
 **Responsibilities & Constraints**
 - `ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier:)` を使い、registration は challenge/name/userID、authentication は challenge から request を作る。
 - `excludeCredentials` は server options から descriptor ID だけを base64url decode して保持し、AuthenticationServices が platform registration request で受け付ける OS では best-effort に反映する。iOS 16〜17.3 では client-side duplicate prevention を保証できず、サーバ #216 は同一ユーザーへの複数 credential を許容するため server-side duplicate rejection を fallback とみなさない。この degraded behavior では「同一端末に追加 credential が作られ得るが、iOS は raw credential を保存せず server を source of truth とする」と明示し、複数 credential 管理 UI は本 Issue のスコープ外に留める。
 - Authentication request の `allowCredentials` は通常 login では empty を許容するが、signup handoff では platform registration credential envelope の top-level `rawId` / `id` から得た作成直後 credential ID を必ず制限として渡す。この制限は `ASAuthorizationPlatformPublicKeyCredentialAssertionRequest` にだけ適用し、サーバ `authentication/begin` request へは送らない。
-- `ASAuthorizationControllerDelegate` と `ASAuthorizationControllerPresentationContextProviding` を coordinator 内の bridge object に閉じ、`ASAuthorizationController.presentationContextProvider` へ設定してから `performRequests()` する。presentation anchor は active `UIWindow` / `ASPresentationAnchor` を返す provider closure で UI layer から注入し、anchor を取得できない場合は `performRequests()` を呼ばず `.presentationAnchorUnavailable` を throw して retryable platform failure として表示する。
-- `ASAuthorizationController` は attempt 中に強参照し、async bridge は `withTaskCancellationHandler` で `ASAuthorizationController.cancel()` を呼ぶ。Delegate success が返った後でも、registration/add finish、authentication finish、token exchange の直前に caller 側 attempt ID と `Task.isCancelled` を再確認し、cancel 済みなら後続 server finish を送らない。
+- `ASAuthorizationControllerDelegate` と `ASAuthorizationControllerPresentationContextProviding` を coordinator 内の bridge object に閉じ、`ASAuthorizationController.presentationContextProvider` へ設定してから `performRequests()` する。Apple API は delegate / presentation context provider を weak に保持するため、coordinator は attempt 中に `ActiveAuthorizationAttempt` を強参照し、その中で `ASAuthorizationController`、delegate bridge、presentation context provider bridge をまとめて保持する。presentation anchor は active `UIWindow` / `ASPresentationAnchor` を返す provider closure で UI layer から注入し、anchor を取得できない場合は `performRequests()` を呼ばず `.presentationAnchorUnavailable` を throw して retryable platform failure として表示する。
+- `PasskeyPlatformAuthorizationCoordinator` は UI presentation と `ASAuthorizationController` callback を扱うため `@MainActor` に隔離する。`ActiveAuthorizationAttempt` は delegate success / failure、明示 cancel、Task cancellation、または coordinator deinit のいずれかで nil にして bridge/provider を解放し、次 attempt へ参照を持ち越さない。
+- Async bridge は `withTaskCancellationHandler` で `ASAuthorizationController.cancel()` を呼ぶ。Delegate success が返った後でも、registration/add finish、authentication finish、token exchange の直前に caller 側 attempt ID と `Task.isCancelled` を再確認し、cancel 済みなら後続 server finish を送らない。
 - User cancellation は domain error `.canceled`、entitlement/AASA mismatch や validation failure は `.failed` に分類する。
 - Credential response は WebAuthn JSON compatible envelope に変換し、top-level `id` / `rawId` / `type` と `response.clientDataJSON` を registration / assertion とも必ず含める。raw bytes は log / persistent storage に渡さない。
 
@@ -335,6 +336,7 @@ protocol PasskeyAuthCodeHandoff {
 ##### Service Interface
 
 ```swift
+@MainActor
 protocol PasskeyPlatformAuthorizationCoordinating {
     func performRegistration(options: PasskeyPublicKeyCredentialCreationOptions) async throws -> PasskeyCredentialEnvelope
     func performAssertion(options: PasskeyPublicKeyCredentialRequestOptions, allowedCredentialID: String?) async throws -> PasskeyCredentialEnvelope
@@ -344,7 +346,7 @@ protocol PasskeyPlatformAuthorizationCoordinating {
 
 - Preconditions: options の `challenge`、registration `user.id`、credential descriptor ID は base64url decode 可能。`rp.id` / `rpId` は decode せず relying party domain string として `ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier:)` に渡す。presentation anchor provider が non-nil anchor を返す。
 - Postconditions: 成功時は server finish request に送れる credential envelope を返す。
-- Invariants: Coordinator は API request を送らず、token / username / email を保存しない。
+- Invariants: Coordinator は API request を送らず、token / username / email を保存しない。Active attempt 以外では `ASAuthorizationController`、delegate bridge、presentation provider bridge への強参照を保持しない。
 
 ### Login Feature
 
@@ -391,7 +393,7 @@ enum LoginViewState {
 | Field | Detail |
 |-------|--------|
 | Intent | Login screen に Google primary、passkey secondary、signup form を表示する |
-| Requirements | 1.1, 1.3, 1.4, 1.6, 2.1, 2.2 |
+| Requirements | 1.1, 1.2, 1.3, 1.4, 1.6, 2.1, 2.2 |
 
 **Responsibilities & Constraints**
 - 既存 Feedman branding と 8px radius / FeedmanTheme を維持する。
@@ -548,8 +550,8 @@ enum PasskeyEnrollmentState {
 
 - **Unit Tests**:
   - `PasskeyRepositoryTests`: 6 endpoint の method/path/body/Bearer header、401 refresh retry 委譲、distinct begin DTO、`options.publicKey` decode、204 no-content、error propagation。
-  - `PasskeyPlatformAuthorizationCoordinatorTests`: base64url decode 対象が `challenge` / `user.id` / credential descriptor ID に限定され `rp.id` を decode しないこと、registration/assertion credential envelope conversion（`id` / `rawId` / `type` / `clientDataJSON` 必須）、presentation anchor unavailable error、`ASAuthorizationController.cancel()` propagation、cancellation mapping、`excludeCredentials` 反映可能 OS の best-effort 適用、iOS 16〜17.3 degraded behavior。
-  - `LoginViewModelTests`: passkey login success/failure/cancel、signup validation、`INVALID_USERNAME` と `USERNAME_TAKEN` 分岐、signup local credential-bound continuation、registration envelope missing credential ID result-unknown、cancel 後に registration/authentication finish と token exchange を呼ばない race guard、duplicate guard、Google regression。
+  - `PasskeyPlatformAuthorizationCoordinatorTests`: base64url decode 対象が `challenge` / `user.id` / credential descriptor ID に限定され `rp.id` を decode しないこと、registration/assertion credential envelope conversion（`id` / `rawId` / `type` / `clientDataJSON` 必須）、presentation anchor unavailable error、attempt 中の controller / delegate bridge / presentation provider bridge lifetime、completion / cancel 後の release、`ASAuthorizationController.cancel()` propagation、cancellation mapping、`excludeCredentials` 反映可能 OS の best-effort 適用、iOS 16〜17.3 degraded behavior。
+  - `LoginViewModelTests`: passkey login success/failure/cancel、signup validation、`INVALID_USERNAME` と `USERNAME_TAKEN` 分岐、signup local credential-bound continuation、registration envelope missing credential ID result-unknown、View / signup sheet dismissal cancel 後に registration/authentication finish と token exchange を呼ばない race guard、duplicate guard、Google regression。
   - `AccountViewModelTests`: add begin/finish success、success notice、dedicated canceled state、cancel/failure/result-unknown session preservation、missing token、duplicate guard、logout/delete 共同 guard、401 refresh retry delegation、delete state 不変。
   - `AccountDisplayUser` tests: `name` → `username` → `email` → fallback precedence。
 - **Integration Tests**:
@@ -578,7 +580,9 @@ enum PasskeyEnrollmentState {
 - Apple fast account creation with passkeys: <https://developer.apple.com/documentation/authenticationservices/performing-fast-account-creation-with-passkeys>
 - Associated Domains entitlement: <https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.associated-domains>
 - Apple platform passkey registration request: <https://developer.apple.com/documentation/authenticationservices/asauthorizationplatformpublickeycredentialregistrationrequest>
+- ASAuthorizationController delegate: <https://developer.apple.com/documentation/authenticationservices/asauthorizationcontroller/delegate>
 - ASAuthorizationController presentation context / cancel: <https://developer.apple.com/documentation/authenticationservices/asauthorizationcontroller>
+- ASAuthorizationController weak presentation context provider: <https://developer.apple.com/documentation/authenticationservices/asauthorizationcontroller/presentationcontextprovider>
 - ASAuthorizationControllerPresentationContextProviding: <https://developer.apple.com/documentation/authenticationservices/asauthorizationcontrollerpresentationcontextproviding>
 - go-webauthn protocol `CredentialCreationResponse` / `CredentialAssertionResponse`: <https://pkg.go.dev/github.com/go-webauthn/webauthn/protocol>
 - Server passkey design PR: <https://github.com/hitoshiichikawa/feedman/pull/217>
