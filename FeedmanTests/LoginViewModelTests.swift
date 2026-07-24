@@ -20,7 +20,7 @@ final class LoginViewModelTests: XCTestCase {
         }
         await waitForSessionRequest(sessionStarter)
 
-        XCTAssertEqual(viewModel.state, .loading)
+        XCTAssertEqual(viewModel.state, .loading(.google))
         let request = try XCTUnwrap(sessionStarter.requests.first)
         XCTAssertEqual(request.callbackURLScheme, "feedman")
         XCTAssertEqual(request.url.path, "/auth/google/login")
@@ -82,6 +82,343 @@ final class LoginViewModelTests: XCTestCase {
         XCTAssertEqual(completedCredentials.map(\.accessToken), ["access-1"])
     }
 
+    func testPasskeyLoginExchangesAuthCodeAndAuthenticates() async throws {
+        let passkeyRepository = RecordingPasskeyRepository()
+        let passkeyCoordinator = RecordingPasskeyCoordinator(
+            assertionEnvelope: .assertion(rawID: "assertion-1")
+        )
+        let authRepository = RecordingAuthRepository(
+            result: .success(credentials(accessToken: "passkey-access"))
+        )
+        var completedCredentials: [TokenCredentials] = []
+        let viewModel = makeViewModel(
+            repository: authRepository,
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: passkeyCoordinator
+        ) { credentials in
+            completedCredentials.append(credentials)
+        }
+
+        await viewModel.startPasskeyLogin()
+
+        XCTAssertEqual(passkeyRepository.authenticationBeginChallenges, ["challenge-1"])
+        XCTAssertEqual(passkeyCoordinator.assertionRequests.map(\.allowedCredentialID), [nil])
+        XCTAssertEqual(passkeyRepository.authenticationFinishes, [
+            PasskeyFinishCall(challengeID: "auth-challenge-1", rawID: "assertion-1")
+        ])
+        XCTAssertEqual(authRepository.exchanges, [
+            AuthCodeExchange(authCode: "auth-code-1", codeVerifier: "verifier-1")
+        ])
+        XCTAssertEqual(viewModel.state, .authenticated)
+        XCTAssertEqual(completedCredentials.map(\.accessToken), ["passkey-access"])
+    }
+
+    func testPasskeyLoginCancellationDoesNotExchangeAndAllowsRetry() async {
+        let passkeyRepository = RecordingPasskeyRepository()
+        let passkeyCoordinator = RecordingPasskeyCoordinator(
+            assertionError: PasskeyPlatformAuthorizationError.canceled
+        )
+        let authRepository = RecordingAuthRepository()
+        let viewModel = makeViewModel(
+            repository: authRepository,
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: passkeyCoordinator
+        )
+
+        await viewModel.startPasskeyLogin()
+
+        XCTAssertTrue(passkeyRepository.authenticationFinishes.isEmpty)
+        XCTAssertTrue(authRepository.exchanges.isEmpty)
+        XCTAssertEqual(viewModel.state, .canceled(.passkeyLogin))
+        XCTAssertTrue(viewModel.state.isRetryEnabled)
+    }
+
+    func testPasskeyLoginAuthFinishFailureDoesNotExchange() async {
+        let passkeyRepository = RecordingPasskeyRepository(
+            finishAuthenticationResult: .failure(LoginTestError.serverRejected)
+        )
+        let authRepository = RecordingAuthRepository()
+        let viewModel = makeViewModel(
+            repository: authRepository,
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: RecordingPasskeyCoordinator(assertionEnvelope: .assertion(rawID: "assertion-1"))
+        )
+
+        await viewModel.startPasskeyLogin()
+
+        XCTAssertEqual(passkeyRepository.authenticationFinishes, [
+            PasskeyFinishCall(challengeID: "auth-challenge-1", rawID: "assertion-1")
+        ])
+        XCTAssertTrue(authRepository.exchanges.isEmpty)
+        XCTAssertFailed(viewModel.state, kind: .passkeyLogin)
+    }
+
+    func testPasskeyLoginTokenExchangeFailureShowsFailure() async {
+        let authRepository = RecordingAuthRepository(result: .failure(LoginTestError.exchangeRejected))
+        let viewModel = makeViewModel(
+            repository: authRepository,
+            passkeyRepository: RecordingPasskeyRepository(),
+            passkeyCoordinator: RecordingPasskeyCoordinator(assertionEnvelope: .assertion(rawID: "assertion-1"))
+        )
+
+        await viewModel.startPasskeyLogin()
+
+        XCTAssertEqual(authRepository.exchanges, [
+            AuthCodeExchange(authCode: "auth-code-1", codeVerifier: "verifier-1")
+        ])
+        XCTAssertFailed(viewModel.state, kind: .passkeyLogin)
+    }
+
+    func testPasskeyRegistrationRejectsEmptyUsernameWithoutServerRequest() async {
+        let passkeyRepository = RecordingPasskeyRepository()
+        let passkeyCoordinator = RecordingPasskeyCoordinator()
+        let viewModel = makeViewModel(
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: passkeyCoordinator
+        )
+
+        await viewModel.startPasskeyRegistration(username: "")
+
+        XCTAssertTrue(passkeyRepository.registrationBeginRequests.isEmpty)
+        XCTAssertTrue(passkeyCoordinator.registrationRequests.isEmpty)
+        XCTAssertFailed(viewModel.state, kind: .passkeyRegistration)
+    }
+
+    func testPasskeyRegistrationRejectsWhitespaceUsernameWithoutServerRequest() async {
+        let passkeyRepository = RecordingPasskeyRepository()
+        let passkeyCoordinator = RecordingPasskeyCoordinator()
+        let viewModel = makeViewModel(
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: passkeyCoordinator
+        )
+
+        await viewModel.startPasskeyRegistration(username: "   \n\t  ")
+
+        XCTAssertTrue(passkeyRepository.registrationBeginRequests.isEmpty)
+        XCTAssertTrue(passkeyCoordinator.registrationRequests.isEmpty)
+        XCTAssertFailed(viewModel.state, kind: .passkeyRegistration)
+    }
+
+    func testPasskeyRegistrationUsernameTakenDoesNotCreatePlatformCredential() async {
+        let passkeyRepository = RecordingPasskeyRepository(
+            beginRegistrationResult: .failure(Self.feedmanError(code: "USERNAME_TAKEN", statusCode: 409))
+        )
+        let passkeyCoordinator = RecordingPasskeyCoordinator()
+        let viewModel = makeViewModel(
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: passkeyCoordinator
+        )
+
+        await viewModel.startPasskeyRegistration(username: "reader")
+
+        XCTAssertEqual(passkeyRepository.registrationBeginRequests, [
+            RegistrationBeginCall(username: "reader", codeChallenge: "challenge-1")
+        ])
+        XCTAssertTrue(passkeyCoordinator.registrationRequests.isEmpty)
+        XCTAssertFailed(viewModel.state, kind: .passkeyRegistration)
+    }
+
+    func testPasskeyRegistrationInvalidUsernameDoesNotCreatePlatformCredential() async {
+        let passkeyRepository = RecordingPasskeyRepository(
+            beginRegistrationResult: .failure(Self.feedmanError(code: "INVALID_USERNAME", statusCode: 400))
+        )
+        let passkeyCoordinator = RecordingPasskeyCoordinator()
+        let viewModel = makeViewModel(
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: passkeyCoordinator
+        )
+
+        await viewModel.startPasskeyRegistration(username: "reader!")
+
+        XCTAssertTrue(passkeyCoordinator.registrationRequests.isEmpty)
+        XCTAssertFailed(viewModel.state, kind: .passkeyRegistration)
+    }
+
+    func testPasskeyRegistrationUsesCreatedCredentialForLocalHandoffAndAuthenticates() async {
+        let passkeyRepository = RecordingPasskeyRepository()
+        let passkeyCoordinator = RecordingPasskeyCoordinator(
+            registrationEnvelope: .registration(rawID: "created-credential-1"),
+            assertionEnvelope: .assertion(rawID: "created-assertion-1")
+        )
+        let authRepository = RecordingAuthRepository(result: .success(credentials(accessToken: "signup-access")))
+        var completedCredentials: [TokenCredentials] = []
+        let viewModel = makeViewModel(
+            repository: authRepository,
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: passkeyCoordinator
+        ) { credentials in
+            completedCredentials.append(credentials)
+        }
+
+        await viewModel.startPasskeyRegistration(username: " reader ")
+
+        XCTAssertEqual(passkeyRepository.registrationBeginRequests, [
+            RegistrationBeginCall(username: "reader", codeChallenge: "challenge-1")
+        ])
+        XCTAssertEqual(passkeyRepository.registrationFinishes, [
+            PasskeyFinishCall(challengeID: "registration-challenge-1", rawID: "created-credential-1")
+        ])
+        XCTAssertEqual(passkeyRepository.authenticationBeginChallenges, ["challenge-1"])
+        XCTAssertEqual(passkeyCoordinator.assertionRequests.map(\.allowedCredentialID), ["created-credential-1"])
+        XCTAssertEqual(passkeyRepository.authenticationFinishes, [
+            PasskeyFinishCall(challengeID: "auth-challenge-1", rawID: "created-assertion-1")
+        ])
+        XCTAssertEqual(authRepository.exchanges, [
+            AuthCodeExchange(authCode: "auth-code-1", codeVerifier: "verifier-1")
+        ])
+        XCTAssertEqual(completedCredentials.map(\.accessToken), ["signup-access"])
+        XCTAssertEqual(viewModel.state, .authenticated)
+    }
+
+    func testPasskeyRegistrationMissingCreatedCredentialIDIsResultUnknown() async {
+        let passkeyRepository = RecordingPasskeyRepository()
+        let authRepository = RecordingAuthRepository()
+        let viewModel = makeViewModel(
+            repository: authRepository,
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: RecordingPasskeyCoordinator(registrationEnvelope: .registration(rawID: ""))
+        )
+
+        await viewModel.startPasskeyRegistration(username: "reader")
+
+        XCTAssertEqual(passkeyRepository.registrationFinishes, [
+            PasskeyFinishCall(challengeID: "registration-challenge-1", rawID: "")
+        ])
+        XCTAssertTrue(passkeyRepository.authenticationBeginChallenges.isEmpty)
+        XCTAssertTrue(authRepository.exchanges.isEmpty)
+        XCTAssertResultUnknown(viewModel.state, kind: .passkeyRegistration)
+    }
+
+    func testPasskeyRegistrationPlatformFailurePreservesUnauthenticatedState() async {
+        let passkeyRepository = RecordingPasskeyRepository()
+        let authRepository = RecordingAuthRepository()
+        let viewModel = makeViewModel(
+            repository: authRepository,
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: RecordingPasskeyCoordinator(
+                registrationError: PasskeyPlatformAuthorizationError.authorizationFailed
+            )
+        )
+
+        await viewModel.startPasskeyRegistration(username: "reader")
+
+        XCTAssertTrue(passkeyRepository.registrationFinishes.isEmpty)
+        XCTAssertTrue(authRepository.exchanges.isEmpty)
+        XCTAssertFailed(viewModel.state, kind: .passkeyRegistration)
+    }
+
+    func testPasskeyRegistrationFinishDispatchedCancellationBecomesResultUnknown() async {
+        let passkeyRepository = RecordingPasskeyRepository(
+            finishRegistrationResult: .failure(CancellationError())
+        )
+        let authRepository = RecordingAuthRepository()
+        let viewModel = makeViewModel(
+            repository: authRepository,
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: RecordingPasskeyCoordinator(registrationEnvelope: .registration(rawID: "created-credential-1"))
+        )
+
+        await viewModel.startPasskeyRegistration(username: "reader")
+
+        XCTAssertEqual(passkeyRepository.registrationFinishes, [
+            PasskeyFinishCall(challengeID: "registration-challenge-1", rawID: "created-credential-1")
+        ])
+        XCTAssertTrue(authRepository.exchanges.isEmpty)
+        XCTAssertResultUnknown(viewModel.state, kind: .passkeyRegistration)
+    }
+
+    func testPasskeyRegistrationCancelBeforeFinishSkipsFinishAndShowsCanceled() async {
+        let passkeyRepository = RecordingPasskeyRepository()
+        let passkeyCoordinator = CancelingAfterRegistrationPasskeyCoordinator(viewModelProvider: { nil })
+        let viewModel = makeViewModel(
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: passkeyCoordinator
+        )
+        passkeyCoordinator.viewModelProvider = { viewModel }
+
+        await viewModel.startPasskeyRegistration(username: "reader")
+
+        XCTAssertTrue(passkeyRepository.registrationFinishes.isEmpty)
+        XCTAssertEqual(viewModel.state, .canceled(.passkeyRegistration))
+    }
+
+    func testCancelBeforeTokenExchangeSkipsUnsentAuthenticationFinishAndTokenExchange() async {
+        let passkeyRepository = RecordingPasskeyRepository()
+        let passkeyCoordinator = CancelingBeforeSignupAssertionPasskeyCoordinator(viewModelProvider: { nil })
+        let authRepository = RecordingAuthRepository()
+        let viewModel = makeViewModel(
+            repository: authRepository,
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: passkeyCoordinator
+        )
+        passkeyCoordinator.viewModelProvider = { viewModel }
+
+        await viewModel.startPasskeyRegistration(username: "reader")
+
+        XCTAssertTrue(passkeyRepository.authenticationFinishes.isEmpty)
+        XCTAssertTrue(authRepository.exchanges.isEmpty)
+        XCTAssertEqual(viewModel.state, .canceled(.passkeyRegistration))
+    }
+
+    func testTokenExchangeDispatchCriticalSectionAuthenticatesAfterCancellation() async {
+        let authRepository = RecordingAuthRepository(
+            result: .success(credentials(accessToken: "critical-access")),
+            onExchange: nil
+        )
+        var completedCredentials: [TokenCredentials] = []
+        let viewModel = makeViewModel(
+            repository: authRepository,
+            passkeyRepository: RecordingPasskeyRepository(),
+            passkeyCoordinator: RecordingPasskeyCoordinator(assertionEnvelope: .assertion(rawID: "assertion-1"))
+        ) { credentials in
+            completedCredentials.append(credentials)
+        }
+        authRepository.onExchange = { [weak viewModel] in
+            viewModel?.cancelActiveAttempt()
+        }
+
+        await viewModel.startPasskeyLogin()
+
+        XCTAssertEqual(authRepository.exchanges, [
+            AuthCodeExchange(authCode: "auth-code-1", codeVerifier: "verifier-1")
+        ])
+        XCTAssertEqual(completedCredentials.map(\.accessToken), ["critical-access"])
+        XCTAssertEqual(viewModel.state, .authenticated)
+    }
+
+    func testDuplicateGuardBlocksPasskeyDuringGoogleLogin() async {
+        let sessionStarter = PendingWebAuthenticationSessionStarter()
+        let passkeyRepository = RecordingPasskeyRepository()
+        let viewModel = makeViewModel(
+            sessionStarter: sessionStarter,
+            passkeyRepository: passkeyRepository
+        )
+
+        let task = Task {
+            await viewModel.startGoogleLogin()
+        }
+        await waitForSessionRequest(sessionStarter)
+
+        await viewModel.startPasskeyLogin()
+
+        XCTAssertTrue(passkeyRepository.authenticationBeginChallenges.isEmpty)
+        sessionStarter.cancel()
+        await task.value
+    }
+
+    func testPasskeyFlowDoesNotRecordAdvertisingInteractionEvents() async {
+        let eventRecorder = RecordingLoginEventRecorder()
+        let viewModel = makeViewModel(
+            passkeyRepository: RecordingPasskeyRepository(),
+            passkeyCoordinator: RecordingPasskeyCoordinator(assertionEnvelope: .assertion(rawID: "assertion-1")),
+            eventRecorder: eventRecorder
+        )
+
+        await viewModel.startPasskeyLogin()
+
+        XCTAssertTrue(eventRecorder.events.isEmpty)
+    }
+
     func testDuplicateTapDuringLoadingDoesNotStartSecondSession() async {
         let sessionStarter = PendingWebAuthenticationSessionStarter()
         let repository = RecordingAuthRepository()
@@ -102,7 +439,7 @@ final class LoginViewModelTests: XCTestCase {
 
         sessionStarter.cancel()
         await task.value
-        XCTAssertEqual(viewModel.state, .canceled)
+        XCTAssertEqual(viewModel.state, .canceled(.google))
     }
 
     func testCancellationDoesNotExchangeAndAllowsRetry() async {
@@ -121,7 +458,7 @@ final class LoginViewModelTests: XCTestCase {
         await task.value
 
         XCTAssertTrue(repository.exchanges.isEmpty)
-        XCTAssertEqual(viewModel.state, .canceled)
+        XCTAssertEqual(viewModel.state, .canceled(.google))
         XCTAssertTrue(viewModel.state.isRetryEnabled)
     }
 
@@ -187,18 +524,24 @@ final class LoginViewModelTests: XCTestCase {
     private func makeViewModel(
         repository: RecordingAuthRepository = RecordingAuthRepository(),
         sessionStarter: any WebAuthenticationSessionStarting = PendingWebAuthenticationSessionStarter(),
+        passkeyRepository: any PasskeyRepository = UnavailablePasskeyRepository(),
+        passkeyCoordinator: any PasskeyPlatformAuthorizationCoordinating = UnavailablePasskeyPlatformAuthorizationCoordinator(),
+        eventRecorder: any LoginEventRecording = NoOpLoginEventRecorder(),
         onAuthenticated: @escaping (TokenCredentials) -> Void = { _ in }
     ) -> LoginViewModel {
         LoginViewModel(
             authBaseURL: URL(string: "https://api.example.com/base?diagnostic=1&flow=web&code_challenge=old&code_challenge_method=plain")!,
             authRepository: repository,
             sessionStarter: sessionStarter,
+            passkeyRepository: passkeyRepository,
+            passkeyCoordinator: passkeyCoordinator,
             pkceGenerator: FixedPKCELoginChallengeGenerator(
                 challenge: PKCELoginChallenge(
                     verifier: "verifier-1",
                     challenge: "challenge-1"
                 )
             ),
+            eventRecorder: eventRecorder,
             onAuthenticated: onAuthenticated
         )
     }
@@ -225,13 +568,42 @@ final class LoginViewModelTests: XCTestCase {
 
     private func XCTAssertFailed(
         _ state: LoginViewState,
+        kind: LoginAttemptKind? = nil,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        if case .failed = state {
+        if case let .failed(actualKind, _) = state, kind == nil || kind == actualKind {
             return
         }
         XCTFail("Expected failed state, got \(state)", file: file, line: line)
+    }
+
+    private func XCTAssertResultUnknown(
+        _ state: LoginViewState,
+        kind: LoginAttemptKind,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        if case let .resultUnknown(actualKind, _) = state, actualKind == kind {
+            return
+        }
+        XCTFail("Expected resultUnknown state, got \(state)", file: file, line: line)
+    }
+
+    private static func feedmanError(code: String, statusCode: Int) -> FeedmanAPIError {
+        FeedmanAPIError.feedmanError(
+            FeedmanErrorContext(
+                statusCode: statusCode,
+                body: FeedmanErrorBody(
+                    code: code,
+                    message: code,
+                    category: "validation",
+                    action: "fix_input",
+                    details: nil
+                ),
+                retryAfter: nil
+            )
+        )
     }
 }
 
@@ -297,6 +669,7 @@ private struct AuthCodeExchange: Equatable {
 private final class RecordingAuthRepository: AuthRepository {
     private(set) var exchanges: [AuthCodeExchange] = []
     private let result: Result<TokenCredentials, Error>
+    var onExchange: (() -> Void)?
 
     init(result: Result<TokenCredentials, Error> = .success(
         TokenCredentials(
@@ -305,13 +678,15 @@ private final class RecordingAuthRepository: AuthRepository {
             tokenType: "Bearer",
             expiresIn: 900
         )
-    )) {
+    ), onExchange: (() -> Void)? = nil) {
         self.result = result
+        self.onExchange = onExchange
     }
 
     @discardableResult
     func exchangeAuthCode(_ authCode: String, codeVerifier: String) async throws -> TokenCredentials {
         exchanges.append(AuthCodeExchange(authCode: authCode, codeVerifier: codeVerifier))
+        onExchange?()
         return try result.get()
     }
 
@@ -327,6 +702,258 @@ private final class RecordingAuthRepository: AuthRepository {
 
 private enum LoginTestError: Error {
     case exchangeRejected
+    case serverRejected
+}
+
+private struct RegistrationBeginCall: Equatable {
+    let username: String
+    let codeChallenge: String
+}
+
+private struct PasskeyFinishCall: Equatable {
+    let challengeID: String
+    let rawID: String
+}
+
+private final class RecordingPasskeyRepository: PasskeyRepository {
+    private(set) var registrationBeginRequests: [RegistrationBeginCall] = []
+    private(set) var registrationFinishes: [PasskeyFinishCall] = []
+    private(set) var authenticationBeginChallenges: [String] = []
+    private(set) var authenticationFinishes: [PasskeyFinishCall] = []
+
+    private let beginRegistrationResult: Result<PasskeyRegistrationBeginResponse, Error>
+    private let finishRegistrationResult: Result<PasskeyRegistrationFinishResponse, Error>
+    private let beginAuthenticationResult: Result<PasskeyAuthenticationBeginResponse, Error>
+    private let finishAuthenticationResult: Result<PasskeyAuthenticationFinishResponse, Error>
+
+    init(
+        beginRegistrationResult: Result<PasskeyRegistrationBeginResponse, Error> = .success(.registrationBegin()),
+        finishRegistrationResult: Result<PasskeyRegistrationFinishResponse, Error> = .success(PasskeyRegistrationFinishResponse(userID: "user-1")),
+        beginAuthenticationResult: Result<PasskeyAuthenticationBeginResponse, Error> = .success(.authenticationBegin()),
+        finishAuthenticationResult: Result<PasskeyAuthenticationFinishResponse, Error> = .success(PasskeyAuthenticationFinishResponse(authCode: "auth-code-1"))
+    ) {
+        self.beginRegistrationResult = beginRegistrationResult
+        self.finishRegistrationResult = finishRegistrationResult
+        self.beginAuthenticationResult = beginAuthenticationResult
+        self.finishAuthenticationResult = finishAuthenticationResult
+    }
+
+    func beginRegistration(
+        username: String,
+        codeChallenge: String
+    ) async throws -> PasskeyRegistrationBeginResponse {
+        registrationBeginRequests.append(RegistrationBeginCall(username: username, codeChallenge: codeChallenge))
+        return try beginRegistrationResult.get()
+    }
+
+    func finishRegistration(
+        challengeID: String,
+        credential: PasskeyCredentialEnvelope
+    ) async throws -> PasskeyRegistrationFinishResponse {
+        registrationFinishes.append(PasskeyFinishCall(challengeID: challengeID, rawID: credential.rawID))
+        return try finishRegistrationResult.get()
+    }
+
+    func beginAuthentication(codeChallenge: String) async throws -> PasskeyAuthenticationBeginResponse {
+        authenticationBeginChallenges.append(codeChallenge)
+        return try beginAuthenticationResult.get()
+    }
+
+    func finishAuthentication(
+        challengeID: String,
+        credential: PasskeyCredentialEnvelope
+    ) async throws -> PasskeyAuthenticationFinishResponse {
+        authenticationFinishes.append(PasskeyFinishCall(challengeID: challengeID, rawID: credential.rawID))
+        return try finishAuthenticationResult.get()
+    }
+
+    func beginAddRegistration(accessToken: String) async throws -> PasskeyAddRegistrationBeginResponse {
+        throw PasskeyRepositoryError.unavailable
+    }
+
+    func finishAddRegistration(
+        challengeID: String,
+        credential: PasskeyCredentialEnvelope,
+        accessToken: String
+    ) async throws {
+        throw PasskeyRepositoryError.unavailable
+    }
+}
+
+private struct AssertionRequest: Equatable {
+    let allowedCredentialID: String?
+}
+
+@MainActor
+private class RecordingPasskeyCoordinator: PasskeyPlatformAuthorizationCoordinating {
+    private(set) var registrationRequests: [PasskeyPublicKeyCredentialCreationOptions] = []
+    private(set) var assertionRequests: [AssertionRequest] = []
+
+    private let registrationEnvelope: PasskeyCredentialEnvelope
+    private let assertionEnvelope: PasskeyCredentialEnvelope
+    private let registrationError: Error?
+    private let assertionError: Error?
+
+    init(
+        registrationEnvelope: PasskeyCredentialEnvelope = .registration(rawID: "created-credential-1"),
+        assertionEnvelope: PasskeyCredentialEnvelope = .assertion(rawID: "assertion-1"),
+        registrationError: Error? = nil,
+        assertionError: Error? = nil
+    ) {
+        self.registrationEnvelope = registrationEnvelope
+        self.assertionEnvelope = assertionEnvelope
+        self.registrationError = registrationError
+        self.assertionError = assertionError
+    }
+
+    func performRegistration(
+        options: PasskeyPublicKeyCredentialCreationOptions
+    ) async throws -> PasskeyCredentialEnvelope {
+        registrationRequests.append(options)
+        if let registrationError {
+            throw registrationError
+        }
+        return registrationEnvelope
+    }
+
+    func performAssertion(
+        options: PasskeyPublicKeyCredentialRequestOptions,
+        allowedCredentialID: String?
+    ) async throws -> PasskeyCredentialEnvelope {
+        assertionRequests.append(AssertionRequest(allowedCredentialID: allowedCredentialID))
+        if let assertionError {
+            throw assertionError
+        }
+        return assertionEnvelope
+    }
+
+    func cancelActiveAuthorization() {}
+}
+
+@MainActor
+private final class CancelingAfterRegistrationPasskeyCoordinator: RecordingPasskeyCoordinator {
+    var viewModelProvider: () -> LoginViewModel?
+
+    init(viewModelProvider: @escaping () -> LoginViewModel?) {
+        self.viewModelProvider = viewModelProvider
+        super.init(registrationEnvelope: .registration(rawID: "created-credential-1"))
+    }
+
+    override func performRegistration(
+        options: PasskeyPublicKeyCredentialCreationOptions
+    ) async throws -> PasskeyCredentialEnvelope {
+        let envelope = try await super.performRegistration(options: options)
+        viewModelProvider()?.cancelActiveAttempt()
+        return envelope
+    }
+}
+
+@MainActor
+private final class CancelingBeforeSignupAssertionPasskeyCoordinator: RecordingPasskeyCoordinator {
+    var viewModelProvider: () -> LoginViewModel?
+
+    init(viewModelProvider: @escaping () -> LoginViewModel?) {
+        self.viewModelProvider = viewModelProvider
+        super.init(
+            registrationEnvelope: .registration(rawID: "created-credential-1"),
+            assertionEnvelope: .assertion(rawID: "created-assertion-1")
+        )
+    }
+
+    override func performAssertion(
+        options: PasskeyPublicKeyCredentialRequestOptions,
+        allowedCredentialID: String?
+    ) async throws -> PasskeyCredentialEnvelope {
+        viewModelProvider()?.cancelActiveAttempt()
+        return try await super.performAssertion(options: options, allowedCredentialID: allowedCredentialID)
+    }
+}
+
+private final class RecordingLoginEventRecorder: LoginEventRecording {
+    private(set) var events: [LoginEvent] = []
+
+    func record(_ event: LoginEvent) {
+        events.append(event)
+    }
+}
+
+private extension PasskeyRegistrationBeginResponse {
+    static func registrationBegin() -> PasskeyRegistrationBeginResponse {
+        PasskeyRegistrationBeginResponse(
+            challengeID: "registration-challenge-1",
+            options: PasskeyPublicKeyCredentialCreationOptionsEnvelope(
+                publicKey: .creationOptions()
+            )
+        )
+    }
+}
+
+private extension PasskeyAuthenticationBeginResponse {
+    static func authenticationBegin() -> PasskeyAuthenticationBeginResponse {
+        PasskeyAuthenticationBeginResponse(
+            challengeID: "auth-challenge-1",
+            options: PasskeyPublicKeyCredentialRequestOptionsEnvelope(
+                publicKey: .requestOptions()
+            )
+        )
+    }
+}
+
+private extension PasskeyPublicKeyCredentialCreationOptions {
+    static func creationOptions() -> PasskeyPublicKeyCredentialCreationOptions {
+        PasskeyPublicKeyCredentialCreationOptions(
+            challenge: "Y2hhbGxlbmdl",
+            rp: PasskeyRelyingParty(id: "example.com", name: "Feedman"),
+            user: PasskeyUserEntity(id: "dXNlci0x", name: "reader", displayName: "reader"),
+            pubKeyCredParams: [
+                PasskeyPublicKeyCredentialParameter(type: "public-key", alg: -7)
+            ],
+            timeout: nil,
+            excludeCredentials: nil,
+            authenticatorSelection: nil,
+            attestation: nil
+        )
+    }
+}
+
+private extension PasskeyPublicKeyCredentialRequestOptions {
+    static func requestOptions() -> PasskeyPublicKeyCredentialRequestOptions {
+        PasskeyPublicKeyCredentialRequestOptions(
+            challenge: "Y2hhbGxlbmdl",
+            rpID: "example.com",
+            timeout: nil,
+            allowCredentials: nil,
+            userVerification: nil
+        )
+    }
+}
+
+private extension PasskeyCredentialEnvelope {
+    static func registration(rawID: String) -> PasskeyCredentialEnvelope {
+        PasskeyCredentialEnvelope(
+            id: rawID,
+            rawID: rawID,
+            type: "public-key",
+            response: .registration(PasskeyRegistrationCredentialResponse(
+                clientDataJSON: "Y2xpZW50",
+                attestationObject: "YXR0ZXN0YXRpb24"
+            ))
+        )
+    }
+
+    static func assertion(rawID: String) -> PasskeyCredentialEnvelope {
+        PasskeyCredentialEnvelope(
+            id: rawID,
+            rawID: rawID,
+            type: "public-key",
+            response: .assertion(PasskeyAssertionCredentialResponse(
+                clientDataJSON: "Y2xpZW50",
+                authenticatorData: "YXV0aG4",
+                signature: "c2ln",
+                userHandle: "dXNlcg"
+            ))
+        )
+    }
 }
 
 private extension Array where Element == URLQueryItem {

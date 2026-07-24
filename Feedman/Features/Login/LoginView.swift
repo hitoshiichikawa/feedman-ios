@@ -60,7 +60,7 @@ struct LoginView: View {
                     }
                 } label: {
                     HStack(spacing: 10) {
-                        if viewModel.state.isLoading {
+                        if viewModel.state.isLoading(.google) {
                             ProgressView()
                                 .tint(FeedmanTheme.accentOn)
                                 .frame(width: 18, height: 18)
@@ -69,17 +69,17 @@ struct LoginView: View {
                                 .font(.system(size: 17, weight: .semibold))
                         }
 
-                        Text(viewModel.state.isLoading ? "ログイン中" : "Google でログイン")
+                        Text(viewModel.state.isLoading(.google) ? "ログイン中" : "Google でログイン")
                             .font(.headline.weight(.semibold))
                     }
                     .foregroundStyle(FeedmanTheme.accentOn)
                     .frame(maxWidth: .infinity, minHeight: 50)
                     .padding(.horizontal, 16)
-                    .background(viewModel.state.isLoading ? FeedmanTheme.accent.opacity(0.72) : FeedmanTheme.accent)
+                    .background(viewModel.state.isLoading(.google) ? FeedmanTheme.accent.opacity(0.72) : FeedmanTheme.accent)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .disabled(!viewModel.state.isRetryEnabled)
-                .accessibilityLabel(viewModel.state.isLoading ? "Google ログイン中" : "Google でログイン")
+                .accessibilityLabel(viewModel.state.isLoading(.google) ? "Google ログイン中" : "Google でログイン")
 
                 statusMessage
             }
@@ -101,7 +101,7 @@ struct LoginView: View {
                 .foregroundStyle(FeedmanTheme.mutedForeground)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-        case let .failed(message):
+        case let .failed(_, message), let .resultUnknown(_, message):
             Text(message)
                 .font(.footnote)
                 .foregroundStyle(FeedmanTheme.danger)
