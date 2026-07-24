@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Passkey API model と repository 境界を追加する
+- [x] 1. Passkey API model と repository 境界を追加する
   - 実装着手前に `hitoshiichikawa/feedman#216` が完了し、サーバ実装が `develop` に merge 済みであることを確認する。#217 の設計 PR merge だけでは依存を満たさないため、#216 未完了なら Developer フェーズを停止して確認事項へ戻す。
   - `Feedman/Core/APIModels.swift` に distinct な registration/authentication/add begin response DTO、go-webauthn の `options.publicKey` wrapper、finish request-response DTO、credential envelope、optional `UserResponse.username` を追加する。
   - `Feedman/Core/PasskeyRepository.swift` を追加し、`/api/passkey/registration/begin|finish`、`/api/passkey/authentication/begin|finish`、`/api/passkey/registration/add/begin|finish` を `APIClient` に委譲する。
