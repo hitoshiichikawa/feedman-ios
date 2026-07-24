@@ -168,6 +168,46 @@ final class CrossFeedRepositoryTests: XCTestCase {
         }
     }
 
+    func testPasskeyDerivedAccessTokenUsesExistingBearerRequestsForTimelineAndFeedItems() async throws {
+        let crossFeedTransport = RecordingCrossFeedTransport()
+        crossFeedTransport.enqueue(
+            response: page(ids: ["passkey-timeline"], nextCursor: nil, hasMore: false, sinceTime: "2026-06-08T10:30:00Z")
+        )
+        let crossFeedRepository = makeRepository(
+            transport: crossFeedTransport,
+            accessToken: "passkey-derived-access-token"
+        )
+
+        _ = try await crossFeedRepository.loadCrossFeedFirstPage(limit: nil)
+
+        let timelineRequest = try XCTUnwrap(crossFeedTransport.requests.first)
+        XCTAssertEqual(timelineRequest.url?.path, "/api/items/cross-feed")
+        XCTAssertEqual(
+            timelineRequest.value(forHTTPHeaderField: "Authorization"),
+            "Bearer passkey-derived-access-token"
+        )
+
+        let feedItemsTransport = RecordingFeedItemsTransport()
+        feedItemsTransport.enqueue(response: feedItemPage(ids: ["passkey-feed"], nextCursor: nil, hasMore: false))
+        let feedItemsRepository = makeFeedItemsRepository(
+            transport: feedItemsTransport,
+            accessToken: "passkey-derived-access-token"
+        )
+
+        _ = try await feedItemsRepository.loadFeedItemsFirstPage(
+            feedID: "feed-passkey",
+            filter: .all,
+            limit: nil
+        )
+
+        let feedRequest = try XCTUnwrap(feedItemsTransport.requests.first)
+        XCTAssertEqual(feedRequest.url?.path, "/api/feeds/feed-passkey/items")
+        XCTAssertEqual(
+            feedRequest.value(forHTTPHeaderField: "Authorization"),
+            "Bearer passkey-derived-access-token"
+        )
+    }
+
     func testFeedItemsFirstPageRequestsFeedEndpointWithFilterAndLimit() async throws {
         let transport = RecordingFeedItemsTransport()
         transport.enqueue(response: feedItemPage(ids: ["item-1"], nextCursor: "cursor-2", hasMore: true))
@@ -736,11 +776,14 @@ final class CrossFeedRepositoryTests: XCTestCase {
         )
     }
 
-    private func makeRepository(transport: RecordingCrossFeedTransport) -> APIClientFeedRepository {
+    private func makeRepository(
+        transport: RecordingCrossFeedTransport,
+        accessToken: String = "access-token"
+    ) -> APIClientFeedRepository {
         APIClientFeedRepository(
             apiClient: APIClient(baseURL: baseURL, transport: transport),
             accessTokenProvider: {
-                "access-token"
+                accessToken
             }
         )
     }
@@ -756,11 +799,14 @@ final class CrossFeedRepositoryTests: XCTestCase {
         )
     }
 
-    private func makeFeedItemsRepository(transport: RecordingFeedItemsTransport) -> APIClientFeedRepository {
+    private func makeFeedItemsRepository(
+        transport: RecordingFeedItemsTransport,
+        accessToken: String = "access-token"
+    ) -> APIClientFeedRepository {
         APIClientFeedRepository(
             apiClient: APIClient(baseURL: baseURL, transport: transport),
             accessTokenProvider: {
-                "access-token"
+                accessToken
             }
         )
     }
