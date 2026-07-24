@@ -49,7 +49,7 @@
   - _Boundary: LoginPasskeyUI, LoginPasskeyFlow_
   - _Depends: 3_
 
-- [ ] 5. Account sheet に passkey 追加登録 flow を追加する
+- [x] 5. Account sheet に passkey 追加登録 flow を追加する
   - `AccountViewModel` に `PasskeyEnrollmentState`（idle / adding / canceled / failed / resultUnknown / succeeded）と add-passkey action を追加し、current access token 必須の begin/finish flow を実装する。
   - `AccountView` に passkey add action、progress、success notice、retryable error、resultUnknown notice を追加し、既存 logout と退会（アカウント削除）action を維持する。
   - Add / logout / account deletion の共同 guard を実装し、add 中は logout/delete を disabled、logout/delete 進行中は add を開始しない。
