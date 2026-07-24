@@ -72,7 +72,7 @@
   - _Boundary: AssociatedDomainsConfiguration, AuthStateIntegration, LoginPasskeyUI, AccountPasskeyEnrollment_
   - _Depends: 1, 2, 3, 4, 5_
 
-- [ ] 7. Cross-boundary regression と最終検証を実行する
+- [x] 7. Cross-boundary regression と最終検証を実行する
   - Passkey-derived account の authenticated state で Timeline / Feed / ArticleDetail と `SFSafariViewController` の元記事表示が login method を知らず既存 Bearer / article open flow を使うことを、既存 ViewModel / repository tests または smoke-level tests で確認する。
   - Google login URL / callback / token exchange regression、account deletion route preservation、logout behavior の不変性を差分レビューと tests で確認する。
   - 実ネットワーク、実 Keychain、実 Face ID / Touch ID に依存するテストを追加していないことを確認する。
