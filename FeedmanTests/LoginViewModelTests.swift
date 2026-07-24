@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import XCTest
 @testable import Feedman
 
@@ -9,6 +10,74 @@ final class LoginViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.state, .idle)
         XCTAssertTrue(viewModel.state.isRetryEnabled)
+    }
+
+    func testLoginPresentationShowsGooglePrimaryPasskeySecondaryAndSignupEntryPoints() {
+        let presentation = LoginPasskeyPresentation(status: .idle)
+
+        XCTAssertEqual(presentation.googleButton.title, "Google でログイン")
+        XCTAssertEqual(presentation.googleButton.style, .primary)
+        XCTAssertEqual(presentation.passkeyLoginButton.title, "パスキーでログイン")
+        XCTAssertEqual(presentation.passkeyLoginButton.style, .secondary)
+        XCTAssertEqual(presentation.signup.title, "アカウントを新規作成")
+        XCTAssertEqual(presentation.signup.usernamePlaceholder, "ユーザー名")
+        XCTAssertEqual(presentation.signup.submitTitle, "ユーザー名とパスキーで新規作成")
+        XCTAssertEqual(presentation.signup.inputFields, [.username])
+    }
+
+    func testLoginPresentationDisablesDuplicateAttemptsAndShowsTargetLoadingState() {
+        let presentation = LoginPasskeyPresentation(status: .loading(.passkeyLogin))
+
+        XCTAssertTrue(presentation.googleButton.isDisabled)
+        XCTAssertFalse(presentation.googleButton.isLoading)
+        XCTAssertTrue(presentation.passkeyLoginButton.isDisabled)
+        XCTAssertTrue(presentation.passkeyLoginButton.isLoading)
+        XCTAssertEqual(presentation.passkeyLoginButton.title, "パスキーログイン中")
+        XCTAssertTrue(presentation.signup.submitButtonIsDisabled)
+    }
+
+    func testLoginPresentationKeepsGoogleLoginCopyAndAccessibilityLabel() {
+        let presentation = LoginPasskeyPresentation(status: .idle)
+
+        XCTAssertEqual(presentation.googleButton.title, "Google でログイン")
+        XCTAssertEqual(presentation.googleButton.accessibilityLabel, "Google でログイン")
+        XCTAssertEqual(presentation.passkeyLoginButton.accessibilityLabel, "パスキーでログイン")
+        XCTAssertEqual(presentation.signup.usernameAccessibilityLabel, "ユーザー名")
+        XCTAssertEqual(presentation.signup.submitAccessibilityLabel, "ユーザー名とパスキーで新規作成")
+    }
+
+    func testLoginPresentationShowsSignupValidationMessageInStatusRegion() {
+        let presentation = LoginPasskeyPresentation(
+            status: .failed(.passkeyRegistration, "ユーザー名を入力してください。")
+        )
+
+        XCTAssertEqual(presentation.statusMessage?.text, "ユーザー名を入力してください。")
+        XCTAssertEqual(presentation.statusMessage?.tone, .error)
+        XCTAssertEqual(presentation.statusMessage?.accessibilityLabel, "ユーザー名を入力してください。")
+    }
+
+    func testLoginPresentationShowsResultUnknownAsRetryOrPasskeyLoginGuidance() {
+        let presentation = LoginPasskeyPresentation(
+            status: .resultUnknown(
+                .passkeyRegistration,
+                "アカウント作成結果を確認できませんでした。再試行またはパスキーでログインして照合してください。"
+            )
+        )
+
+        XCTAssertEqual(presentation.statusMessage?.tone, .resultUnknown)
+        XCTAssertEqual(
+            presentation.statusMessage?.text,
+            "アカウント作成結果を確認できませんでした。再試行またはパスキーでログインして照合してください。"
+        )
+    }
+
+    func testCancelActiveAttemptPropagatesCoordinatorCancellationForViewDisappearance() {
+        let passkeyCoordinator = RecordingPasskeyCoordinator()
+        let viewModel = makeViewModel(passkeyCoordinator: passkeyCoordinator)
+
+        viewModel.cancelActiveAttempt()
+
+        XCTAssertEqual(passkeyCoordinator.cancelActiveAuthorizationCount, 1)
     }
 
     func testStartGoogleLoginBuildsNativeFlowURLAndEntersLoading() async throws {
@@ -805,6 +874,7 @@ private struct AssertionRequest: Equatable {
 private class RecordingPasskeyCoordinator: PasskeyPlatformAuthorizationCoordinating {
     private(set) var registrationRequests: [PasskeyPublicKeyCredentialCreationOptions] = []
     private(set) var assertionRequests: [AssertionRequest] = []
+    private(set) var cancelActiveAuthorizationCount = 0
 
     private let registrationEnvelope: PasskeyCredentialEnvelope
     private let assertionEnvelope: PasskeyCredentialEnvelope
@@ -844,7 +914,9 @@ private class RecordingPasskeyCoordinator: PasskeyPlatformAuthorizationCoordinat
         return assertionEnvelope
     }
 
-    func cancelActiveAuthorization() {}
+    func cancelActiveAuthorization() {
+        cancelActiveAuthorizationCount += 1
+    }
 }
 
 @MainActor
