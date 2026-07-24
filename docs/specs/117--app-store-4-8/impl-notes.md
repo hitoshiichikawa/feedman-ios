@@ -90,7 +90,7 @@
 - `plutil -lint Feedman.xcodeproj/project.pbxproj Feedman/Info.plist` passed.
 - `git diff --check` passed.
 - `xcodebuild -project Feedman.xcodeproj -scheme Feedman -destination 'platform=iOS Simulator,name=iPhone 16' test` passed (535 tests).
-- Reviewer redo verification: `git diff --name-status 27463bb037be6cb8d13809749816f6cfce395106..HEAD` showed corrective changes in `LoginView.swift`, `LoginViewModel.swift`, and `LoginViewModelTests.swift`; `git log --oneline 27463bb037be6cb8d13809749816f6cfce395106..HEAD` showed `7cdab2e fix(passkey): keep login view state compatible`.
+- Reviewer redo verification: final `git diff --name-status 27463bb037be6cb8d13809749816f6cfce395106..HEAD` showed corrective changes in `LoginView.swift`, `LoginViewModel.swift`, `LoginViewModelTests.swift`, and `impl-notes.md`; final `git log --oneline 27463bb037be6cb8d13809749816f6cfce395106..HEAD` showed `7cdab2e fix(passkey): keep login view state compatible`, `13e2f74 docs(passkey): record task 3 reviewer closure`, and terminal marker `b8bd916 docs(tasks): mark 3 as done`.
 - Boundary closure check: `git diff --name-status df3e647002a5b62fad17c8d3e64dcdf430bab3c7..HEAD -- Feedman/Features/Login/LoginView.swift Feedman/Features/Login/LoginViewModel.swift FeedmanTests/LoginViewModelTests.swift` showed only `LoginViewModel.swift` and `LoginViewModelTests.swift`, confirming no net `LoginView.swift` diff remains in task 3 range.
 
 STATUS: complete
