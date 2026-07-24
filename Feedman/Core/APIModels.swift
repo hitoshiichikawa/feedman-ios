@@ -329,16 +329,258 @@ struct ItemStateUpdateRequest: Codable, Equatable {
 
 struct UserResponse: Codable, Equatable {
     let id: String
+    let username: String?
     let email: String?
     let name: String?
     let avatarURL: String?
 
     enum CodingKeys: String, CodingKey {
         case id
+        case username
         case email
         case name
         case avatarURL = "avatar_url"
     }
+
+    init(
+        id: String,
+        username: String? = nil,
+        email: String?,
+        name: String?,
+        avatarURL: String?
+    ) {
+        self.id = id
+        self.username = username
+        self.email = email
+        self.name = name
+        self.avatarURL = avatarURL
+    }
+}
+
+struct PasskeyRegistrationBeginRequest: Codable, Equatable {
+    let username: String
+    let codeChallenge: String
+
+    enum CodingKeys: String, CodingKey {
+        case username
+        case codeChallenge = "code_challenge"
+    }
+}
+
+struct PasskeyAuthenticationBeginRequest: Codable, Equatable {
+    let codeChallenge: String
+
+    enum CodingKeys: String, CodingKey {
+        case codeChallenge = "code_challenge"
+    }
+}
+
+struct PasskeyRegistrationFinishRequest: Codable, Equatable {
+    let challengeID: String
+    let credential: PasskeyCredentialEnvelope
+
+    enum CodingKeys: String, CodingKey {
+        case challengeID = "challenge_id"
+        case credential
+    }
+}
+
+struct PasskeyAuthenticationFinishRequest: Codable, Equatable {
+    let challengeID: String
+    let credential: PasskeyCredentialEnvelope
+
+    enum CodingKeys: String, CodingKey {
+        case challengeID = "challenge_id"
+        case credential
+    }
+}
+
+struct PasskeyAddRegistrationFinishRequest: Codable, Equatable {
+    let challengeID: String
+    let credential: PasskeyCredentialEnvelope
+
+    enum CodingKeys: String, CodingKey {
+        case challengeID = "challenge_id"
+        case credential
+    }
+}
+
+struct PasskeyEmptyRequest: Codable, Equatable {}
+
+struct PasskeyRegistrationBeginResponse: Codable, Equatable {
+    let challengeID: String
+    let options: PasskeyPublicKeyCredentialCreationOptionsEnvelope
+
+    enum CodingKeys: String, CodingKey {
+        case challengeID = "challenge_id"
+        case options
+    }
+}
+
+struct PasskeyAuthenticationBeginResponse: Codable, Equatable {
+    let challengeID: String
+    let options: PasskeyPublicKeyCredentialRequestOptionsEnvelope
+
+    enum CodingKeys: String, CodingKey {
+        case challengeID = "challenge_id"
+        case options
+    }
+}
+
+struct PasskeyAddRegistrationBeginResponse: Codable, Equatable {
+    let challengeID: String
+    let options: PasskeyPublicKeyCredentialCreationOptionsEnvelope
+
+    enum CodingKeys: String, CodingKey {
+        case challengeID = "challenge_id"
+        case options
+    }
+}
+
+struct PasskeyRegistrationFinishResponse: Codable, Equatable {
+    let userID: String
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+    }
+}
+
+struct PasskeyAuthenticationFinishResponse: Codable, Equatable {
+    let authCode: String
+
+    enum CodingKeys: String, CodingKey {
+        case authCode = "auth_code"
+    }
+}
+
+struct PasskeyPublicKeyCredentialCreationOptionsEnvelope: Codable, Equatable {
+    let publicKey: PasskeyPublicKeyCredentialCreationOptions
+}
+
+struct PasskeyPublicKeyCredentialRequestOptionsEnvelope: Codable, Equatable {
+    let publicKey: PasskeyPublicKeyCredentialRequestOptions
+}
+
+struct PasskeyPublicKeyCredentialCreationOptions: Codable, Equatable {
+    let challenge: String
+    let rp: PasskeyRelyingParty
+    let user: PasskeyUserEntity
+    let pubKeyCredParams: [PasskeyPublicKeyCredentialParameter]
+    let timeout: Int?
+    let excludeCredentials: [PasskeyCredentialDescriptor]?
+    let authenticatorSelection: PasskeyAuthenticatorSelectionCriteria?
+    let attestation: String?
+}
+
+struct PasskeyPublicKeyCredentialRequestOptions: Codable, Equatable {
+    let challenge: String
+    let rpID: String?
+    let timeout: Int?
+    let allowCredentials: [PasskeyCredentialDescriptor]?
+    let userVerification: String?
+
+    enum CodingKeys: String, CodingKey {
+        case challenge
+        case rpID = "rpId"
+        case timeout
+        case allowCredentials
+        case userVerification
+    }
+}
+
+struct PasskeyRelyingParty: Codable, Equatable {
+    let id: String?
+    let name: String
+}
+
+struct PasskeyUserEntity: Codable, Equatable {
+    let id: String
+    let name: String
+    let displayName: String
+}
+
+struct PasskeyPublicKeyCredentialParameter: Codable, Equatable {
+    let type: String
+    let alg: Int
+}
+
+struct PasskeyCredentialDescriptor: Codable, Equatable {
+    let type: String
+    let id: String
+    let transports: [String]?
+
+    init(type: String, id: String, transports: [String]? = nil) {
+        self.type = type
+        self.id = id
+        self.transports = transports
+    }
+}
+
+struct PasskeyAuthenticatorSelectionCriteria: Codable, Equatable {
+    let authenticatorAttachment: String?
+    let residentKey: String?
+    let userVerification: String?
+}
+
+struct PasskeyCredentialEnvelope: Codable, Equatable {
+    let id: String
+    let rawID: String
+    let type: String
+    let response: PasskeyCredentialResponse
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case rawID = "rawId"
+        case type
+        case response
+    }
+}
+
+enum PasskeyCredentialResponse: Codable, Equatable {
+    case registration(PasskeyRegistrationCredentialResponse)
+    case assertion(PasskeyAssertionCredentialResponse)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let registration = try? container.decode(PasskeyRegistrationCredentialResponse.self),
+           registration.attestationObject != nil {
+            self = .registration(registration)
+            return
+        }
+        self = .assertion(try container.decode(PasskeyAssertionCredentialResponse.self))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        switch self {
+        case .registration(let response):
+            try response.encode(to: encoder)
+        case .assertion(let response):
+            try response.encode(to: encoder)
+        }
+    }
+}
+
+struct PasskeyRegistrationCredentialResponse: Codable, Equatable {
+    let clientDataJSON: String
+    let attestationObject: String?
+    let transports: [String]?
+
+    init(
+        clientDataJSON: String,
+        attestationObject: String?,
+        transports: [String]? = nil
+    ) {
+        self.clientDataJSON = clientDataJSON
+        self.attestationObject = attestationObject
+        self.transports = transports
+    }
+}
+
+struct PasskeyAssertionCredentialResponse: Codable, Equatable {
+    let clientDataJSON: String
+    let authenticatorData: String
+    let signature: String
+    let userHandle: String?
 }
 
 struct DeviceRegistrationRequest: Codable, Equatable {

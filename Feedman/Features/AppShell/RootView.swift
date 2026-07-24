@@ -36,7 +36,9 @@ struct RootView: View {
             case .unauthenticated:
                 LoginRouteView(
                     authBaseURL: environment.authBaseURL,
-                    authRepository: environment.authRepository
+                    authRepository: environment.authRepository,
+                    passkeyRepository: environment.passkeyRepository,
+                    passkeyCoordinator: PasskeyPlatformAuthorizationCoordinator()
                 ) { credentials in
                     environment.completeLogin(with: credentials)
                 }
@@ -290,7 +292,9 @@ struct RootView: View {
                 onAccountDeleted: {
                     await environment.clearLocalAuthenticationAfterAccountDeletion()
                     shellState.dismissPresentation()
-                }
+                },
+                passkeyRepository: environment.passkeyRepository,
+                passkeyCoordinator: PasskeyPlatformAuthorizationCoordinator()
             )
         case .feedRegistration:
             RegisterFeedSheet(

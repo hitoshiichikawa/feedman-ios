@@ -6,6 +6,8 @@ struct AccountRouteView: View {
     let onDismiss: () -> Void
     let onLogout: AccountViewModel.LogoutCompletion
     let onAccountDeleted: AccountViewModel.AccountDeletionCompletion
+    let passkeyRepository: any PasskeyRepository
+    let passkeyCoordinator: any PasskeyPlatformAuthorizationCoordinating
 
     @StateObject private var viewModel: AccountViewModel
 
@@ -14,17 +16,23 @@ struct AccountRouteView: View {
         accessToken: String?,
         onDismiss: @escaping () -> Void,
         onLogout: @escaping AccountViewModel.LogoutCompletion,
-        onAccountDeleted: @escaping AccountViewModel.AccountDeletionCompletion
+        onAccountDeleted: @escaping AccountViewModel.AccountDeletionCompletion,
+        passkeyRepository: any PasskeyRepository = UnavailablePasskeyRepository(),
+        passkeyCoordinator: any PasskeyPlatformAuthorizationCoordinating = UnavailablePasskeyPlatformAuthorizationCoordinator()
     ) {
         self.repository = repository
         self.accessToken = accessToken
         self.onDismiss = onDismiss
         self.onLogout = onLogout
         self.onAccountDeleted = onAccountDeleted
+        self.passkeyRepository = passkeyRepository
+        self.passkeyCoordinator = passkeyCoordinator
         _viewModel = StateObject(
             wrappedValue: AccountViewModel(
                 repository: repository,
                 accessToken: accessToken,
+                passkeyRepository: passkeyRepository,
+                passkeyCoordinator: passkeyCoordinator,
                 onLogout: onLogout,
                 onAccountDeleted: onAccountDeleted
             )
@@ -42,13 +50,14 @@ struct AccountRouteView: View {
 struct AccountView: View {
     @ObservedObject var viewModel: AccountViewModel
     let onDismiss: () -> Void
+    @State private var passkeyEnrollmentTask: Task<Void, Never>?
 
     var body: some View {
         FeedmanSheetShell(
             title: "アカウント",
             subtitle: "現在のログイン状態",
             dismissAccessibilityLabel: "アカウントシートを閉じる",
-            onDismiss: onDismiss
+            onDismiss: dismiss
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 content
@@ -79,6 +88,9 @@ struct AccountView: View {
                 Text("アカウントと保存された購読情報を削除します。この操作は取り消せません。")
             }
         )
+        .onDisappear {
+            cancelPasskeyEnrollment()
+        }
     }
 
     private var deletionConfirmationBinding: Binding<Bool> {
@@ -121,6 +133,7 @@ struct AccountView: View {
         VStack(alignment: .leading, spacing: 16) {
             userCard(user)
             actionButtons
+            passkeyEnrollmentStatus
             logoutStatus
             deletionStatus
         }
@@ -167,8 +180,25 @@ struct AccountView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
+    @ViewBuilder
     private var actionButtons: some View {
+        let passkeyPresentation = AccountPasskeyEnrollmentPresentation(
+            passkeyState: viewModel.passkeyEnrollmentState,
+            logoutState: viewModel.logoutState,
+            deletionState: viewModel.deletionState
+        )
+
         VStack(spacing: 10) {
+            Button {
+                startPasskeyEnrollment()
+            } label: {
+                Label(passkeyPresentation.addButtonTitle, systemImage: "person.badge.key")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(AccountActionButtonStyle())
+            .disabled(passkeyPresentation.isAddDisabled)
+            .accessibilityLabel(passkeyPresentation.addButtonAccessibilityLabel)
+
             Button {
                 Task {
                     await viewModel.logout()
@@ -178,7 +208,7 @@ struct AccountView: View {
                     .frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(AccountActionButtonStyle())
-            .disabled(viewModel.logoutState.isLoggingOut || viewModel.deletionState.isDeleting)
+            .disabled(passkeyPresentation.isLogoutDisabled)
             .accessibilityLabel("ログアウト")
 
             Button(role: .destructive) {
@@ -188,8 +218,69 @@ struct AccountView: View {
                     .frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(AccountActionButtonStyle(foregroundColor: FeedmanTheme.danger))
-            .disabled(viewModel.deletionState.isDeleting)
+            .disabled(passkeyPresentation.isDeleteDisabled)
             .accessibilityLabel("退会、アカウント削除")
+        }
+    }
+
+    @ViewBuilder
+    private var passkeyEnrollmentStatus: some View {
+        switch viewModel.passkeyEnrollmentState {
+        case .idle, .succeeded:
+            EmptyView()
+        case .adding:
+            FeedmanCompactLoadingRow(
+                "パスキーを追加しています",
+                accessibilityLabel: "パスキー追加処理中"
+            )
+        case let .canceled(errorState):
+            FeedmanRecoverableErrorView(
+                title: errorState.title,
+                message: errorState.message,
+                usesDangerEmphasis: false,
+                retryDescriptor: FeedmanRetryDescriptor(
+                    label: "もう一度パスキーを追加",
+                    accessibilityLabel: "パスキー追加をもう一度実行"
+                )
+            ) {
+                Button {
+                    startPasskeyEnrollment()
+                } label: {
+                    Text("もう一度パスキーを追加")
+                }
+            }
+        case let .failed(errorState):
+            FeedmanRecoverableErrorView(
+                title: errorState.title,
+                message: errorState.message,
+                usesDangerEmphasis: false,
+                retryDescriptor: FeedmanRetryDescriptor(
+                    label: "もう一度パスキーを追加",
+                    accessibilityLabel: "パスキー追加をもう一度実行"
+                )
+            ) {
+                Button {
+                    startPasskeyEnrollment()
+                } label: {
+                    Text("もう一度パスキーを追加")
+                }
+            }
+        case let .resultUnknown(errorState):
+            FeedmanRecoverableErrorView(
+                title: errorState.title,
+                message: errorState.message,
+                usesDangerEmphasis: false,
+                retryDescriptor: FeedmanRetryDescriptor(
+                    label: "再試行",
+                    accessibilityLabel: "パスキー追加を再試行"
+                )
+            ) {
+                Button {
+                    startPasskeyEnrollment()
+                } label: {
+                    Text("再試行")
+                }
+            }
         }
     }
 
@@ -251,6 +342,29 @@ struct AccountView: View {
                 }
             }
         }
+    }
+
+    private func startPasskeyEnrollment() {
+        guard passkeyEnrollmentTask == nil else {
+            return
+        }
+
+        let task = Task {
+            await viewModel.startPasskeyEnrollment()
+            passkeyEnrollmentTask = nil
+        }
+        passkeyEnrollmentTask = task
+    }
+
+    private func cancelPasskeyEnrollment() {
+        passkeyEnrollmentTask?.cancel()
+        passkeyEnrollmentTask = nil
+        viewModel.cancelActivePasskeyEnrollment()
+    }
+
+    private func dismiss() {
+        cancelPasskeyEnrollment()
+        onDismiss()
     }
 }
 

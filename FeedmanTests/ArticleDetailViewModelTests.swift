@@ -103,6 +103,42 @@ final class ArticleDetailViewModelTests: XCTestCase {
         ])
     }
 
+    func testPasskeyDerivedAccessTokenUsesExistingDetailAndOriginalArticleFlow() async throws {
+        let repository = ArticleDetailRecordingRepository(
+            detailResults: [.success(makeDetail(isRead: false, isStarred: false))],
+            stateUpdateResults: [.success(())]
+        )
+        let viewModel = makeViewModel(
+            repository: repository,
+            accessToken: "passkey-derived-access-token"
+        )
+
+        await viewModel.open()
+        let originalRequestCandidate = await viewModel.openOriginal()
+        let originalRequest = try XCTUnwrap(originalRequestCandidate)
+        let safariPresentation = ArticleDetailSafariPresentation(request: originalRequest)
+        let detailCalls = await repository.detailCalls()
+        let stateUpdateCalls = await repository.stateUpdateCalls()
+
+        XCTAssertEqual(detailCalls, [
+            ArticleDetailCall(itemID: "item-123", accessToken: "passkey-derived-access-token")
+        ])
+        XCTAssertEqual(stateUpdateCalls, [
+            ArticleDetailStateUpdateCall(
+                itemID: "item-123",
+                request: ItemStateUpdateRequest(isRead: true, isStarred: nil),
+                accessToken: "passkey-derived-access-token"
+            )
+        ])
+        XCTAssertEqual(originalRequest.itemID, "item-123")
+        XCTAssertEqual(originalRequest.url, URL(string: "https://example.com/articles/123")!)
+        XCTAssertEqual(safariPresentation.url, originalRequest.url)
+        XCTAssertEqual(
+            safariPresentation.id,
+            "item-123-https://example.com/articles/123"
+        )
+    }
+
     func testDetailFailureShowsRecoverableStateAndRetryUsesSameItem() async throws {
         let repository = ArticleDetailRecordingRepository(
             detailResults: [

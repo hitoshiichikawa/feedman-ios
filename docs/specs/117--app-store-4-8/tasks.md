@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Passkey API model と repository 境界を追加する
+- [x] 1. Passkey API model と repository 境界を追加する
   - 実装着手前に `hitoshiichikawa/feedman#216` が完了し、サーバ実装が `develop` に merge 済みであることを確認する。#217 の設計 PR merge だけでは依存を満たさないため、#216 未完了なら Developer フェーズを停止して確認事項へ戻す。
   - `Feedman/Core/APIModels.swift` に distinct な registration/authentication/add begin response DTO、go-webauthn の `options.publicKey` wrapper、finish request-response DTO、credential envelope、optional `UserResponse.username` を追加する。
   - `Feedman/Core/PasskeyRepository.swift` を追加し、`/api/passkey/registration/begin|finish`、`/api/passkey/authentication/begin|finish`、`/api/passkey/registration/add/begin|finish` を `APIClient` に委譲する。
@@ -11,7 +11,7 @@
   - _Requirements: 2.3, 2.5, 3.2, 3.4, 4.2, 4.4, 4.7, 6.6, 8.2, 8.3, 8.5, 8.6_
   - _Boundary: PasskeyAPIModels, PasskeyRepository_
 
-- [ ] 2. AuthenticationServices platform coordinator を追加する
+- [x] 2. AuthenticationServices platform coordinator を追加する
   - `Feedman/Features/Login/PasskeyPlatformAuthorizationCoordinator.swift` を追加し、server WebAuthn options から `ASAuthorizationPlatformPublicKeyCredentialProvider` の registration / assertion request を作る。
   - `challenge` / `user.id` / credential descriptor ID だけを base64url decode し、`rp.id` / `rpId` は relying party domain string として provider に渡す。
   - `excludeCredentials` は platform request に適用可能な OS で best-effort に反映し、iOS 16〜17.3 では duplicate prevention を保証できない degraded behavior として扱う。server-side duplicate rejection は前提にしない。
@@ -25,7 +25,7 @@
   - _Boundary: PasskeyPlatformAuthorizationCoordinator_
   - _Depends: 1_
 
-- [ ] 3. LoginViewModel に passkey login / signup state machine を追加する
+- [x] 3. LoginViewModel に passkey login / signup state machine を追加する
   - 既存 `startGoogleLogin()` と Google login URL contract を維持したまま、`startPasskeyLogin()` と `startPasskeyRegistration(username:)` を追加する。
   - Passkey login は PKCE → authentication begin → platform assertion → authentication finish → `AuthRepository.exchangeAuthCode` → `onAuthenticated` の順に実行する。
   - Passkey signup は username validation → registration begin → platform registration → registration finish `{user_id}` → authentication begin `{code_challenge}` → 作成直後 credential ID でローカル制限した platform assertion → authentication finish `{auth_code}` → token exchange の順に実行する。初回 registration request に recovery email は送らず、`authentication/begin` に `credential_id` も送らない。
@@ -38,7 +38,7 @@
   - _Boundary: LoginPasskeyFlow, PasskeyAuthCodeHandoff, AuthStateIntegration_
   - _Depends: 1, 2_
 
-- [ ] 4. Login UI に passkey 導線と signup form を追加する
+- [x] 4. Login UI に passkey 導線と signup form を追加する
   - `LoginView` / `LoginRouteView` に `PasskeyRepository` と `PasskeyPlatformAuthorizationCoordinator` dependency を渡す。
   - Google を主ボタン、パスキーでログインを副ボタン、アカウント新規作成を username-only form または sheet として表示する。
   - Recovery email input は初回登録 UI に置かない。
@@ -49,7 +49,7 @@
   - _Boundary: LoginPasskeyUI, LoginPasskeyFlow_
   - _Depends: 3_
 
-- [ ] 5. Account sheet に passkey 追加登録 flow を追加する
+- [x] 5. Account sheet に passkey 追加登録 flow を追加する
   - `AccountViewModel` に `PasskeyEnrollmentState`（idle / adding / canceled / failed / resultUnknown / succeeded）と add-passkey action を追加し、current access token 必須の begin/finish flow を実装する。
   - `AccountView` に passkey add action、progress、success notice、retryable error、resultUnknown notice を追加し、既存 logout と退会（アカウント削除）action を維持する。
   - Add / logout / account deletion の共同 guard を実装し、add 中は logout/delete を disabled、logout/delete 進行中は add を開始しない。
@@ -61,7 +61,7 @@
   - _Boundary: AccountPasskeyEnrollment, PasskeyRepository, PasskeyPlatformAuthorizationCoordinator_
   - _Depends: 1, 2_
 
-- [ ] 6. AppEnvironment wiring と Associated Domains 設定を追加する
+- [x] 6. AppEnvironment wiring と Associated Domains 設定を追加する
   - `AppEnvironment` に `PasskeyRepository` dependency を追加し、production / preview / tests の injection を更新する。
   - `RootView` の unauthenticated `LoginRouteView` と authenticated `AccountRouteView` に passkey dependencies を渡す。
   - `Feedman/Feedman.entitlements` を追加し、app target Debug/Release に `CODE_SIGN_ENTITLEMENTS = Feedman/Feedman.entitlements` を設定する。
@@ -72,7 +72,7 @@
   - _Boundary: AssociatedDomainsConfiguration, AuthStateIntegration, LoginPasskeyUI, AccountPasskeyEnrollment_
   - _Depends: 1, 2, 3, 4, 5_
 
-- [ ] 7. Cross-boundary regression と最終検証を実行する
+- [x] 7. Cross-boundary regression と最終検証を実行する
   - Passkey-derived account の authenticated state で Timeline / Feed / ArticleDetail と `SFSafariViewController` の元記事表示が login method を知らず既存 Bearer / article open flow を使うことを、既存 ViewModel / repository tests または smoke-level tests で確認する。
   - Google login URL / callback / token exchange regression、account deletion route preservation、logout behavior の不変性を差分レビューと tests で確認する。
   - 実ネットワーク、実 Keychain、実 Face ID / Touch ID に依存するテストを追加していないことを確認する。

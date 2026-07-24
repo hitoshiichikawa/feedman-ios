@@ -79,6 +79,7 @@ final class AppEnvironment: ObservableObject {
     let deviceRegistrationRepository: any DeviceRegistrationRepository
     let authRepository: any AuthRepository
     let accountRepository: any AccountRepository
+    let passkeyRepository: any PasskeyRepository
     let notificationPermissionCoordinator: NotificationPermissionCoordinator
     let deviceRegistrationService: APNsDeviceRegistrationService
     let notificationFeatures: NotificationFeatureFlags
@@ -100,6 +101,7 @@ final class AppEnvironment: ObservableObject {
         deviceRegistrationRepository: any DeviceRegistrationRepository = UnavailableDeviceRegistrationRepository(),
         authRepository: any AuthRepository,
         accountRepository: any AccountRepository,
+        passkeyRepository: any PasskeyRepository = UnavailablePasskeyRepository(),
         notificationPermissionCoordinator: NotificationPermissionCoordinator? = nil,
         deviceRegistrationService: APNsDeviceRegistrationService? = nil,
         notificationFeatures: NotificationFeatureFlags = .nextPhaseEnabled,
@@ -114,6 +116,7 @@ final class AppEnvironment: ObservableObject {
         self.deviceRegistrationRepository = deviceRegistrationRepository
         self.authRepository = authRepository
         self.accountRepository = accountRepository
+        self.passkeyRepository = passkeyRepository
         self.notificationPermissionCoordinator = notificationPermissionCoordinator ?? NotificationPermissionCoordinator(
             authorizationProvider: UnavailableNotificationAuthorizationProvider(),
             remoteNotificationRegistrar: UnavailableRemoteNotificationRegistrar(),
@@ -324,6 +327,7 @@ final class AppEnvironment: ObservableObject {
             keywordRepository: keywordRepository,
             authRepository: authRepository,
             accountRepository: FeedmanAccountRepository(apiClient: apiClient),
+            passkeyRepository: FeedmanPasskeyRepository(apiClient: apiClient),
             authBaseURL: apiBaseURL,
             searchRepositoryFactory: { accessToken in
                 APIClientSearchRepository(
@@ -414,6 +418,7 @@ final class AppEnvironment: ObservableObject {
         keywordRepository: any KeywordRepository,
         authRepository: any AuthRepository,
         accountRepository: any AccountRepository,
+        passkeyRepository: any PasskeyRepository = UnavailablePasskeyRepository(),
         authBaseURL: URL,
         searchRepositoryFactory: @escaping SearchRepositoryFactory,
         authenticationState: AppAuthenticationState,
@@ -437,6 +442,7 @@ final class AppEnvironment: ObservableObject {
             deviceRegistrationRepository: deviceRegistrationRepository,
             authRepository: authRepository,
             accountRepository: accountRepository,
+            passkeyRepository: passkeyRepository,
             notificationPermissionCoordinator: NotificationPermissionCoordinator(
                 authorizationProvider: UserNotificationCenterAuthorizationProvider(),
                 remoteNotificationRegistrar: UIApplicationRemoteNotificationRegistrar(),
